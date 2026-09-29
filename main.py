@@ -1,4 +1,3 @@
-
 import os
 import hmac
 import hashlib
@@ -22,7 +21,6 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 load_dotenv()
-
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("shopcart")
 
@@ -122,7 +120,7 @@ def init_db():
         );
         """)
 
-        # Migración compatible con bases de datos anteriores.
+        # Migración segura para bases de datos de versiones anteriores.
         purchase_columns = {
             row["name"]
             for row in db.execute(
@@ -138,7 +136,7 @@ def init_db():
 
 
 def validate_init_data(init_data: str):
-    """Valida initData de Telegram mediante HMAC."""
+    """Valida initData mediante el esquema HMAC de Telegram."""
     if not BOT_TOKEN:
         raise HTTPException(503, "El bot no está configurado.")
 
@@ -149,7 +147,7 @@ def validate_init_data(init_data: str):
         raise HTTPException(401, "Falta initData válido de Telegram.")
 
     data_check_string = "\n".join(
-        f"{key}={value}" for key, value in sorted(pairs.items())
+        f"{k}={v}" for k, v in sorted(pairs.items())
     )
 
     secret_key = hmac.new(
@@ -178,7 +176,7 @@ def validate_init_data(init_data: str):
             )
 
         user = json.loads(pairs["user"])
-        telegram_id = str(user["id"])
+        tg_id = str(user["id"])
 
     except HTTPException:
         raise
@@ -188,13 +186,15 @@ def validate_init_data(init_data: str):
             "No se pudo validar el usuario de Telegram."
         )
 
-    return telegram_id, user
+    return tg_id, user
 
 
 def get_auth(request: Request):
-    token = request.headers.get(
-        "Authorization", ""
-    ).removeprefix("Bearer ").strip()
+    token = (
+        request.headers.get("Authorization", "")
+        .removeprefix("Bearer ")
+        .strip()
+    )
 
     if not token:
         raise HTTPException(401, "Inicia sesión primero.")
@@ -211,6 +211,7 @@ def get_auth(request: Request):
                     "UPDATE sessions SET active=0 WHERE token=?",
                     (token,)
                 )
+
             raise HTTPException(
                 401,
                 "Sesión expirada. Inicia sesión nuevamente."
@@ -273,8 +274,8 @@ async def startup():
                         f"{WEBHOOK_SECRET}"
                     ),
                     "allowed_updates": ["message"],
-                    "drop_pending_updates": False
-                }
+                    "drop_pending_updates": False,
+                },
             )
 
             if response.status_code >= 400:
@@ -292,10 +293,7 @@ async def home():
 
 @app.get("/health")
 async def health():
-    return {
-        "ok": True,
-        "service": "shopcart-miniapp"
-    }
+    return {"ok": True, "service": "shopcart-miniapp"}
 
 
 @app.post("/telegram-webhook/{secret}")
@@ -334,9 +332,9 @@ async def telegram_webhook(secret: str, request: Request):
 
 @app.post("/api/login")
 async def login(body: AuthBody):
-    telegram_id, telegram_user = validate_init_data(body.init_data)
+    tg_id, tg_user = validate_init_data(body.init_data)
 
-    # Cuenta de acceso de demostración.
+    # Acceso local de demostración; no usar credenciales de tiendas.
     if not (
         hmac.compare_digest(body.username, DEMO_USERNAME)
         and hmac.compare_digest(body.password, DEMO_PASSWORD)
@@ -348,42 +346,39 @@ async def login(body: AuthBody):
     with conn() as db:
         db.execute(
             """
-            INSERT OR IGNORE INTO users
-            (telegram_id, username, demo_login, created_at)
-            VALUES (?, ?, ?, ?)
+            INSERT OR IGNORE INTO users(
+                telegram_id, username, demo_login, created_at
+            ) VALUES(?,?,?,?)
             """,
             (
-                telegram_id,
-                telegram_user.get("username", ""),
+                tg_id,
+                tg_user.get("username", ""),
                 body.username,
                 now_iso()
             )
         )
 
         db.execute(
-            """
-            INSERT OR IGNORE INTO balances(telegram_id, amount)
-            VALUES (?, ?)
-            """,
-            (telegram_id, str(INITIAL_BALANCE))
+            "INSERT OR IGNORE INTO balances(telegram_id,amount) VALUES(?,?)",
+            (tg_id, str(INITIAL_BALANCE))
         )
 
         db.execute(
             "UPDATE sessions SET active=0 WHERE telegram_id=?",
-            (telegram_id,)
+            (tg_id,)
         )
 
         db.execute(
             """
-            INSERT INTO sessions(token, telegram_id, created_at, active)
-            VALUES (?, ?, ?, 1)
+            INSERT INTO sessions(token,telegram_id,created_at,active)
+            VALUES(?,?,?,1)
             """,
-            (token, telegram_id, time.time())
+            (token, tg_id, time.time())
         )
 
         balance = db.execute(
             "SELECT amount FROM balances WHERE telegram_id=?",
-            (telegram_id,)
+            (tg_id,)
         ).fetchone()["amount"]
 
     return {
@@ -396,16 +391,19 @@ async def login(body: AuthBody):
 
 @app.post("/api/logout")
 async def logout(request: Request):
-    telegram_id = get_auth(request)
-    token = request.headers.get(
-        "Authorization", ""
-    ).removeprefix("Bearer ").strip()
+    tg_id = get_auth(request)
+
+    token = (
+        request.headers.get("Authorization", "")
+        .removeprefix("Bearer ")
+        .strip()
+    )
 
     with conn() as db:
         db.execute(
             "UPDATE sessions SET active=0 "
             "WHERE token=? AND telegram_id=?",
-            (token, telegram_id)
+            (token, tg_id)
         )
 
     return {"ok": True}
@@ -444,6 +442,12 @@ async def search(body: SearchBody, request: Request):
         "walmart": "walmart.com"
     }
 
+    store_hosts = {
+        "amazon": {"amazon.com", "www.amazon.com"},
+        "target": {"target.com", "www.target.com"},
+        "walmart": {"walmart.com", "www.walmart.com"}
+    }
+
     try:
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(30.0, connect=8.0)
@@ -452,7 +456,7 @@ async def search(body: SearchBody, request: Request):
                 "https://serpapi.com/search.json",
                 params={
                     "engine": "google_shopping",
-                    "q": f"{body.query} site:{domains[platform]}",
+                    "q": body.query,
                     "gl": "us",
                     "hl": "en",
                     "api_key": SERPAPI_KEY
@@ -473,21 +477,15 @@ async def search(body: SearchBody, request: Request):
         payload = response.json()
         results = []
 
-        store_hosts = {
-            "amazon": {"amazon.com", "www.amazon.com"},
-            "target": {"target.com", "www.target.com"},
-            "walmart": {"walmart.com", "www.walmart.com"}
-        }
-
         for item in payload.get("shopping_results", [])[:12]:
             source = str(item.get("source", ""))
             link = item.get("link") or item.get("product_link") or ""
+
             parsed_link = urlparse(link)
             host = parsed_link.netloc.lower().split(":")[0]
-
-            # Solo se muestran resultados asociados a la tienda elegida.
             haystack = (source + " " + link).lower()
 
+            # Mantener resultados relacionados con la tienda elegida.
             if (
                 domains[platform] not in haystack
                 and PLATFORMS[platform]["label"].lower()
@@ -495,6 +493,7 @@ async def search(body: SearchBody, request: Request):
             ):
                 continue
 
+            # Si el enlace no es oficial, usar la búsqueda oficial.
             if (
                 parsed_link.scheme != "https"
                 or host not in store_hosts[platform]
@@ -512,14 +511,18 @@ async def search(body: SearchBody, request: Request):
 
                 if match:
                     try:
-                        price = float(match.group(1).replace(",", ""))
+                        price = float(
+                            match.group(1).replace(",", "")
+                        )
                     except ValueError:
                         price = None
 
             try:
                 price = float(price)
+
                 if price <= 0:
                     continue
+
             except (TypeError, ValueError):
                 continue
 
@@ -539,9 +542,9 @@ async def search(body: SearchBody, request: Request):
             "search_url": url,
             "live_results": results,
             "notice": (
-                "Precios de resultados de búsqueda en USD; pueden variar "
-                "según ubicación, vendedor, disponibilidad e impuestos. "
-                "Verifica el precio final en el comercio."
+                "Precios de resultados de búsqueda en USD; pueden "
+                "variar según ubicación, vendedor, disponibilidad "
+                "e impuestos. Verifica el precio final en el comercio."
                 if results else
                 "No se encontraron resultados con precio verificable "
                 "para este comercio. Prueba otra búsqueda o abre "
@@ -583,42 +586,33 @@ async def search(body: SearchBody, request: Request):
 
 @app.get("/api/state")
 async def state(request: Request):
-    telegram_id = get_auth(request)
+    tg_id = get_auth(request)
 
     with conn() as db:
         balance = db.execute(
             "SELECT amount FROM balances WHERE telegram_id=?",
-            (telegram_id,)
+            (tg_id,)
         ).fetchone()
 
         cart = db.execute(
             "SELECT * FROM carts WHERE telegram_id=? ORDER BY id DESC",
-            (telegram_id,)
+            (tg_id,)
         ).fetchall()
 
         history = db.execute(
-            """
-            SELECT * FROM purchases
-            WHERE telegram_id=?
-            ORDER BY id DESC LIMIT 50
-            """,
-            (telegram_id,)
+            "SELECT * FROM purchases WHERE telegram_id=? "
+            "ORDER BY id DESC LIMIT 50",
+            (tg_id,)
         ).fetchall()
 
         orders = db.execute(
-            """
-            SELECT * FROM orders
-            WHERE telegram_id=?
-            ORDER BY created_at DESC LIMIT 50
-            """,
-            (telegram_id,)
+            "SELECT * FROM orders WHERE telegram_id=? "
+            "ORDER BY created_at DESC LIMIT 50",
+            (tg_id,)
         ).fetchall()
 
     return {
-        "balance": (
-            balance["amount"] if balance
-            else str(INITIAL_BALANCE)
-        ),
+        "balance": balance["amount"] if balance else str(INITIAL_BALANCE),
         "currency": CURRENCY,
         "tax_rate": str(ESTIMATED_TAX_RATE),
         "shipping_fee": str(ESTIMATED_SHIPPING_FEE),
@@ -634,11 +628,9 @@ async def state(request: Request):
 
 @app.post("/api/cart")
 async def add_cart(body: AddBody, request: Request):
-    telegram_id = get_auth(request)
+    tg_id = get_auth(request)
 
-    platform = body.platform.lower()
-
-    if platform not in PLATFORMS:
+    if body.platform.lower() not in PLATFORMS:
         raise HTTPException(400, "Tienda no admitida.")
 
     if body.currency.upper() != CURRENCY.upper():
@@ -665,17 +657,13 @@ async def add_cart(body: AddBody, request: Request):
         )
 
     parsed = urlparse(body.url)
-
-    allowed_hosts = {
+    allowed = {
         "amazon.com", "www.amazon.com",
         "target.com", "www.target.com",
         "walmart.com", "www.walmart.com"
     }
 
-    if (
-        parsed.scheme != "https"
-        or parsed.netloc.lower() not in allowed_hosts
-    ):
+    if parsed.scheme != "https" or parsed.netloc.lower() not in allowed:
         raise HTTPException(
             400,
             "Usa un enlace HTTPS de Amazon.com, Target.com o Walmart.com."
@@ -684,13 +672,14 @@ async def add_cart(body: AddBody, request: Request):
     with conn() as db:
         db.execute(
             """
-            INSERT INTO carts
-            (telegram_id, platform, title, price, currency, url, qty, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+            INSERT INTO carts(
+                telegram_id, platform, title, price, currency,
+                url, qty, created_at
+            ) VALUES(?,?,?,?,?,?,1,?)
             """,
             (
-                telegram_id,
-                platform,
+                tg_id,
+                body.platform.lower(),
                 body.title.strip(),
                 str(price),
                 body.currency.upper(),
@@ -704,12 +693,12 @@ async def add_cart(body: AddBody, request: Request):
 
 @app.delete("/api/cart/{item_id}")
 async def remove_cart(item_id: int, request: Request):
-    telegram_id = get_auth(request)
+    tg_id = get_auth(request)
 
     with conn() as db:
         db.execute(
             "DELETE FROM carts WHERE id=? AND telegram_id=?",
-            (item_id, telegram_id)
+            (item_id, tg_id)
         )
 
     return {"ok": True}
@@ -717,12 +706,12 @@ async def remove_cart(item_id: int, request: Request):
 
 @app.delete("/api/cart")
 async def clear_cart(request: Request):
-    telegram_id = get_auth(request)
+    tg_id = get_auth(request)
 
     with conn() as db:
         db.execute(
             "DELETE FROM carts WHERE telegram_id=?",
-            (telegram_id,)
+            (tg_id,)
         )
 
     return {"ok": True}
@@ -730,12 +719,12 @@ async def clear_cart(request: Request):
 
 @app.post("/api/purchase")
 async def fictional_purchase(request: Request):
-    telegram_id = get_auth(request)
+    tg_id = get_auth(request)
 
     with conn() as db:
         rows = db.execute(
             "SELECT * FROM carts WHERE telegram_id=? ORDER BY id",
-            (telegram_id,)
+            (tg_id,)
         ).fetchall()
 
         if not rows:
@@ -763,8 +752,7 @@ async def fictional_purchase(request: Request):
 
         shipping = (
             ESTIMATED_SHIPPING_FEE
-            if subtotal > 0
-            else Decimal("0.00")
+            if subtotal > 0 else Decimal("0.00")
         )
 
         total = (
@@ -773,13 +761,12 @@ async def fictional_purchase(request: Request):
 
         balance_row = db.execute(
             "SELECT amount FROM balances WHERE telegram_id=?",
-            (telegram_id,)
+            (tg_id,)
         ).fetchone()
 
         balance = Decimal(
             balance_row["amount"]
-            if balance_row
-            else str(INITIAL_BALANCE)
+            if balance_row else str(INITIAL_BALANCE)
         )
 
         if total > balance:
@@ -795,14 +782,14 @@ async def fictional_purchase(request: Request):
 
         db.execute(
             """
-            INSERT INTO orders
-            (order_ref, telegram_id, subtotal, tax, shipping, total,
-             currency, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO orders(
+                order_ref, telegram_id, subtotal, tax, shipping,
+                total, currency, status, created_at, updated_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 order_ref,
-                telegram_id,
+                tg_id,
                 str(subtotal),
                 str(tax),
                 str(shipping),
@@ -821,13 +808,13 @@ async def fictional_purchase(request: Request):
 
             db.execute(
                 """
-                INSERT INTO purchases
-                (telegram_id, platform, title, price, currency, qty,
-                 total, url, purchased_at, order_ref)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO purchases(
+                    telegram_id, platform, title, price, currency,
+                    qty, total, url, purchased_at, order_ref
+                ) VALUES(?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
-                    telegram_id,
+                    tg_id,
                     row["platform"],
                     row["title"],
                     row["price"],
@@ -842,25 +829,24 @@ async def fictional_purchase(request: Request):
 
         db.execute(
             "UPDATE balances SET amount=? WHERE telegram_id=?",
-            (str(balance - total), telegram_id)
+            (str(balance - total), tg_id)
         )
 
         db.execute(
             "DELETE FROM carts WHERE telegram_id=?",
-            (telegram_id,)
+            (tg_id,)
         )
 
-    # La notificación de Telegram es opcional.
-    # La compra registrada es únicamente de demostración.
+    # Notificación opcional de Telegram; la compra es ficticia.
     if BOT_TOKEN:
         try:
             async with httpx.AsyncClient(timeout=8) as client:
                 await client.post(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
                     json={
-                        "chat_id": telegram_id,
+                        "chat_id": tg_id,
                         "text": (
-                            f"🛍️ ShopCart — pedido de demostración\n"
+                            "🛍️ ShopCart — pedido de demostración\n"
                             f"Referencia: {order_ref}\n"
                             f"Total estimado: {currency} {total:.2f}\n"
                             "Estado: Confirmado (simulado). "
