@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0067b1">
+  <title>ShopCart Mini App</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-mark">S</div>
+      <div class="brand"><strong>ShopCart</strong><small>Tu tienda, tu simulador</small></div>
+      <button id="logoutBtn" class="icon-btn hidden" title="Cerrar sesión">↪</button>
+    </header>
+
+    <main>
+      <section id="loginView" class="view">
+        <div class="welcome">
+          <div class="hero-icon">🛍️</div>
+          <div><h1>¡Compra a tu manera!</h1><p>Explora tiendas y practica con saldo ficticio.</p></div>
+        </div>
+        <form id="loginForm" class="panel">
+          <h2>Iniciar sesión</h2>
+          <label>Usuario<input id="username" autocomplete="username" placeholder="Usuario demo" required></label>
+          <label>Contraseña<input id="password" type="password" autocomplete="current-password" placeholder="Contraseña" required></label>
+          <button class="primary full" type="submit">Iniciar sesión <span>→</span></button>
+          <p class="hint">Entorno de demostración. No uses contraseñas de Amazon, Target o Walmart.</p>
+          <p id="loginError" class="error"></p>
+        </form>
+      </section>
+
+      <section id="shopView" class="view hidden">
+        <div class="balance-card">
+          <div><span>Saldo ficticio disponible</span><strong id="balanceValue">$1,000.00</strong><small>Sin dinero real ni cargos</small></div>
+          <div class="wallet-icon">▣</div>
+        </div>
+        <div class="search-wrap">
+          <label for="query">¿Qué estás buscando?</label>
+          <div class="search-row"><input id="query" placeholder="Ej. audífonos, consola, cafetera"><button id="searchBtn" class="primary">Buscar</button></div>
+        </div>
+        <div class="store-row" id="storeRow">
+          <button class="store active" data-store="walmart"><span class="store-logo walmart-logo">Walmart ✳</span><small>Walmart</small></button>
+          <button class="store" data-store="amazon"><span class="store-logo amazon-logo">amazon</span><small>Amazon</small></button>
+          <button class="store" data-store="target"><span class="store-logo target-logo">◎ Target</span><small>Target</small></button>
+        </div>
+        <div id="searchResult" class="search-result hidden"></div>
+        <div class="section-head"><h2>Tu espacio de compras</h2><span class="pill">SIMULADOR</span></div>
+        <div class="quick-grid">
+          <button class="quick-card" data-tab="cart"><span class="quick-icon blue">🛒</span><strong>Mi carrito</strong><small>Revisa tus artículos</small><b id="cartCount">0 artículos</b></button>
+          <button class="quick-card" data-tab="history"><span class="quick-icon yellow">📦</span><strong>Mis compras</strong><small>Historial de sesión</small><b id="historyCount">0 compras</b></button>
+        </div>
+        <div class="info-banner"><span>ℹ️</span><div><strong>Precios de la tienda</strong><p>Busca en el comercio oficial e introduce el precio que aparece allí. El simulador no inventa precios ni realiza pedidos reales.</p></div></div>
+      </section>
+
+      <section id="cartView" class="view hidden">
+        <div class="page-heading"><button class="back" data-tab="home">‹</button><div><h1>Carrito de compras</h1><p id="cartSubtitle">Tus artículos seleccionados</p></div></div>
+        <div id="cartItems"></div>
+        <div id="cartEmpty" class="empty hidden"><div>🛒</div><strong>Tu carrito está vacío</strong><p>Busca un artículo y agrégalo para empezar.</p><button class="primary" data-tab="home">Explorar tiendas</button></div>
+        <div id="cartSummary" class="summary panel hidden"><div><span>Subtotal</span><strong id="cartTotal"></strong></div><div><span>Tipo de operación</span><strong>Ficticia</strong></div><button id="buyBtn" class="primary full">Confirmar compra ficticia</button><p class="hint">No se transmite ninguna orden al comercio.</p></div>
+      </section>
+
+      <section id="historyView" class="view hidden">
+        <div class="page-heading"><button class="back" data-tab="home">‹</button><div><h1>Historial de compras</h1><p>Compras ficticias registradas</p></div></div>
+        <div id="historyItems"></div>
+        <div id="historyEmpty" class="empty hidden"><div>📦</div><strong>Aún no tienes compras</strong><p>Las compras ficticias confirmadas aparecerán aquí.</p></div>
+      </section>
+
+      <section id="accountView" class="view hidden">
+        <div class="page-heading"><div class="avatar">👤</div><div><h1>Mi cuenta</h1><p id="accountName">Sesión activa</p></div></div>
+        <div class="panel account-list"><div><span>💳</span><div><strong>Saldo ficticio</strong><small>Solo para este simulador</small></div><b id="accountBalance"></b></div><div><span>🔒</span><div><strong>Privacidad</strong><small>No se guardan credenciales de tiendas</small></div></div><div><span>🧾</span><div><strong>Historial</strong><small>Compras guardadas en la sesión</small></div><button data-tab="history">Ver</button></div></div>
+        <div class="info-banner"><span>🧪</span><div><strong>Modo de prueba</strong><p>Los saldos y compras no tienen valor monetario y no representan pedidos reales.</p></div></div>
+      </section>
+    </main>
+
+    <nav id="bottomNav" class="bottom-nav hidden">
+      <button data-tab="home" class="nav-item active"><span>⌂</span><small>Inicio</small></button>
+      <button data-tab="cart" class="nav-item"><span>🛒</span><small>Carrito</small><i id="navCartCount" class="nav-badge hidden">0</i></button>
+      <button data-tab="history" class="nav-item"><span>▤</span><small>Compras</small></button>
+      <button data-tab="account" class="nav-item"><span>♙</span><small>Cuenta</small></button>
+    </nav>
+    <div id="toast" class="toast hidden"></div>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
