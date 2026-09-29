@@ -72,7 +72,16 @@ def init_db():
         CREATE TABLE IF NOT EXISTS orders(
           order_ref TEXT PRIMARY KEY, telegram_id TEXT NOT NULL, subtotal TEXT NOT NULL,
           tax TEXT NOT NULL, shipping TEXT NOT NULL, total TEXT NOT NULL, currency TEXT NOT NULL,
-          status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+          status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+          shipping_name TEXT NOT NULL DEFAULT '', shipping_city TEXT NOT NULL DEFAULT '',
+          shipping_country TEXT NOT NULL DEFAULT '', shipping_address TEXT NOT NULL DEFAULT '',
+          payment_method TEXT NOT NULL DEFAULT 'demo_balance'
+        );
+        CREATE TABLE IF NOT EXISTS order_events(
+          id INTEGER PRIMARY KEY AUTOINCREMENT, order_ref TEXT NOT NULL,
+          status TEXT NOT NULL, label TEXT NOT NULL, detail TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY(order_ref) REFERENCES orders(order_ref) ON DELETE CASCADE
         );
         CREATE TABLE IF NOT EXISTS balances(
           telegram_id TEXT PRIMARY KEY, amount TEXT NOT NULL
@@ -82,6 +91,17 @@ def init_db():
         purchase_columns = {row["name"] for row in db.execute("PRAGMA table_info(purchases)").fetchall()}
         if "order_ref" not in purchase_columns:
             db.execute("ALTER TABLE purchases ADD COLUMN order_ref TEXT NOT NULL DEFAULT ''")
+        # Additive migrations only: preserve the existing Railway volume and all data.
+        order_columns = {row["name"] for row in db.execute("PRAGMA table_info(orders)").fetchall()}
+        for column, declaration in {
+            "shipping_name": "TEXT NOT NULL DEFAULT ''",
+            "shipping_city": "TEXT NOT NULL DEFAULT ''",
+            "shipping_country": "TEXT NOT NULL DEFAULT ''",
+            "shipping_address": "TEXT NOT NULL DEFAULT ''",
+            "payment_method": "TEXT NOT NULL DEFAULT 'demo_balance'",
+        }.items():
+            if column not in order_columns:
+                db.execute(f"ALTER TABLE orders ADD COLUMN {column} {declaration}")
 
 
 def validate_init_data(init_data: str):
@@ -142,6 +162,15 @@ class AddBody(BaseModel):
     price: str
     currency: str = Field(default="USD", min_length=3, max_length=3)
     url: str = Field(min_length=8, max_length=1000)
+
+
+class CheckoutBody(BaseModel):
+    # These are explicitly demo-only details; never collect card or bank credentials.
+    shipping_name: str = Field(default="", max_length=100)
+    shipping_city: str = Field(default="", max_length=80)
+    shipping_country: str = Field(default="", max_length=80)
+    shipping_address: str = Field(default="", max_length=180)
+    payment_method: str = Field(default="demo_balance", max_length=32)
 
 
 PLATFORMS = {
@@ -465,6 +494,7 @@ async def state(request: Request):
         cart = db.execute("SELECT * FROM carts WHERE telegram_id=? ORDER BY id DESC", (tg_id,)).fetchall()
         history = db.execute("SELECT * FROM purchases WHERE telegram_id=? ORDER BY id DESC LIMIT 50", (tg_id,)).fetchall()
         orders = db.execute("SELECT * FROM orders WHERE telegram_id=? ORDER BY created_at DESC LIMIT 50", (tg_id,)).fetchall()
+        order_events = db.execute("SELECT e.* FROM order_events e JOIN orders o ON o.order_ref=e.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
     return {
         "balance": balance["amount"] if balance else str(INITIAL_BALANCE),
         "currency": CURRENCY,
@@ -473,6 +503,7 @@ async def state(request: Request):
         "cart": [dict(x) for x in cart],
         "history": [dict(x) for x in history],
         "orders": [dict(x) for x in orders],
+        "order_events": [dict(x) for x in order_events],
         "platforms": [{"id": k, "label": v["label"]} for k,v in PLATFORMS.items()]
     }
 
@@ -521,8 +552,22 @@ async def clear_cart(request: Request):
 
 
 @app.post("/api/purchase")
-async def fictional_purchase(request: Request):
+async def fictional_purchase(body: CheckoutBody, request: Request):
     tg_id = get_auth(request)
+    if body.payment_method != "demo_balance":
+        raise HTTPException(400, "Solo está disponible el método de pago de demostración.")
+    submitted_shipping = [body.shipping_name.strip(), body.shipping_city.strip(),
+                          body.shipping_country.strip(), body.shipping_address.strip()]
+    # Backward-compatible fallback for older clients that POST an empty JSON body.
+    # New UI users enter explicitly fictional delivery details in the checkout form.
+    if any(submitted_shipping) and not all(submitted_shipping):
+        raise HTTPException(400, "Completa todos los datos de entrega de demostración.")
+    if all(submitted_shipping):
+        shipping_name, shipping_city, shipping_country, shipping_address = submitted_shipping
+    else:
+        shipping_name, shipping_city, shipping_country, shipping_address = (
+            "Demo Recipient", "Demo City", "Demo Region", "Demo Address"
+        )
     with conn() as db:
         rows = db.execute("SELECT * FROM carts WHERE telegram_id=? ORDER BY id", (tg_id,)).fetchall()
         if not rows:
@@ -541,10 +586,16 @@ async def fictional_purchase(request: Request):
         when = now_iso()
         order_ref = "SC-" + secrets.token_hex(5).upper()
         currency = next(iter(currencies))
-        db.execute("""INSERT INTO orders(order_ref,telegram_id,subtotal,tax,shipping,total,currency,status,created_at,updated_at)
-                      VALUES(?,?,?,?,?,?,?,?,?,?)""",
+        db.execute("""INSERT INTO orders(order_ref,telegram_id,subtotal,tax,shipping,total,currency,status,created_at,updated_at,
+                      shipping_name,shipping_city,shipping_country,shipping_address,payment_method)
+                      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                    (order_ref, tg_id, str(subtotal), str(tax), str(shipping), str(total),
-                    currency, "confirmed_simulated", when, when))
+                    currency, "confirmed_simulated", when, when, shipping_name,
+                    shipping_city, shipping_country, shipping_address, "demo_balance"))
+        db.execute("""INSERT INTO order_events(order_ref,status,label,detail,created_at)
+                      VALUES(?,?,?,?,?)""",
+                   (order_ref, "confirmed_simulated", "Confirmado (simulado)",
+                    "Pedido registrado en el simulador; no se envió una orden al comercio.", when))
         for row in rows:
             line_total = (Decimal(row["price"]) * row["qty"]).quantize(Decimal("0.01"))
             db.execute("""INSERT INTO purchases(telegram_id,platform,title,price,currency,qty,total,url,purchased_at,order_ref)
@@ -568,4 +619,5 @@ async def fictional_purchase(request: Request):
     return {"ok": True, "order_ref": order_ref, "subtotal": str(subtotal), "tax": str(tax),
             "shipping": str(shipping), "total": str(total), "balance": str(balance-total),
             "currency": currency, "status": "confirmed_simulated", "purchased_at": when,
+            "tracking": {"available": False, "label": "No disponible: pedido simulado, sin transportista real"},
             "message": "Pedido de demostración registrado. No se envió ningún pedido real."}
