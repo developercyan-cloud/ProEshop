@@ -12,7 +12,7 @@
   <div class="app-shell">
     <header class="topbar">
       <div class="brand-mark">S</div>
-      <div class="brand"><strong>ShopCart</strong><small>Tu tienda, tu simulador</small></div>
+      <div class="brand"><strong>ShopCart</strong><small>Shopping, made simple</small></div>
       <button id="logoutBtn" class="icon-btn hidden" title="Cerrar sesión">↪</button>
     </header>
 
@@ -52,19 +52,27 @@
           <button class="quick-card" data-tab="cart"><span class="quick-icon blue">🛒</span><strong>Mi carrito</strong><small>Revisa tus artículos</small><b id="cartCount">0 artículos</b></button>
           <button class="quick-card" data-tab="history"><span class="quick-icon yellow">📦</span><strong>Mis compras</strong><small>Historial de sesión</small><b id="historyCount">0 compras</b></button>
         </div>
-        <div class="info-banner"><span>ℹ️</span><div><strong>Precios de la tienda</strong><p>Busca en el comercio oficial e introduce el precio que aparece allí. El simulador no inventa precios ni realiza pedidos reales.</p></div></div>
+        <div class="info-banner"><span>ℹ️</span><div><strong>Precios en USD</strong><p>Consulta resultados de productos por comercio y agrega los artículos desde sus tarjetas. Los precios son orientativos; confirma el importe final en la tienda. No se realizan pedidos reales.</p></div></div>
       </section>
 
       <section id="cartView" class="view hidden">
         <div class="page-heading"><button class="back" data-tab="home">‹</button><div><h1>Carrito de compras</h1><p id="cartSubtitle">Tus artículos seleccionados</p></div></div>
         <div id="cartItems"></div>
         <div id="cartEmpty" class="empty hidden"><div>🛒</div><strong>Tu carrito está vacío</strong><p>Busca un artículo y agrégalo para empezar.</p><button class="primary" data-tab="home">Explorar tiendas</button></div>
-        <div id="cartSummary" class="summary panel hidden"><div><span>Subtotal</span><strong id="cartTotal"></strong></div><div><span>Tipo de operación</span><strong>Ficticia</strong></div><button id="buyBtn" class="primary full">Confirmar compra ficticia</button><p class="hint">No se transmite ninguna orden al comercio.</p></div>
+        <div id="cartSummary" class="summary panel hidden">
+          <div><span>Subtotal</span><strong id="cartSubtotal"></strong></div>
+          <div><span>Impuestos estimados</span><strong id="cartTax"></strong></div>
+          <div><span>Envío estimado</span><strong id="cartShipping"></strong></div>
+          <div class="grand-total"><span>Total estimado</span><strong id="cartTotal"></strong></div>
+          <div><span>Tipo de operación</span><strong>Simulada</strong></div>
+          <button id="buyBtn" class="primary full">Confirmar pedido de demostración</button>
+          <p class="hint">El impuesto y el envío son estimaciones configurables. No se transmite ninguna orden al comercio ni se realiza un cargo real.</p>
+        </div>
       </section>
 
       <section id="historyView" class="view hidden">
         <div class="page-heading"><button class="back" data-tab="home">‹</button><div><h1>Historial de compras</h1><p>Compras ficticias registradas</p></div></div>
-        <div id="historyItems"></div>
+        <div class="order-note">Seguimiento ilustrativo: los estados no corresponden a un envío real.</div><div id="historyItems"></div>
         <div id="historyEmpty" class="empty hidden"><div>📦</div><strong>Aún no tienes compras</strong><p>Las compras ficticias confirmadas aparecerán aquí.</p></div>
       </section>
 
