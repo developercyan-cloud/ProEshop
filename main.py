@@ -440,18 +440,37 @@ async def search(body: SearchBody, request: Request):
                 or item.get("merchant")
                 or ""
             ).strip()
-            raw_link = item.get("product_link") or item.get("link") or ""
-            parsed = urlparse(raw_link)
-            host = parsed.netloc.lower().split(":")[0].removeprefix("www.")
-
-            domain_match = any(
-                host == domain or host.endswith("." + domain)
-                for domain in expected_domains
+            # SerpApi puede devolver varios campos de enlace. Probarlos uno por
+            # uno y aceptar exclusivamente una URL HTTPS del comercio elegido.
+            candidates = (
+                item.get("link"),
+                item.get("product_url"),
+                item.get("product_link"),
             )
-            # Strict retailer filter: the actual product URL must resolve to
-            # the selected retailer's own domain. A seller/source label alone
-            # is not sufficient evidence, and Google Shopping links are excluded.
-            if parsed.scheme != "https" or not parsed.netloc or not domain_match:
+            product_url = None
+
+            for candidate in candidates:
+                if not isinstance(candidate, str) or not candidate.strip():
+                    continue
+                candidate = candidate.strip()
+                parsed_candidate = urlparse(candidate)
+                host_candidate = (parsed_candidate.hostname or "").lower().rstrip(".")
+                domain_match = any(
+                    host_candidate == domain
+                    or host_candidate.endswith("." + domain)
+                    for domain in expected_domains
+                )
+                if (
+                    parsed_candidate.scheme.lower() == "https"
+                    and host_candidate
+                    and domain_match
+                ):
+                    product_url = candidate
+                    break
+
+            # Nunca confiar solamente en la etiqueta del vendedor: la URL
+            # debe pertenecer realmente al dominio de la tienda seleccionada.
+            if not product_url:
                 continue
 
             price = item.get("extracted_price")
@@ -476,8 +495,6 @@ async def search(body: SearchBody, request: Request):
                 continue
             if not (0 < price <= 10_000_000):
                 continue
-
-            product_url = raw_link
 
             product = {
                 "title": str(item.get("title") or "Producto")[:180],
@@ -589,12 +606,27 @@ async def add_cart(body: AddBody, request: Request):
             raise InvalidOperation()
     except (InvalidOperation, ValueError):
         raise HTTPException(400, "Introduce un precio válido mayor que cero.")
-    from urllib.parse import urlparse
+    platform = body.platform.lower().strip()
     parsed = urlparse(body.url)
-    allowed = {"amazon.com", "www.amazon.com", "target.com", "www.target.com",
-               "walmart.com", "www.walmart.com"}
-    if parsed.scheme != "https" or parsed.netloc.lower() not in allowed:
-        raise HTTPException(400, "Usa un enlace HTTPS de Amazon.com, Target.com o Walmart.com.")
+    host = (parsed.hostname or "").lower().rstrip(".")
+    allowed_domains = {
+        "amazon": ("amazon.com",),
+        "target": ("target.com",),
+        "walmart": ("walmart.com",),
+    }
+    if (
+        parsed.scheme.lower() != "https"
+        or platform not in allowed_domains
+        or not host
+        or not any(
+            host == domain or host.endswith("." + domain)
+            for domain in allowed_domains[platform]
+        )
+    ):
+        raise HTTPException(
+            400,
+            "El enlace debe pertenecer al dominio oficial de la tienda seleccionada.",
+        )
     with conn() as db:
         db.execute("""INSERT INTO carts(telegram_id,platform,title,price,currency,url,qty,created_at)
                       VALUES(?,?,?,?,?,?,1,?)""",
