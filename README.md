@@ -1,41 +1,31 @@
-# ProEshop — Telegram Mini App para Railway
+# ProEshop v3 — Premium Store Aggregator
 
-Aplicación de demostración para comparar resultados de Amazon, Walmart y Target mediante SerpApi/Google Shopping. Incluye autenticación con Telegram Mini App `initData`, búsqueda, carrito, pedidos simulados, preferencias de avisos y métricas administrativas.
+Mini App para Telegram con diseño dark premium azul noche/violeta. Agrega resultados de Amazon, Walmart y Target en una misma búsqueda mediante SerpApi/Google Shopping, y permite filtrar por precio, ordenar, comparar hasta tres productos y abrir el enlace externo del vendedor.
 
-## Funcionalidades
+## Railway: actualización segura
 
-- Inicio responsive con navegación inferior, categorías y animaciones suaves.
-- Búsqueda por tienda, filtros de precio, ordenamiento, ficha de producto y comparador de hasta tres productos.
-- Carrito persistente en SQLite con cantidades editables y desglose de subtotal, impuestos estimados, envío y total.
-- Historial de pedidos, línea de tiempo marcada como simulada y recibo imprimible sin valor fiscal.
-- Notificaciones opcionales de Telegram para confirmaciones de pedidos demo e inicio de sesión; requieren configurar el bot.
-- Panel administrativo protegido con `ADMIN_API_KEY`, métricas del simulador y eventos de auditoría.
-- Cabeceras de seguridad, limitación básica de solicitudes, índices SQLite, WAL y `busy_timeout`.
-- Migraciones aditivas: no elimina ni recrea tablas existentes.
+- Conserva el volumen persistente que ya tienes montado en `/data`.
+- Conserva la ruta de base de datos `DATABASE_PATH=/data/shopcart.db` (también es el valor por defecto).
+- El backend mantiene las rutas existentes: `/`, `/health`, `/api/login`, `/api/logout`, `/api/search`, `/api/state`, `/api/cart`, `/api/notifications`, `/api/orders/{order_ref}/receipt`, `/api/admin/metrics` y `/api/purchase`.
+- Las migraciones son aditivas y no borran tablas ni datos existentes.
+- Este ZIP no despliega automáticamente la aplicación.
 
-## Variables de entorno para Railway
+## Variables de entorno
 
-Configura estas variables en el servicio. **Conserva el volumen persistente existente montado en `/data` y utiliza `DATABASE_PATH=/data/shopcart.db`.** El código también usa esa ruta por defecto.
+Configura en Railway: `DATABASE_PATH=/data/shopcart.db`, `TELEGRAM_BOT_TOKEN`, `PUBLIC_BASE_URL`, `WEBHOOK_SECRET`, `DEMO_USERNAME`, `DEMO_PASSWORD`, `ADMIN_API_KEY` y `SERPAPI_KEY`. Sin `SERPAPI_KEY`, el sitio indica que la búsqueda live no está configurada; no inventa resultados.
 
-- `DATABASE_PATH=/data/shopcart.db`
-- `TELEGRAM_BOT_TOKEN` — token del bot creado con BotFather.
-- `PUBLIC_BASE_URL=https://TU-SERVICIO.up.railway.app`
-- `WEBHOOK_SECRET` — cadena aleatoria larga.
-- `DEMO_USERNAME` y `DEMO_PASSWORD` — credenciales de demostración propias; no uses las de comercios.
-- `ADMIN_API_KEY` — clave aleatoria, independiente de la contraseña demo, para métricas administrativas.
-- `SERPAPI_KEY` — necesaria para obtener resultados del proveedor.
-- `INITIAL_FAKE_BALANCE=1000.00`, `CURRENCY=USD`, `ESTIMATED_TAX_RATE=0.08`, `ESTIMATED_SHIPPING_FEE=5.99` (ajusta las estimaciones según la demo).
-- `SESSION_TTL_MINUTES=120`
+Las credenciales demo son solo para el acceso a ProEshop. Nunca uses credenciales de Amazon, Walmart o Target. Usa secretos propios y no subas `.env`.
 
-Genera secretos fuertes y no publiques `.env` ni tokens. El panel administrativo no estará disponible si `ADMIN_API_KEY` no está configurada. La limitación de solicitudes está en memoria por proceso y no reemplaza un WAF o un limitador distribuido.
+## Búsqueda agregada
 
-## Instalación / actualización
+La opción **Todas** consulta en paralelo las rutas existentes para Amazon, Walmart y Target. Los resultados se agrupan, se ordenan por precio y conservan la tienda de origen para abrir el comercio correcto. Cada proveedor puede responder con cero resultados o errores sin invalidar las respuestas de los demás.
 
-1. Descomprime el paquete y reemplaza los archivos del proyecto conservando las variables de Railway y el volumen `/data`.
-2. El paquete incluye `main.py`, `static/index.html`, `static/style.css`, `static/app.js`, `requirements.txt`, `Procfile`, `railway.toml`, `.env.example` y `.gitignore`.
-3. Sube los cambios a tu repositorio o método de despliegue. Este paquete no realiza un despliegue por sí solo.
-4. Verifica `https://TU-SERVICIO/health`, abre la Mini App desde Telegram y prueba búsqueda, carrito, recibo y panel administrativo.
+Los precios, vendedores y disponibilidad son orientativos y deben verificarse en la página de destino. ProEshop es un comparador/agregador; no realiza compras en las tiendas externas.
 
-## Límites del modo demo
+## Pagos y pedidos
 
-No se procesan pagos, no se envían órdenes a Amazon/Walmart/Target y no se crean guías de transporte reales. Saldos, pedidos y recibos son ficticios y están marcados como simulación. Los precios del proveedor pueden cambiar; confirma el precio final y la disponibilidad en la tienda oficial.
+El carrito y el flujo de pedido siguen siendo de demostración. No se conectan pasarelas, no se captura información de tarjetas, no se transmiten órdenes a comercios y no se generan envíos reales. Los importes de impuestos/envío y el saldo son ficticios.
+
+## Despliegue
+
+El arranque se define en `Procfile` y `railway.toml`. Tras subir el ZIP a tu repositorio/proceso de despliegue, verifica `/health`, abre la Mini App en Telegram y prueba búsqueda agregada, filtrado, comparador y carrito. No se ha realizado un despliegue desde este paquete.
