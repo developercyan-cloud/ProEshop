@@ -1,96 +1,41 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#075fc7">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#075fc7"><meta name="color-scheme" content="light">
   <title>ProEshop | Smart Shopping</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://images.unsplash.com"><link rel="stylesheet" href="/static/style.css">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <div class="brand-mark">P</div>
-      <div class="brand"><strong>ProEshop</strong><small>Tu espacio de compras</small></div>
-      <button id="logoutBtn" class="icon-btn hidden" title="Cerrar sesión">↪</button>
-    </header>
-
-    <main>
-      <section id="loginView" class="view">
-        <div class="welcome">
-          <div class="hero-icon">✦</div>
-          <div><h1>Todo lo que buscas,<br>en un solo lugar.</h1><p>Compara artículos de tus tiendas favoritas.</p></div>
-        </div>
-        <form id="loginForm" class="panel">
-          <h2>Iniciar sesión</h2>
-          <label>Usuario<input id="username" autocomplete="username" placeholder="Usuario demo" required></label>
-          <label>Contraseña<input id="password" type="password" autocomplete="current-password" placeholder="Contraseña" required></label>
-          <button class="primary full" type="submit">Iniciar sesión <span>→</span></button>
-          <p class="hint">Entorno de demostración. No uses contraseñas de Amazon, Target o Walmart.</p>
-          <p id="loginError" class="error"></p>
-        </form>
-      </section>
-
-      <section id="shopView" class="view hidden">
-        <div class="balance-card">
-          <div><span>Saldo ficticio disponible</span><strong id="balanceValue">$1,000.00</strong><small>Sin dinero real ni cargos</small></div>
-          <div class="wallet-icon">▣</div>
-        </div>
-        <div class="search-wrap">
-          <label for="query">¿Qué estás buscando?</label>
-          <div class="search-row"><input id="query" placeholder="Ej. audífonos, consola, cafetera"><button id="searchBtn" class="primary">Buscar</button></div>
-        </div>
-        <div class="store-row" id="storeRow">
-          <button class="store active" data-store="walmart"><span class="store-logo walmart-logo">Walmart ✳</span><small>Walmart</small></button>
-          <button class="store" data-store="amazon"><span class="store-logo amazon-logo">amazon</span><small>Amazon</small></button>
-          <button class="store" data-store="target"><span class="store-logo target-logo">◎ Target</span><small>Target</small></button>
-        </div>
-        <div id="searchResult" class="search-result hidden"></div>
-        <div class="section-head"><div><h2>Tu espacio de compras</h2><p class="section-subtitle">Accesos rápidos a tu actividad</p></div><span class="pill">MODO PRUEBA</span></div>
-        <div class="quick-grid">
-          <button class="quick-card" data-tab="cart"><span class="quick-icon blue">🛒</span><strong>Mi carrito</strong><small>Revisa tus artículos</small><b id="cartCount">0 artículos</b></button>
-          <button class="quick-card" data-tab="history"><span class="quick-icon yellow">📦</span><strong>Mis compras</strong><small>Historial de sesión</small><b id="historyCount">0 compras</b></button>
-        </div>
-        <div class="info-banner"><span>ℹ️</span><div><strong>Precios en USD</strong><p>Consulta resultados de productos por comercio y agrega los artículos desde sus tarjetas. Los precios son orientativos; confirma el importe final en la tienda. No se realizan pedidos reales.</p></div></div>
-      </section>
-
-      <section id="cartView" class="view hidden">
-        <div class="page-heading"><button class="back" data-tab="home">‹</button><div><h1>Carrito de compras</h1><p id="cartSubtitle">Tus artículos seleccionados</p></div></div>
-        <div id="cartItems"></div>
-        <div id="cartEmpty" class="empty hidden"><div>🛒</div><strong>Tu carrito está vacío</strong><p>Busca un artículo y agrégalo para empezar.</p><button class="primary" data-tab="home">Explorar tiendas</button></div>
-        <div id="cartSummary" class="summary panel hidden">
-          <div><span>Subtotal</span><strong id="cartSubtotal"></strong></div>
-          <div><span>Impuestos estimados</span><strong id="cartTax"></strong></div>
-          <div><span>Envío estimado</span><strong id="cartShipping"></strong></div>
-          <div class="grand-total"><span>Total estimado</span><strong id="cartTotal"></strong></div>
-          <div><span>Tipo de operación</span><strong>Simulada</strong></div>
-          <button id="buyBtn" class="primary full">Confirmar pedido de demostración</button>
-          <p class="hint">El impuesto y el envío son estimaciones configurables. No se transmite ninguna orden al comercio ni se realiza un cargo real.</p>
-        </div>
-      </section>
-
-      <section id="historyView" class="view hidden">
-        <div class="page-heading"><button class="back" data-tab="home">‹</button><div><h1>Historial de compras</h1><p>Compras ficticias registradas</p></div></div>
-        <div class="order-note">Seguimiento ilustrativo: los estados no corresponden a un envío real.</div><div id="historyItems"></div>
-        <div id="historyEmpty" class="empty hidden"><div>📦</div><strong>Aún no tienes compras</strong><p>Las compras ficticias confirmadas aparecerán aquí.</p></div>
-      </section>
-
-      <section id="accountView" class="view hidden">
-        <div class="page-heading"><div class="avatar">👤</div><div><h1>Mi cuenta</h1><p id="accountName">Sesión activa</p></div></div>
-        <div class="panel account-list"><div><span>💳</span><div><strong>Saldo ficticio</strong><small>Solo para este simulador</small></div><b id="accountBalance"></b></div><div><span>🔒</span><div><strong>Privacidad</strong><small>No se guardan credenciales de tiendas</small></div></div><div><span>🧾</span><div><strong>Historial</strong><small>Compras guardadas en la sesión</small></div><button data-tab="history">Ver</button></div></div>
-        <div class="info-banner"><span>🧪</span><div><strong>Modo de prueba</strong><p>Los saldos y compras no tienen valor monetario y no representan pedidos reales.</p></div></div>
-      </section>
-    </main>
-
-    <nav id="bottomNav" class="bottom-nav hidden">
-      <button data-tab="home" class="nav-item active"><span>⌂</span><small>Inicio</small></button>
-      <button data-tab="cart" class="nav-item"><span>🛒</span><small>Carrito</small><i id="navCartCount" class="nav-badge hidden">0</i></button>
-      <button data-tab="history" class="nav-item"><span>▤</span><small>Compras</small></button>
-      <button data-tab="account" class="nav-item"><span>♙</span><small>Cuenta</small></button>
-    </nav>
-    <div id="toast" class="toast hidden"></div>
-  </div>
-  <script src="/static/app.js"></script>
-</body>
-</html>
+<div class="app-shell">
+  <header class="topbar"><div class="brand-mark">P</div><div class="brand"><strong>ProEshop</strong><small>Smart shopping · todo en un lugar</small></div><button id="notificationBtn" class="icon-btn" aria-label="Notificaciones">♧<i id="notificationBadge" class="notify-dot hidden"></i></button><button id="logoutBtn" class="icon-btn hidden" title="Cerrar sesión">↪</button></header>
+  <main>
+    <section id="loginView" class="view login-view">
+      <div class="login-hero"><div class="eyebrow"><span class="pulse"></span> MARKETPLACE INTELIGENTE</div><h1>Encuentra lo que quieres.<br><em>Compra con claridad.</em></h1><p>Compara productos de tus tiendas favoritas con precios consultados en USD.</p><div class="login-orbit"><span>✦</span><b>PRO</b><small>ESHOP</small></div></div>
+      <form id="loginForm" class="panel login-panel"><div class="panel-kicker">BIENVENIDO DE NUEVO</div><h2>Iniciar sesión</h2><label>Usuario<input id="username" autocomplete="username" placeholder="Usuario demo" required maxlength="80"></label><label>Contraseña<input id="password" type="password" autocomplete="current-password" placeholder="Contraseña" required maxlength="200"></label><button class="primary full" type="submit">Entrar a ProEshop <span>→</span></button><p id="loginError" class="error" role="alert"></p><p class="hint">Demo privada. No ingreses contraseñas de Amazon, Walmart o Target. No se realizan pagos ni pedidos reales.</p></form>
+    </section>
+    <section id="shopView" class="view hidden">
+      <div class="greeting-row"><div><div class="eyebrow dark-eyebrow">TU MERCADO, EN UN SOLO LUGAR</div><h1>Hola, <span id="greetingName">bienvenido</span> 👋</h1><p>¿Qué te gustaría encontrar hoy?</p></div><div class="user-chip">✦</div></div>
+      <div class="balance-card"><div class="balance-glow"></div><div class="balance-copy"><span>Saldo de demostración</span><strong id="balanceValue">USD 1,000.00</strong><small><i></i> Saldo ficticio · Sin cargos reales</small></div><div class="wallet-icon">◈</div><div class="balance-foot"><span>PROESHOP WALLET</span><span>•••• 2026</span></div></div>
+      <div class="search-wrap"><div class="search-label"><label for="query">Busca en tus tiendas</label><span>RESULTADOS USD</span></div><div class="search-row"><span class="search-symbol">⌕</span><input id="query" placeholder="Ej. PlayStation 5, audífonos…" maxlength="180"><button id="clearSearch" class="clear-search hidden" type="button" aria-label="Limpiar búsqueda">×</button><button id="searchBtn" class="primary search-button">Buscar</button></div></div>
+      <div class="store-row" id="storeRow"><button class="store active" data-store="walmart"><span class="store-logo walmart-logo">✳</span><span><b>Walmart</b><small>US Store</small></span></button><button class="store" data-store="amazon"><span class="store-logo amazon-logo">a</span><span><b>Amazon</b><small>US Store</small></span></button><button class="store" data-store="target"><span class="store-logo target-logo">◎</span><span><b>Target</b><small>US Store</small></span></button></div>
+      <div class="hero-banner"><div class="hero-copy"><span class="hero-tag">SMART FINDS · 2026</span><h2>Una búsqueda.<br>Más posibilidades.</h2><p>Explora, compara y organiza tus favoritos.</p><button type="button" class="hero-cta" data-query="PlayStation 5">Explorar productos <span>↗</span></button></div><div class="hero-art"><div class="hero-ring ring-one"></div><div class="hero-ring ring-two"></div><div class="hero-cube">P<span>✦</span></div><div class="hero-spark spark-one">✦</div><div class="hero-spark spark-two">✧</div></div></div>
+      <div class="category-section"><div class="section-head"><div><h2>Explora por categoría</h2><p>Atajos para empezar a buscar</p></div></div><div class="category-row"><button class="category-chip" data-query="electronics"><span>⌁</span><b>Electrónica</b></button><button class="category-chip" data-query="headphones"><span>♫</span><b>Audio</b></button><button class="category-chip" data-query="home appliances"><span>⌂</span><b>Hogar</b></button><button class="category-chip" data-query="sports gear"><span>↗</span><b>Deportes</b></button><button class="category-chip" data-query="fashion"><span>◇</span><b>Moda</b></button></div></div>
+      <div class="section-head results-section-head"><div><div class="eyebrow dark-eyebrow">DESCUBRE ALGO NUEVO</div><h2>Tu búsqueda empieza aquí</h2><p>Los productos y precios se cargan desde el proveedor de búsqueda.</p></div><span class="section-orb">✦</span></div>
+      <div id="searchResult" class="search-result hidden"></div>
+      <div id="homeEmpty" class="home-empty"><div class="empty-orbit">⌕</div><strong>¿Listo para encontrar algo?</strong><p>Escribe un producto o elige una categoría para consultar resultados de la tienda seleccionada.</p><button class="secondary" data-focus-search>Buscar productos</button></div>
+      <div class="quick-grid"><button class="quick-card" data-tab="cart"><span class="quick-icon blue">🛒</span><span class="quick-text"><strong>Mi carrito</strong><small>Revisa tus artículos</small><b id="cartCount">0 artículos</b></span><span class="quick-arrow">↗</span></button><button class="quick-card" data-tab="history"><span class="quick-icon yellow">▣</span><span class="quick-text"><strong>Mis pedidos</strong><small>Referencias y seguimiento</small><b id="historyCount">0 pedidos</b></span><span class="quick-arrow">↗</span></button></div>
+      <div class="info-banner"><span>ⓘ</span><div><strong>Precios en USD, con transparencia</strong><p>La disponibilidad y los importes pueden cambiar en la tienda. ProEshop registra pedidos ficticios para demostración; no transmite órdenes a los comercios.</p></div></div>
+    </section>
+    <section id="cartView" class="view hidden"><div class="page-heading"><button class="back" data-tab="home">‹</button><div><div class="eyebrow dark-eyebrow">ANTES DE CONTINUAR</div><h1>Tu carrito</h1><p id="cartSubtitle">Tus artículos seleccionados</p></div></div><div class="secure-strip"><span>⌑</span><div><b>Resumen de compra</b><small>Checkout de demostración · Sin pago real</small></div></div><div id="cartItems"></div><div id="cartEmpty" class="empty hidden"><div>🛒</div><strong>Tu carrito está vacío</strong><p>Busca un artículo y agrégalo para empezar.</p><button class="primary" data-tab="home">Explorar tiendas</button></div><div id="cartSummary" class="summary panel hidden"><div class="summary-title"><h3>Resumen del pedido</h3><span>USD</span></div><div><span>Subtotal</span><strong id="cartSubtotal"></strong></div><div><span>Impuestos estimados</span><strong id="cartTax"></strong></div><div><span>Envío estimado</span><strong id="cartShipping"></strong></div><div class="grand-total"><span>Total estimado</span><strong id="cartTotal"></strong></div><button id="checkoutBtn" class="primary full">Continuar al checkout <span>→</span></button><p class="hint">Los impuestos y el envío son estimaciones. No se realizará ningún cobro ni compra real.</p></div></section>
+    <section id="checkoutView" class="view hidden"><div class="page-heading"><button class="back" data-tab="cart">‹</button><div><div class="eyebrow dark-eyebrow">ÚLTIMO PASO</div><h1>Checkout</h1><p>Confirma los detalles de tu pedido de prueba.</p></div></div><div class="checkout-banner"><span>✦</span><div><strong>Checkout de demostración</strong><p>Usa datos ficticios. No se enviará ningún paquete ni se procesará un pago real.</p></div></div><form id="checkoutForm" class="panel checkout-form"><div class="form-section-title"><span>01</span><div><b>Datos de entrega</b><small>Solo para el resumen del pedido simulado</small></div></div><label>Nombre de destinatario<input id="shipName" name="shipping_name" required maxlength="100" placeholder="Nombre de prueba"></label><div class="form-two"><label>Ciudad<input id="shipCity" name="shipping_city" required maxlength="80" placeholder="Ciudad de prueba"></label><label>País / región<input id="shipCountry" name="shipping_country" required maxlength="80" placeholder="País o región"></label></div><label>Dirección de prueba<input id="shipAddress" name="shipping_address" required maxlength="180" placeholder="Dirección ficticia, no real"></label><div class="form-section-title payment-title"><span>02</span><div><b>Método de pago</b><small>No se solicitan tarjetas ni credenciales bancarias</small></div></div><label class="payment-option"><input type="radio" name="payment_method" value="demo_balance" checked><span class="payment-icon">◈</span><span><b>Saldo ficticio ProEshop</b><small>Descuento únicamente del saldo de demostración</small></span><i>✓</i></label><div class="checkout-totals"><div><span>Artículos</span><b id="checkoutItemCount">0</b></div><div><span>Total estimado</span><strong id="checkoutTotal">USD 0.00</strong></div></div><label class="check-label"><input id="demoConsent" type="checkbox" required><span>Entiendo que este pedido es simulado y no representa una compra ni un envío real.</span></label><p id="checkoutError" class="error" role="alert"></p><button class="primary full" type="submit" id="placeOrderBtn">Confirmar pedido simulado <span>✓</span></button><p class="hint">No introduzcas datos personales reales. Los datos de esta pantalla se guardan en la base de datos del proyecto para identificar el pedido demo.</p></form></section>
+    <section id="historyView" class="view hidden"><div class="page-heading"><div class="page-icon">▤</div><div><div class="eyebrow dark-eyebrow">ACTIVIDAD DE LA CUENTA</div><h1>Mis pedidos</h1><p>Referencias, importes y línea de tiempo</p></div></div><div class="order-note"><b>Modo de seguimiento:</b> las referencias y estados de esta pantalla son simulados. No hay envío real ni número de guía del transportista salvo que se integre uno.</div><div class="history-toolbar"><span id="orderCountLabel">0 pedidos</span><button id="refreshOrders" class="secondary small-button">↻ Actualizar</button></div><div id="historyItems"></div><div id="historyEmpty" class="empty hidden"><div>📦</div><strong>Aún no tienes pedidos</strong><p>Cuando confirmes un pedido simulado, aparecerá aquí con su desglose y estado.</p><button class="primary" data-tab="home">Explorar productos</button></div></section>
+    <section id="accountView" class="view hidden"><div class="account-hero"><div class="avatar">✦</div><div><div class="eyebrow dark-eyebrow">TU PERFIL</div><h1>Mi cuenta</h1><p id="accountName">Sesión activa</p></div></div><div class="panel account-list"><div><span>◈</span><div><strong>Saldo de demostración</strong><small>Solo para el simulador</small></div><b id="accountBalance"></b></div><div><span>🔒</span><div><strong>Privacidad</strong><small>No se guardan credenciales de tiendas</small></div></div><div><span>▤</span><div><strong>Pedidos y seguimiento</strong><small>Consulta referencias y estados simulados</small></div><button data-tab="history">Ver</button></div></div><div class="info-banner"><span>ⓘ</span><div><strong>Modo de prueba</strong><p>No se realizan compras, pagos ni envíos reales. Los precios provienen del proveedor de búsqueda y pueden variar.</p></div></div><button id="logoutAccountBtn" class="secondary full logout-secondary">Cerrar sesión</button></section>
+  </main>
+  <nav id="bottomNav" class="bottom-nav hidden"><button data-tab="home" class="nav-item active"><span>⌂</span><small>Inicio</small></button><button data-tab="search" class="nav-item"><span>⌕</span><small>Buscar</small></button><button data-tab="cart" class="nav-item"><span>🛒</span><small>Carrito</small><i id="navCartCount" class="nav-badge hidden">0</i></button><button data-tab="history" class="nav-item"><span>▤</span><small>Pedidos</small></button><button data-tab="account" class="nav-item"><span>♙</span><small>Cuenta</small></button></nav>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  <dialog id="productDialog" class="product-dialog"><button id="closeProductDialog" class="dialog-close" aria-label="Cerrar">×</button><div id="productDialogContent"></div></dialog>
+  <dialog id="notificationDialog" class="notification-dialog"><button id="closeNotificationDialog" class="dialog-close" aria-label="Cerrar">×</button><div class="dialog-emblem">♧</div><h2>Notificaciones</h2><p>Cuando confirmes un pedido simulado, ProEshop intentará enviarte una confirmación por Telegram si el bot está configurado.</p><div class="notification-status"><span class="pulse"></span><span>Notificaciones de pedido disponibles</span></div><button id="closeNotificationOk" class="primary full">Entendido</button></dialog>
+</div><script src="/static/app.js"></script>
+</body></html>
