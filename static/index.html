@@ -1,266 +1,485 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#075fb2">
-  <meta name="description" content="ShopCart - Shopping made simple">
-  <title>ShopCart</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  >
+  <meta name="theme-color" content="#0067b1">
+  <meta
+    name="description"
+    content="ShopCart: explora productos y administra tu carrito de compras."
+  >
 
-  <link rel="stylesheet" href="/static/style.css">
+  <title>ShopCart | Shopping, made simple</title>
 
+  <!-- Estilos de ShopCart -->
+  <link
+    rel="stylesheet"
+    href="/static/style.css?v=20260929-fix1"
+  >
+
+  <!-- Compatibilidad con Telegram Mini Apps -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
+
 <body>
-  <header class="app-header">
-    <div class="brand">
-      <div class="brand-icon">S</div>
-      <div>
-        <h1>ShopCart</h1>
-        <p>Shopping, made simple</p>
-      </div>
-    </div>
+  <div class="app-shell">
 
-    <div class="header-balance">
-      <small>Saldo disponible</small>
-      <strong id="balanceValue">USD 1,000.00</strong>
-    </div>
-  </header>
+    <!-- Encabezado -->
+    <header class="topbar">
+      <div class="brand-mark" aria-hidden="true">S</div>
 
-  <!-- Inicio de sesión -->
-  <section id="loginView" class="login-panel">
-    <div class="login-card">
-      <h2>Bienvenido a ShopCart</h2>
-      <p>Inicia sesión para continuar.</p>
-
-      <form id="loginForm">
-        <label for="username">Usuario</label>
-        <input id="username"
-               name="username"
-               type="text"
-               autocomplete="username"
-               required>
-
-        <label for="password">Contraseña</label>
-        <input id="password"
-               name="password"
-               type="password"
-               autocomplete="current-password"
-               required>
-
-        <p id="loginError" class="error-message"></p>
-
-        <button type="submit" class="primary full">
-          Iniciar sesión
-        </button>
-      </form>
-
-      <p class="muted">
-        Acceso a la demostración de ShopCart.
-      </p>
-    </div>
-  </section>
-
-  <!-- Aplicación -->
-  <main id="appMain">
-    <!-- Inicio -->
-    <section id="shopView" class="view hidden">
-      <div class="welcome-section">
-        <p class="eyebrow">TU TIENDA EN UN SOLO LUGAR</p>
-        <h2>¿Qué estás buscando?</h2>
-        <p>Busca productos y consulta sus precios.</p>
+      <div class="brand">
+        <strong>ShopCart</strong>
+        <small>Shopping, made simple</small>
       </div>
 
-      <div class="search-panel">
-        <label for="query">Buscar productos</label>
+      <button
+        id="logoutBtn"
+        class="icon-btn hidden"
+        type="button"
+        title="Cerrar sesión"
+        aria-label="Cerrar sesión"
+      >
+        ↪
+      </button>
+    </header>
 
-        <div class="search-row">
-          <input id="query"
-                 type="search"
-                 placeholder="Ej. audífonos, portátil, consola"
-                 autocomplete="off">
+    <main id="mainContent">
 
-          <button id="searchBtn" class="primary">
-            Buscar
-          </button>
+      <!-- INICIO DE SESIÓN -->
+      <section id="loginView" class="view">
+
+        <div class="welcome">
+          <div class="hero-icon" aria-hidden="true">🛍️</div>
+
+          <div>
+            <h1>¡Compra a tu manera!</h1>
+            <p>
+              Explora tiendas y practica con saldo ficticio.
+            </p>
+          </div>
         </div>
-      </div>
 
-      <div class="store-section">
-        <h3>Tiendas</h3>
+        <form id="loginForm" class="panel">
+          <h2>Iniciar sesión</h2>
 
-        <div class="store-grid">
-          <button class="store active" data-store="walmart" type="button">
-            <span class="store-symbol">✳</span>
-            <span>Walmart</span>
+          <label for="username">Usuario</label>
+          <input
+            id="username"
+            name="username"
+            type="text"
+            autocomplete="username"
+            placeholder="Usuario demo"
+            required
+          >
+
+          <label for="password">Contraseña</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Contraseña"
+            required
+          >
+
+          <button
+            class="primary full"
+            type="submit"
+          >
+            Iniciar sesión <span aria-hidden="true">→</span>
           </button>
 
-          <button class="store" data-store="amazon" type="button">
-            <span class="store-symbol">a</span>
-            <span>Amazon</span>
+          <p class="hint">
+            Entorno de demostración. No uses contraseñas
+            de Amazon, Target o Walmart.
+          </p>
+
+          <p
+            id="loginError"
+            class="error"
+            role="alert"
+            aria-live="polite"
+          ></p>
+        </form>
+      </section>
+
+      <!-- TIENDA PRINCIPAL -->
+      <section id="shopView" class="view hidden">
+
+        <div class="balance-card">
+          <div>
+            <span>Saldo ficticio disponible</span>
+            <strong id="balanceValue">$1,000.00</strong>
+            <small>Sin dinero real ni cargos</small>
+          </div>
+
+          <div class="wallet-icon" aria-hidden="true">▣</div>
+        </div>
+
+        <!-- Búsqueda de productos -->
+        <div class="search-wrap">
+          <label for="query">¿Qué estás buscando?</label>
+
+          <div class="search-row">
+            <input
+              id="query"
+              name="query"
+              type="search"
+              placeholder="Ej. audífonos, consola, cafetera"
+              autocomplete="off"
+            >
+
+            <button
+              id="searchBtn"
+              class="primary"
+              type="button"
+            >
+              Buscar
+            </button>
+          </div>
+        </div>
+
+        <!-- Selección de tiendas -->
+        <div class="store-row" id="storeRow">
+
+          <button
+            class="store active"
+            type="button"
+            data-store="walmart"
+            aria-pressed="true"
+          >
+            <span class="store-logo walmart-logo">
+              Walmart ✳
+            </span>
+            <small>Walmart</small>
           </button>
 
-          <button class="store" data-store="target" type="button">
-            <span class="store-symbol">◎</span>
-            <span>Target</span>
+          <button
+            class="store"
+            type="button"
+            data-store="amazon"
+            aria-pressed="false"
+          >
+            <span class="store-logo amazon-logo">
+              amazon
+            </span>
+            <small>Amazon</small>
+          </button>
+
+          <button
+            class="store"
+            type="button"
+            data-store="target"
+            aria-pressed="false"
+          >
+            <span class="store-logo target-logo">
+              ◎ Target
+            </span>
+            <small>Target</small>
+          </button>
+
+        </div>
+
+        <!-- Resultados de búsqueda -->
+        <div
+          id="searchResult"
+          class="search-result hidden"
+          aria-live="polite"
+        ></div>
+
+        <!-- Accesos rápidos -->
+        <div class="section-head">
+          <h2>Tu espacio de compras</h2>
+          <span class="pill">SIMULADOR</span>
+        </div>
+
+        <div class="quick-grid">
+
+          <button
+            class="quick-card"
+            type="button"
+            data-tab="cart"
+          >
+            <span class="quick-icon blue" aria-hidden="true">
+              🛒
+            </span>
+            <strong>Mi carrito</strong>
+            <small>Revisa tus artículos</small>
+            <b id="cartCount">0 artículos</b>
+          </button>
+
+          <button
+            class="quick-card"
+            type="button"
+            data-tab="history"
+          >
+            <span class="quick-icon yellow" aria-hidden="true">
+              📦
+            </span>
+            <strong>Mis compras</strong>
+            <small>Historial de sesión</small>
+            <b id="historyCount">0 compras</b>
+          </button>
+
+        </div>
+
+        <div class="info-banner">
+          <span aria-hidden="true">ℹ️</span>
+          <div>
+            <strong>Precios en USD</strong>
+            <p>
+              Consulta resultados de productos por comercio
+              y agrega artículos desde sus tarjetas. Los
+              precios son orientativos; confirma el importe
+              final en la tienda. No se realizan pedidos reales.
+            </p>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- CARRITO -->
+      <section id="cartView" class="view hidden">
+
+        <div class="page-heading">
+          <button
+            class="back"
+            type="button"
+            data-tab="home"
+            aria-label="Volver al inicio"
+          >
+            ‹
+          </button>
+
+          <div>
+            <h1>Carrito de compras</h1>
+            <p id="cartSubtitle">Tus artículos seleccionados</p>
+          </div>
+        </div>
+
+        <div id="cartItems"></div>
+
+        <div id="cartEmpty" class="empty hidden">
+          <div aria-hidden="true">🛒</div>
+          <strong>Tu carrito está vacío</strong>
+          <p>Busca un artículo y agrégalo para empezar.</p>
+
+          <button
+            class="primary"
+            type="button"
+            data-tab="home"
+          >
+            Explorar tiendas
           </button>
         </div>
-      </div>
 
-      <section class="home-card">
-        <span class="eyebrow">SHOPCART</span>
-        <h3>Compara antes de comprar</h3>
-        <p>
-          Busca un producto, revisa los resultados y agrégalo
-          a tu carrito de demostración.
-        </p>
-      </section>
+        <div id="cartSummary" class="summary panel hidden">
 
-      <section id="searchResult" class="search-results hidden">
-      </section>
+          <div>
+            <span>Subtotal</span>
+            <strong id="cartSubtotal"></strong>
+          </div>
 
-      <section class="home-card">
-        <h3>Tu compra, organizada</h3>
-        <p>
-          Consulta tu carrito, revisa los importes estimados
-          y encuentra tus pedidos registrados.
-        </p>
-      </section>
-    </section>
+          <div>
+            <span>Impuestos estimados</span>
+            <strong id="cartTax"></strong>
+          </div>
 
-    <!-- Carrito -->
-    <section id="cartView" class="view hidden">
-      <div class="page-heading">
-        <p class="eyebrow">SHOPCART</p>
-        <h2>Mi carrito</h2>
-        <p id="cartSubtitle">Tus artículos seleccionados</p>
-      </div>
+          <div>
+            <span>Envío estimado</span>
+            <strong id="cartShipping"></strong>
+          </div>
 
-      <div id="cartEmpty" class="empty-state">
-        <div class="empty-icon">🛒</div>
-        <h3>Tu carrito está vacío</h3>
-        <p>Busca productos en Inicio para agregarlos.</p>
-      </div>
+          <div class="grand-total">
+            <span>Total estimado</span>
+            <strong id="cartTotal"></strong>
+          </div>
 
-      <div id="cartItems" class="cart-items"></div>
+          <div>
+            <span>Tipo de operación</span>
+            <strong>Simulada</strong>
+          </div>
 
-      <section id="cartSummary" class="summary-card hidden">
-        <h3>Resumen del pedido</h3>
+          <button
+            id="buyBtn"
+            class="primary full"
+            type="button"
+          >
+            Confirmar pedido de demostración
+          </button>
 
-        <div class="summary-row">
-          <span>Subtotal</span>
-          <strong id="cartSubtotal">USD 0.00</strong>
-        </div>
+          <p class="hint">
+            El impuesto y el envío son estimaciones
+            configurables. No se transmite ninguna orden
+            al comercio ni se realiza un cargo real.
+          </p>
 
-        <div class="summary-row">
-          <span>Impuestos estimados</span>
-          <strong id="cartTax">USD 0.00</strong>
-        </div>
-
-        <div class="summary-row">
-          <span>Envío estimado</span>
-          <strong id="cartShipping">USD 0.00</strong>
-        </div>
-
-        <div class="summary-row total-row">
-          <span>Total estimado</span>
-          <strong id="cartTotal">USD 0.00</strong>
-        </div>
-
-        <button id="buyBtn" class="primary full">
-          Confirmar compra de demostración
-        </button>
-
-        <p class="muted">
-          Esta acción es una simulación. No se realiza
-          una compra real en las tiendas.
-        </p>
-      </section>
-    </section>
-
-    <!-- Compras -->
-    <section id="historyView" class="view hidden">
-      <div class="page-heading">
-        <p class="eyebrow">TU ACTIVIDAD</p>
-        <h2>Mis compras</h2>
-        <p id="historyCount">0 pedidos</p>
-      </div>
-
-      <div id="historyEmpty" class="empty-state">
-        <div class="empty-icon">📦</div>
-        <h3>Aún no tienes pedidos</h3>
-        <p>Los pedidos de demostración aparecerán aquí.</p>
-      </div>
-
-      <div id="historyItems" class="history-items"></div>
-    </section>
-
-    <!-- Cuenta -->
-    <section id="accountView" class="view hidden">
-      <div class="page-heading">
-        <p class="eyebrow">TU PERFIL</p>
-        <h2>Mi cuenta</h2>
-      </div>
-
-      <section class="account-card">
-        <div class="account-avatar">S</div>
-        <div>
-          <h3 id="accountName">Usuario</h3>
-          <p>Cuenta ShopCart</p>
         </div>
       </section>
 
-      <section class="summary-card">
-        <div class="summary-row">
-          <span>Saldo de demostración</span>
-          <strong id="accountBalance">USD 1,000.00</strong>
+      <!-- HISTORIAL DE COMPRAS -->
+      <section id="historyView" class="view hidden">
+
+        <div class="page-heading">
+          <button
+            class="back"
+            type="button"
+            data-tab="home"
+            aria-label="Volver al inicio"
+          >
+            ‹
+          </button>
+
+          <div>
+            <h1>Historial de compras</h1>
+            <p>Compras ficticias registradas</p>
+          </div>
         </div>
 
-        <div class="summary-row">
-          <span>Artículos en el carrito</span>
-          <strong id="cartCount">0 artículos</strong>
+        <div class="order-note">
+          Seguimiento ilustrativo: los estados no corresponden
+          a un envío real.
         </div>
+
+        <div id="historyItems"></div>
+
+        <div id="historyEmpty" class="empty hidden">
+          <div aria-hidden="true">📦</div>
+          <strong>Aún no tienes compras</strong>
+          <p>
+            Las compras ficticias confirmadas aparecerán aquí.
+          </p>
+        </div>
+
       </section>
 
-      <button id="logoutBtn" class="secondary full hidden">
-        Cerrar sesión
+      <!-- CUENTA -->
+      <section id="accountView" class="view hidden">
+
+        <div class="page-heading">
+          <div class="avatar" aria-hidden="true">👤</div>
+
+          <div>
+            <h1>Mi cuenta</h1>
+            <p id="accountName">Sesión activa</p>
+          </div>
+        </div>
+
+        <div class="panel account-list">
+
+          <div>
+            <span aria-hidden="true">💳</span>
+            <div>
+              <strong>Saldo ficticio</strong>
+              <small>Solo para este simulador</small>
+            </div>
+            <b id="accountBalance"></b>
+          </div>
+
+          <div>
+            <span aria-hidden="true">🔒</span>
+            <div>
+              <strong>Privacidad</strong>
+              <small>No se guardan credenciales de tiendas</small>
+            </div>
+          </div>
+
+          <div>
+            <span aria-hidden="true">🧾</span>
+            <div>
+              <strong>Historial</strong>
+              <small>Compras guardadas en la sesión</small>
+            </div>
+
+            <button
+              type="button"
+              data-tab="history"
+            >
+              Ver
+            </button>
+          </div>
+
+        </div>
+
+        <div class="info-banner">
+          <span aria-hidden="true">🧪</span>
+          <div>
+            <strong>Modo de prueba</strong>
+            <p>
+              Los saldos y compras no tienen valor monetario
+              y no representan pedidos reales.
+            </p>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- Navegación inferior -->
+    <nav
+      id="bottomNav"
+      class="bottom-nav hidden"
+      aria-label="Navegación principal"
+    >
+
+      <button
+        type="button"
+        data-tab="home"
+        class="nav-item active"
+        aria-current="page"
+      >
+        <span aria-hidden="true">⌂</span>
+        <small>Inicio</small>
       </button>
 
-      <p class="muted">
-        ShopCart es una interfaz de demostración.
-        Los precios, impuestos, saldos y compras no representan
-        transacciones reales.
-      </p>
-    </section>
-  </main>
+      <button
+        type="button"
+        data-tab="cart"
+        class="nav-item"
+      >
+        <span aria-hidden="true">🛒</span>
+        <small>Carrito</small>
+        <i id="navCartCount" class="nav-badge hidden">0</i>
+      </button>
 
-  <!-- Navegación -->
-  <nav id="bottomNav" class="bottom-nav hidden">
-    <button class="nav-item active" data-tab="home" type="button">
-      <span class="nav-icon">⌂</span>
-      <span>Inicio</span>
-    </button>
+      <button
+        type="button"
+        data-tab="history"
+        class="nav-item"
+      >
+        <span aria-hidden="true">▤</span>
+        <small>Compras</small>
+      </button>
 
-    <button class="nav-item" data-tab="cart" type="button">
-      <span class="nav-icon">🛒</span>
-      <span>Carrito</span>
-      <span id="navCartCount" class="nav-badge hidden">0</span>
-    </button>
+      <button
+        type="button"
+        data-tab="account"
+        class="nav-item"
+      >
+        <span aria-hidden="true">♙</span>
+        <small>Cuenta</small>
+      </button>
 
-    <button class="nav-item" data-tab="history" type="button">
-      <span class="nav-icon">▤</span>
-      <span>Compras</span>
-    </button>
+    </nav>
 
-    <button class="nav-item" data-tab="account" type="button">
-      <span class="nav-icon">♙</span>
-      <span>Cuenta</span>
-    </button>
-  </nav>
+    <!-- Mensajes de estado -->
+    <div
+      id="toast"
+      class="toast hidden"
+      role="status"
+      aria-live="polite"
+    ></div>
 
-  <div id="toast" class="toast hidden" role="status"></div>
+  </div>
 
-  <script src="/static/app.js"></script>
+  <!-- Lógica de la aplicación: conservar este archivo -->
+  <script src="/static/app.js?v=20260929-fix1"></script>
+
 </body>
 </html>
