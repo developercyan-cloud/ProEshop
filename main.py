@@ -518,12 +518,27 @@ async def add_cart(body: AddBody, request: Request):
             raise InvalidOperation()
     except (InvalidOperation, ValueError):
         raise HTTPException(400, "Introduce un precio válido mayor que cero.")
-    from urllib.parse import urlparse
+    platform = body.platform.lower().strip()
     parsed = urlparse(body.url)
-    allowed = {"amazon.com", "www.amazon.com", "target.com", "www.target.com",
-               "walmart.com", "www.walmart.com"}
-    if parsed.scheme != "https" or parsed.netloc.lower() not in allowed:
-        raise HTTPException(400, "Usa un enlace HTTPS de Amazon.com, Target.com o Walmart.com.")
+    host = (parsed.hostname or "").lower().rstrip(".")
+    allowed_domains = {
+        "amazon": ("amazon.com",),
+        "target": ("target.com",),
+        "walmart": ("walmart.com",),
+    }
+    if (
+        parsed.scheme.lower() != "https"
+        or platform not in allowed_domains
+        or not host
+        or not any(
+            host == domain or host.endswith("." + domain)
+            for domain in allowed_domains[platform]
+        )
+    ):
+        raise HTTPException(
+            400,
+            "El enlace debe pertenecer al dominio oficial de la tienda seleccionada.",
+        )
     with conn() as db:
         db.execute("""INSERT INTO carts(telegram_id,platform,title,price,currency,url,qty,created_at)
                       VALUES(?,?,?,?,?,?,1,?)""",
