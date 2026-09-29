@@ -409,106 +409,150 @@ async def logout(request: Request):
     return {"ok": True}
 
 
+
 @app.post("/api/search")
 async def search(body: SearchBody, request: Request):
     get_auth(request)
 
-    platform = body.platform.lower()
+    platform = body.platform.lower().strip()
+    query = body.query.strip()
 
     if platform not in PLATFORMS:
         raise HTTPException(400, "Tienda no admitida.")
 
-    url = PLATFORMS[platform]["url"].format(
-        q=quote_plus(body.query)
-    )
+    if not query:
+        raise HTTPException(400, "Escribe el nombre de un producto.")
+
+    store = PLATFORMS[platform]
+    search_url = store["url"].format(q=quote_plus(query))
 
     if not SERPAPI_KEY:
         return {
             "platform": platform,
-            "label": PLATFORMS[platform]["label"],
-            "query": body.query,
-            "search_url": url,
+            "label": store["label"],
+            "query": query,
+            "search_url": search_url,
             "live_results": [],
             "notice": (
-                "Para mostrar precios automáticos en USD, configura "
-                "SERPAPI_KEY en Railway. Sin esa clave puedes abrir "
-                "la tienda oficial; no se inventan precios."
+                "Configura SERPAPI_KEY en Railway para consultar "
+                "resultados de productos."
             )
         }
 
-    domains = {
-        "amazon": "amazon.com",
-        "target": "target.com",
-        "walmart": "walmart.com"
-    }
-
-    store_hosts = {
-        "amazon": {"amazon.com", "www.amazon.com"},
-        "target": {"target.com", "www.target.com"},
-        "walmart": {"walmart.com", "www.walmart.com"}
+    store_domains = {
+        "amazon": ("amazon.com",),
+        "walmart": ("walmart.com",),
+        "target": ("target.com",)
     }
 
     try:
         async with httpx.AsyncClient(
-            timeout=httpx.Timeout(30.0, connect=8.0)
+            timeout=httpx.Timeout(45.0, connect=10.0),
+            follow_redirects=True
         ) as client:
             response = await client.get(
                 "https://serpapi.com/search.json",
                 params={
                     "engine": "google_shopping",
-                    "q": body.query,
+                    "q": query,
                     "gl": "us",
                     "hl": "en",
                     "api_key": SERPAPI_KEY
                 }
             )
 
-        if response.status_code >= 400:
-            log.warning(
-                "Proveedor de búsqueda respondió %s",
-                response.status_code
-            )
-            raise HTTPException(
-                502,
-                "El proveedor de búsqueda no respondió correctamente. "
-                "Intenta de nuevo más tarde."
-            )
-
+        response.raise_for_status()
         payload = response.json()
+
+        # SerpApi puede devolver un error dentro de un HTTP 200.
+        if payload.get("error"):
+            log.warning(
+                "SerpApi informó un error: %s",
+                str(payload["error"])[:250]
+            )
+            return {
+                "platform": platform,
+                "label": store["label"],
+                "query": query,
+                "search_url": search_url,
+                "live_results": [],
+                "notice": (
+                    "El proveedor de búsqueda informó un problema. "
+                    "Intenta de nuevo más tarde."
+                )
+            }
+
+        # Algunas respuestas pueden usar una estructura alternativa.
+        items = payload.get("shopping_results") or []
+        if not items:
+            items = payload.get("inline_shopping_results") or []
+
         results = []
+        expected_domains = store_domains.get(platform, ())
 
-        for item in payload.get("shopping_results", [])[:12]:
-            source = str(item.get("source", ""))
-            link = item.get("link") or item.get("product_link") or ""
+        for item in items[:40]:
+            source = str(item.get("source") or "").strip()
+            raw_link = (
+                item.get("product_link")
+                or item.get("link")
+                or ""
+            )
 
-            parsed_link = urlparse(link)
-            host = parsed_link.netloc.lower().split(":")[0]
-            haystack = (source + " " + link).lower()
+            parsed = urlparse(raw_link)
+            host = parsed.netloc.lower().split(":")[0]
+            host = host.removeprefix("www.")
 
-            # Mantener resultados relacionados con la tienda elegida.
-            if (
-                domains[platform] not in haystack
-                and PLATFORMS[platform]["label"].lower()
-                not in source.lower()
-            ):
+            source_lower = source.lower()
+
+            # Identificar la tienda usando tanto el dominio
+            # como el nombre del vendedor.
+            domain_match = any(
+                host == domain or host.endswith("." + domain)
+                for domain in expected_domains
+            )
+
+            source_aliases = {
+                "amazon": ("amazon",),
+                "walmart": ("walmart",),
+                "target": ("target",)
+            }
+
+            source_match = any(
+                alias in source_lower
+                for alias in source_aliases.get(platform, ())
+            )
+
+            # Evitar mezclar productos de otras tiendas.
+            if not domain_match and not source_match:
                 continue
 
-            # Si el enlace no es oficial, usar la búsqueda oficial.
+            # Preferir enlaces directos oficiales.
             if (
-                parsed_link.scheme != "https"
-                or host not in store_hosts[platform]
+                parsed.scheme == "https"
+                and any(
+                    host == domain or host.endswith("." + domain)
+                    for domain in expected_domains
+                )
             ):
-                link = url
+                product_url = raw_link
+            else:
+                product_url = search_url
 
+            # Obtener el precio numérico cuando esté disponible.
             price = item.get("extracted_price")
 
+            try:
+                price = float(price) if price is not None else None
+            except (TypeError, ValueError):
+                price = None
+
+            # Alternativa: interpretar el precio mostrado.
             if price is None:
-                raw = str(item.get("price", ""))
+                raw_price = str(item.get("price") or "")
                 match = re.search(
                     r"([0-9][0-9,]*(?:\.[0-9]{1,2})?)",
-                    raw
+                    raw_price
                 )
-
                 if match:
                     try:
                         price = float(
@@ -517,70 +561,80 @@ async def search(body: SearchBody, request: Request):
                     except ValueError:
                         price = None
 
-            try:
-                price = float(price)
-
-                if price <= 0:
-                    continue
-
-            except (TypeError, ValueError):
+            # No inventar precios ni mostrar valores inválidos.
+            if price is None or price <= 0:
                 continue
 
             results.append({
-                "title": str(item.get("title", "Producto"))[:180],
+                "title": str(
+                    item.get("title") or "Producto"
+                )[:180],
                 "price": round(price, 2),
                 "currency": "USD",
-                "url": link,
-                "image": item.get("thumbnail", ""),
-                "source": source or PLATFORMS[platform]["label"]
+                "url": product_url,
+                "image": str(item.get("thumbnail") or ""),
+                "source": source or store["label"]
             })
+
+            if len(results) >= 12:
+                break
+
+        log.info(
+            "Búsqueda completada: tienda=%s, resultados=%s",
+            platform,
+            len(results)
+        )
 
         return {
             "platform": platform,
-            "label": PLATFORMS[platform]["label"],
-            "query": body.query,
-            "search_url": url,
+            "label": store["label"],
+            "query": query,
+            "search_url": search_url,
             "live_results": results,
             "notice": (
-                "Precios de resultados de búsqueda en USD; pueden "
-                "variar según ubicación, vendedor, disponibilidad "
-                "e impuestos. Verifica el precio final en el comercio."
+                "Los precios están expresados en USD y pueden "
+                "variar según el vendedor, la ubicación, los "
+                "impuestos y la disponibilidad. Confirma el "
+                "precio final en la tienda."
                 if results else
-                "No se encontraron resultados con precio verificable "
-                "para este comercio. Prueba otra búsqueda o abre "
+                "No se encontraron productos con precio verificable "
+                "para esta tienda. Prueba otro término o abre "
                 "la tienda oficial."
             )
         }
 
     except httpx.TimeoutException:
-        log.warning(
-            "Timeout de búsqueda en %s; se ofrece el enlace oficial",
-            platform
-        )
-
+        log.warning("Timeout de SerpApi para tienda=%s", platform)
         return {
             "platform": platform,
-            "label": PLATFORMS[platform]["label"],
-            "query": body.query,
-            "search_url": url,
+            "label": store["label"],
+            "query": query,
+            "search_url": search_url,
             "live_results": [],
             "notice": (
-                "La tienda tardó demasiado en responder. "
-                "Puedes abrir la tienda oficial e intentar de nuevo."
+                "La búsqueda tardó demasiado. Intenta de nuevo "
+                "o abre la tienda oficial."
             )
         }
 
-    except HTTPException:
-        raise
+    except httpx.HTTPStatusError as exc:
+        log.warning(
+            "Error HTTP de SerpApi: status=%s",
+            exc.response.status_code
+        )
+        raise HTTPException(
+            502,
+            "El proveedor de búsqueda devolvió un error HTTP."
+        )
 
     except (httpx.HTTPError, ValueError) as exc:
         log.warning(
-            "Fallo de búsqueda de productos: %s",
+            "Fallo de búsqueda: tipo=%s",
             type(exc).__name__
         )
         raise HTTPException(
             502,
-            "No se pudo consultar el catálogo ahora. Intenta de nuevo."
+            "No se pudo procesar la búsqueda. Intenta de nuevo."
         )
 
 
