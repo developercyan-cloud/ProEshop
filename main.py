@@ -348,7 +348,7 @@ async def logout(request: Request):
 
 @app.post("/api/search")
 async def search(body: SearchBody, request: Request):
-    get_auth(request)
+    tg_id = get_auth(request)
 
     platform = body.platform.lower().strip()
     query = body.query.strip()
@@ -357,10 +357,76 @@ async def search(body: SearchBody, request: Request):
         raise HTTPException(400, "Tienda no admitida.")
     if not query:
         raise HTTPException(400, "Escribe el nombre de un producto.")
-    audit(get_auth(request), "search", f"platform={platform}; query_length={len(query)}")
+
+    audit(tg_id, "search", f"platform={platform}; query_length={len(query)}")
 
     store = PLATFORMS[platform]
+    domains = {
+        "amazon": "amazon.com",
+        "target": "target.com",
+        "walmart": "walmart.com",
+    }
+    domain = domains[platform]
     search_url = store["url"].format(q=quote_plus(query))
+
+    def is_store_url(raw_url):
+        try:
+            parsed = urlparse(str(raw_url or ""))
+            host = (parsed.hostname or "").lower()
+            return (
+                parsed.scheme == "https"
+                and (host == domain or host.endswith("." + domain))
+            )
+        except (ValueError, TypeError):
+            return False
+
+    def extract_price(item):
+        candidates = [item.get("extracted_price"), item.get("price")]
+
+        for candidate in candidates:
+            if isinstance(candidate, dict):
+                candidate = (
+                    candidate.get("value")
+                    or candidate.get("extracted_price")
+                )
+
+            if isinstance(candidate, (int, float)):
+                price = float(candidate)
+                if 0 < price <= 10_000_000:
+                    return round(price, 2)
+
+            if isinstance(candidate, str):
+                cleaned = candidate.strip()
+                match = re.search(
+                    r"([0-9][0-9,]*(?:\.[0-9]{1,2})?)",
+                    cleaned,
+                )
+                if match:
+                    try:
+                        price = float(match.group(1).replace(",", ""))
+                        if 0 < price <= 10_000_000:
+                            return round(price, 2)
+                    except ValueError:
+                        pass
+
+        # Fallback only to an explicit price in text; never fabricate one.
+        text = " ".join([
+            str(item.get("title") or ""),
+            str(item.get("snippet") or ""),
+        ])
+        match = re.search(
+            r"(?:US\s?\$|\$)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)",
+            text,
+            re.IGNORECASE,
+        )
+        if match:
+            try:
+                price = float(match.group(1).replace(",", ""))
+                if 0 < price <= 10_000_000:
+                    return round(price, 2)
+            except ValueError:
+                pass
+        return None
 
     if not SERPAPI_KEY:
         return {
@@ -371,143 +437,131 @@ async def search(body: SearchBody, request: Request):
             "live_results": [],
             "notice": (
                 "Configura SERPAPI_KEY en Railway para consultar "
-                "productos y precios."
+                "resultados de búsqueda."
             ),
         }
 
-    domains = {
-        "amazon": ("amazon.com",),
-        "walmart": ("walmart.com",),
-        "target": ("target.com",),
-    }
-    expected_domains = domains[platform]
+    matched_results = []
 
     try:
         async with httpx.AsyncClient(
-            timeout=httpx.Timeout(45.0, connect=10.0),
-            follow_redirects=True,
+            timeout=httpx.Timeout(45.0, connect=10.0)
         ) as client:
+            # Google Shopping search, constrained to the selected retailer.
             response = await client.get(
                 "https://serpapi.com/search.json",
                 params={
                     "engine": "google_shopping",
-                    "q": f"{query} {store['label']}",
+                    "q": f"site:{domain} {query}",
                     "gl": "us",
                     "hl": "en",
                     "api_key": SERPAPI_KEY,
                 },
             )
+            response.raise_for_status()
+            payload = response.json()
 
-        response.raise_for_status()
-        payload = response.json()
+            if payload.get("error"):
+                log.warning(
+                    "SerpApi Shopping error platform=%s error=%s",
+                    platform,
+                    str(payload["error"])[:200],
+                )
+                payload = {}
 
-        if payload.get("error"):
-            log.warning(
-                "SerpApi error platform=%s error=%s",
-                platform,
-                str(payload["error"])[:200],
+            items = (
+                payload.get("shopping_results")
+                or payload.get("inline_shopping_results")
+                or []
             )
-            return {
-                "platform": platform,
-                "label": store["label"],
-                "query": query,
-                "search_url": search_url,
-                "live_results": [],
-                "notice": (
-                    "El proveedor de búsqueda informó un problema. "
-                    "Intenta de nuevo más tarde."
-                ),
-            }
 
-        items = (
-            payload.get("shopping_results")
-            or payload.get("inline_shopping_results")
-            or []
-        )
-        log.info(
-            "SERPAPI DEBUG platform=%s total=%s sources=%s",
-            platform,
-            len(items),
-            [str(item.get("source") or "SIN FUENTE") for item in items[:15]],
-        )
+            for item in items[:60]:
+                raw_link = item.get("product_link") or item.get("link") or ""
+                if not is_store_url(raw_link):
+                    continue
 
-        matched_results = []
+                price = extract_price(item)
+                if price is None:
+                    continue
 
-        for item in items[:40]:
-            source = str(
-                item.get("source")
-                or item.get("seller")
-                or item.get("merchant")
-                or ""
-            ).strip()
-            raw_link = item.get("product_link") or item.get("link") or ""
-            parsed = urlparse(raw_link)
-            host = parsed.netloc.lower().split(":")[0].removeprefix("www.")
+                matched_results.append({
+                    "title": str(item.get("title") or "Producto")[:180],
+                    "price": price,
+                    "currency": "USD",
+                    "url": raw_link,
+                    "image": str(item.get("thumbnail") or ""),
+                    "source": store["label"],
+                })
 
-            domain_match = any(
-                host == domain or host.endswith("." + domain)
-                for domain in expected_domains
-            )
-            # Strict retailer filter: the actual product URL must resolve to
-            # the selected retailer's own domain. A seller/source label alone
-            # is not sufficient evidence, and Google Shopping links are excluded.
-            if parsed.scheme != "https" or not parsed.netloc or not domain_match:
-                continue
+            # If Shopping only returned third-party listings, try organic
+            # results restricted to the official retailer domain.
+            if not matched_results:
+                response = await client.get(
+                    "https://serpapi.com/search.json",
+                    params={
+                        "engine": "google",
+                        "q": f"site:{domain} {query}",
+                        "gl": "us",
+                        "hl": "en",
+                        "num": 20,
+                        "api_key": SERPAPI_KEY,
+                    },
+                )
+                response.raise_for_status()
+                payload = response.json()
 
-            price = item.get("extracted_price")
-            if isinstance(price, dict):
-                price = price.get("value") or price.get("extracted_price")
-
-            if price is None:
-                raw_price = item.get("price")
-                if isinstance(raw_price, dict):
-                    price = raw_price.get("value") or raw_price.get("extracted_price")
-                elif raw_price is not None:
-                    match = re.search(
-                        r"([0-9][0-9,]*(?:\.[0-9]{1,2})?)",
-                        str(raw_price),
+                if payload.get("error"):
+                    log.warning(
+                        "SerpApi Google error platform=%s error=%s",
+                        platform,
+                        str(payload["error"])[:200],
                     )
-                    if match:
-                        price = match.group(1).replace(",", "")
+                    payload = {}
 
-            try:
-                price = float(price)
-            except (TypeError, ValueError):
+                for item in payload.get("organic_results", [])[:40]:
+                    raw_link = item.get("link") or ""
+                    if not is_store_url(raw_link):
+                        continue
+
+                    price = extract_price(item)
+                    if price is None:
+                        continue
+
+                    matched_results.append({
+                        "title": str(item.get("title") or "Producto")[:180],
+                        "price": price,
+                        "currency": "USD",
+                        "url": raw_link,
+                        "image": "",
+                        "source": store["label"],
+                    })
+
+        # Deduplicate products by URL.
+        unique_results = []
+        seen_urls = set()
+        for product in matched_results:
+            if product["url"] in seen_urls:
                 continue
-            if not (0 < price <= 10_000_000):
-                continue
+            seen_urls.add(product["url"])
+            unique_results.append(product)
 
-            product_url = raw_link
-
-            product = {
-                "title": str(item.get("title") or "Producto")[:180],
-                "price": round(price, 2),
-                "currency": "USD",
-                "url": product_url,
-                "image": str(item.get("thumbnail") or ""),
-                "source": source or "Vendedor no identificado",
-            }
-            matched_results.append(product)
-
-        results = matched_results[:12]
-
+        results = unique_results[:12]
         log.info(
-            "SEARCH COMPLETE platform=%s total=%s matched=%s fallback=%s",
+            "SEARCH COMPLETE platform=%s total=%s matched=%s",
             platform,
-            len(results),
             len(matched_results),
-            False,
+            len(results),
         )
 
-        if matched_results:
+        if results:
             notice = (
-                "Precios en USD; pueden variar por vendedor, ubicación, "
-                "impuestos y disponibilidad. Confirma el precio final en la tienda."
+                f"Resultados con enlaces del dominio oficial de {store['label']}. "
+                "Los precios pueden variar; confirma el precio final en la tienda."
             )
         else:
             notice = (
-                f"No se encontraron productos verificables con enlaces directos a {store['label']}. "
-                "Se ocultaron resultados de otras tiendas. Prueba otro término o abre la tienda oficial."
+                f"No se encontraron productos con enlace directo y precio "
+                f"verificable para {store['label']}. Puedes abrir la tienda oficial."
             )
 
         return {
