@@ -1,6 +1,8 @@
 import os, hmac, hashlib, json, time, secrets, sqlite3, logging, re
 from urllib.parse import parse_qsl, quote_plus, urlparse
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from html import escape
+from html import escape
 from decimal import Decimal, InvalidOperation
 from contextlib import contextmanager
 
@@ -17,7 +19,8 @@ log = logging.getLogger("shopcart")
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
-DATABASE_PATH = os.getenv("DATABASE_PATH", "shopcart.db")
+DATABASE_PATH = os.getenv("DATABASE_PATH", "/data/shopcart.db")
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()
 DEMO_USERNAME = os.getenv("DEMO_USERNAME", "demo")
 DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "change-me")
 INITIAL_BALANCE = Decimal(os.getenv("INITIAL_FAKE_BALANCE", "1000.00"))
@@ -28,7 +31,35 @@ ESTIMATED_TAX_RATE = Decimal(os.getenv("ESTIMATED_TAX_RATE", "0.08"))
 ESTIMATED_SHIPPING_FEE = Decimal(os.getenv("ESTIMATED_SHIPPING_FEE", "5.99"))
 SESSION_TTL = int(os.getenv("SESSION_TTL_MINUTES", "120")) * 60
 
-app = FastAPI(title="ShopCart Telegram Mini App")
+app = FastAPI(title="ProEshop Telegram Mini App", docs_url=None, redoc_url=None)
+
+# Lightweight per-process throttling for public-facing credential/search endpoints.
+_RATE_BUCKETS = {}
+_SEARCH_CACHE = {}
+
+@app.middleware("http")
+async def security_and_rate_limit(request: Request, call_next):
+    path = request.url.path
+    if path in ("/api/login", "/api/search"):
+        ip = request.client.host if request.client else "unknown"
+        key = (ip, path)
+        now = time.time()
+        window, limit = (60, 12 if path == "/api/login" else 30)
+        hits = [t for t in _RATE_BUCKETS.get(key, []) if now - t < window]
+        if len(hits) >= limit:
+            return JSONResponse({"detail": "Demasiadas solicitudes. Espera un minuto e inténtalo otra vez."}, status_code=429)
+        hits.append(now); _RATE_BUCKETS[key] = hits
+        if len(_RATE_BUCKETS) > 5000:
+            for old_key in list(_RATE_BUCKETS)[:1000]: _RATE_BUCKETS.pop(old_key, None)
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("Content-Security-Policy", "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' https://api.telegram.org; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+    if path == "/" or path.startswith("/api/"):
+        response.headers.setdefault("Cache-Control", "no-store")
+    return response
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
@@ -42,6 +73,8 @@ def conn():
     db = sqlite3.connect(DATABASE_PATH, timeout=20)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA foreign_keys=ON")
+    db.execute("PRAGMA busy_timeout=20000")
+    db.execute("PRAGMA busy_timeout=20000")
     try:
         yield db
         db.commit()
@@ -86,7 +119,20 @@ def init_db():
         CREATE TABLE IF NOT EXISTS balances(
           telegram_id TEXT PRIMARY KEY, amount TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS notification_preferences(
+          telegram_id TEXT PRIMARY KEY, order_updates INTEGER NOT NULL DEFAULT 1,
+          security_alerts INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS audit_log(
+          id INTEGER PRIMARY KEY AUTOINCREMENT, actor_id TEXT NOT NULL DEFAULT '',
+          action TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_carts_user ON carts(telegram_id, id);
+        CREATE INDEX IF NOT EXISTS idx_orders_user_date ON orders(telegram_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_purchases_user_date ON purchases(telegram_id, purchased_at);
+        CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
         """)
+        db.execute("PRAGMA journal_mode=WAL")
         # Safe migration for databases created by earlier ShopCart versions.
         purchase_columns = {row["name"] for row in db.execute("PRAGMA table_info(purchases)").fetchall()}
         if "order_ref" not in purchase_columns:
@@ -102,6 +148,20 @@ def init_db():
         }.items():
             if column not in order_columns:
                 db.execute(f"ALTER TABLE orders ADD COLUMN {column} {declaration}")
+
+
+def audit(actor_id: str, action: str, detail: str = ""):
+    """Store a minimal audit event; do not record passwords, tokens, or full addresses."""
+    with conn() as db:
+        db.execute("INSERT INTO audit_log(actor_id,action,detail,created_at) VALUES(?,?,?,?)",
+                   (str(actor_id or "")[:80], str(action)[:80], str(detail)[:240], now_iso()))
+
+
+def audit(actor_id: str, action: str, detail: str = ""):
+    """Store a minimal audit event; do not record passwords, tokens, or full addresses."""
+    with conn() as db:
+        db.execute("INSERT INTO audit_log(actor_id,action,detail,created_at) VALUES(?,?,?,?)",
+                   (str(actor_id or "")[:80], str(action)[:80], str(detail)[:240], now_iso()))
 
 
 def validate_init_data(init_data: str):
@@ -120,7 +180,7 @@ def validate_init_data(init_data: str):
         raise HTTPException(401, "Firma de Telegram no válida.")
     try:
         auth_date = int(pairs.get("auth_date", "0"))
-        if abs(time.time() - auth_date) > 86400:
+        if time.time() - auth_date > 86400 or auth_date > time.time() + 300:
             raise HTTPException(401, "La autorización de Telegram expiró. Vuelve a abrir la miniapp.")
         user = json.loads(pairs["user"])
         tg_id = str(user["id"])
@@ -162,6 +222,24 @@ class AddBody(BaseModel):
     price: str
     currency: str = Field(default="USD", min_length=3, max_length=3)
     url: str = Field(min_length=8, max_length=1000)
+
+
+class QtyBody(BaseModel):
+    qty: int = Field(ge=1, le=25)
+
+
+class NotificationBody(BaseModel):
+    order_updates: bool = True
+    security_alerts: bool = True
+
+
+class QtyBody(BaseModel):
+    qty: int = Field(ge=1, le=25)
+
+
+class NotificationBody(BaseModel):
+    order_updates: bool = True
+    security_alerts: bool = True
 
 
 class CheckoutBody(BaseModel):
@@ -244,6 +322,17 @@ async def login(body: AuthBody):
         db.execute("INSERT INTO sessions(token,telegram_id,created_at,active) VALUES(?,?,?,1)",
                    (token, tg_id, time.time()))
         balance = db.execute("SELECT amount FROM balances WHERE telegram_id=?", (tg_id,)).fetchone()["amount"]
+    audit(tg_id, "login", "Sesión de demostración iniciada")
+    with conn() as db:
+        pref = db.execute("SELECT security_alerts FROM notification_preferences WHERE telegram_id=?", (tg_id,)).fetchone()
+    if BOT_TOKEN and (pref is None or pref["security_alerts"]):
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                await client.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
+                    "chat_id": tg_id, "text": "🔐 ProEshop: se inició una nueva sesión de demostración en tu cuenta. Si no fuiste tú, cierra la sesión y revisa el acceso al bot."
+                })
+        except httpx.HTTPError:
+            log.info("No se pudo enviar alerta de inicio de sesión")
     return {"token": token, "username": body.username, "balance": balance, "currency": CURRENCY}
 
 
@@ -253,6 +342,7 @@ async def logout(request: Request):
     token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
     with conn() as db:
         db.execute("UPDATE sessions SET active=0 WHERE token=? AND telegram_id=?", (token, tg_id))
+    audit(tg_id, "logout", "Sesión cerrada")
     return {"ok": True}
 
 
@@ -267,6 +357,7 @@ async def search(body: SearchBody, request: Request):
         raise HTTPException(400, "Tienda no admitida.")
     if not query:
         raise HTTPException(400, "Escribe el nombre de un producto.")
+    audit(get_auth(request), "search", f"platform={platform}; query_length={len(query)}")
 
     store = PLATFORMS[platform]
     search_url = store["url"].format(q=quote_plus(query))
@@ -532,14 +623,27 @@ async def add_cart(body: AddBody, request: Request):
                       VALUES(?,?,?,?,?,?,1,?)""",
                    (tg_id, body.platform.lower(), body.title.strip(), str(price),
                     body.currency.upper(), body.url, now_iso()))
+    audit(tg_id, "cart_add", f"platform={body.platform.lower()}; price={price}")
     return {"ok": True}
+
+
+@app.put("/api/cart/{item_id}")
+async def update_cart(item_id: int, body: QtyBody, request: Request):
+    tg_id = get_auth(request)
+    with conn() as db:
+        cur = db.execute("UPDATE carts SET qty=? WHERE id=? AND telegram_id=?", (body.qty, item_id, tg_id))
+        if cur.rowcount == 0:
+            raise HTTPException(404, "Artículo no encontrado en tu carrito.")
+    audit(tg_id, "cart_qty", f"item={item_id}; qty={body.qty}")
+    return {"ok": True, "qty": body.qty}
 
 
 @app.delete("/api/cart/{item_id}")
 async def remove_cart(item_id: int, request: Request):
     tg_id = get_auth(request)
     with conn() as db:
-        db.execute("DELETE FROM carts WHERE id=? AND telegram_id=?", (item_id, tg_id))
+        cur = db.execute("DELETE FROM carts WHERE id=? AND telegram_id=?", (item_id, tg_id))
+    if cur.rowcount: audit(tg_id, "cart_remove", f"item={item_id}")
     return {"ok": True}
 
 
@@ -549,6 +653,72 @@ async def clear_cart(request: Request):
     with conn() as db:
         db.execute("DELETE FROM carts WHERE telegram_id=?", (tg_id,))
     return {"ok": True}
+
+
+@app.get("/api/notifications")
+async def get_notifications(request: Request):
+    tg_id = get_auth(request)
+    with conn() as db:
+        row = db.execute("SELECT * FROM notification_preferences WHERE telegram_id=?", (tg_id,)).fetchone()
+    return {"order_updates": bool(row["order_updates"]) if row else True,
+            "security_alerts": bool(row["security_alerts"]) if row else True,
+            "telegram_configured": bool(BOT_TOKEN)}
+
+
+@app.post("/api/notifications")
+async def set_notifications(body: NotificationBody, request: Request):
+    tg_id = get_auth(request)
+    with conn() as db:
+        db.execute("""INSERT INTO notification_preferences(telegram_id,order_updates,security_alerts,updated_at)
+                      VALUES(?,?,?,?) ON CONFLICT(telegram_id) DO UPDATE SET
+                      order_updates=excluded.order_updates, security_alerts=excluded.security_alerts,
+                      updated_at=excluded.updated_at""",
+                   (tg_id, int(body.order_updates), int(body.security_alerts), now_iso()))
+    audit(tg_id, "notification_preferences", f"orders={int(body.order_updates)}; security={int(body.security_alerts)}")
+    return {"ok": True, "order_updates": body.order_updates, "security_alerts": body.security_alerts,
+            "telegram_configured": bool(BOT_TOKEN)}
+
+
+@app.get("/api/orders/{order_ref}/receipt", response_class=HTMLResponse)
+async def receipt(order_ref: str, request: Request):
+    tg_id = get_auth(request)
+    with conn() as db:
+        order = db.execute("SELECT * FROM orders WHERE order_ref=? AND telegram_id=?", (order_ref, tg_id)).fetchone()
+        if not order:
+            raise HTTPException(404, "Recibo no encontrado.")
+        lines = db.execute("SELECT * FROM purchases WHERE order_ref=? AND telegram_id=? ORDER BY id", (order_ref, tg_id)).fetchall()
+    esc = lambda value: escape(str(value or ""))
+    rows = "".join(f"<tr><td>{esc(x['title'])}</td><td>{int(x['qty'])}</td><td>{esc(x['currency'])} {Decimal(x['total']):.2f}</td></tr>" for x in lines)
+    page = f"""<!doctype html><html lang='es'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
+    <title>Recibo de prueba {esc(order_ref)}</title><style>body{{font:16px system-ui;max-width:760px;margin:40px auto;padding:20px;color:#15243b}}.tag{{display:inline-block;background:#fff0cf;padding:8px 12px;border-radius:8px;font-weight:700}}table{{width:100%;border-collapse:collapse;margin:24px 0}}td,th{{padding:12px;border-bottom:1px solid #ddd;text-align:left}}.total{{font-size:1.4rem;font-weight:800}}button{{padding:12px 16px;background:#075fc7;color:white;border:0;border-radius:8px}}@media print{{button{{display:none}}}}</style>
+    <h1>ProEshop</h1><div class='tag'>RECIBO DE PRUEBA · SIN VALOR FISCAL</div><h2>Pedido {esc(order_ref)}</h2><p>Fecha: {esc(order['created_at'])}<br>Estado: Confirmado (simulado)</p>
+    <table><thead><tr><th>Artículo</th><th>Cantidad</th><th>Total de línea</th></tr></thead><tbody>{rows}</tbody></table>
+    <p>Subtotal: {esc(order['currency'])} {Decimal(order['subtotal']):.2f}</p><p>Impuestos estimados: {esc(order['currency'])} {Decimal(order['tax']):.2f}</p><p>Envío estimado: {esc(order['currency'])} {Decimal(order['shipping']):.2f}</p><p class='total'>Total estimado: {esc(order['currency'])} {Decimal(order['total']):.2f}</p>
+    <p>Este documento solo registra una operación ficticia del simulador. No acredita pago, compra, envío ni obligación fiscal.</p><p>Para guardar una copia, usa la opción Imprimir del navegador y selecciona Guardar como PDF.</p></html>"""
+    audit(tg_id, "receipt_view", f"order={order_ref}")
+    return HTMLResponse(page)
+
+
+@app.get("/api/admin/metrics")
+async def admin_metrics(request: Request):
+    if not ADMIN_API_KEY:
+        raise HTTPException(503, "Configura ADMIN_API_KEY en Railway para habilitar el panel administrativo.")
+    supplied = request.headers.get("X-Admin-Key", "")
+    if not hmac.compare_digest(supplied, ADMIN_API_KEY):
+        raise HTTPException(403, "Clave administrativa no válida.")
+    audit("admin", "admin_metrics_view", "Métricas administrativas consultadas")
+    with conn() as db:
+        metrics = {
+            "users": db.execute("SELECT COUNT(*) FROM users").fetchone()[0],
+            "orders": db.execute("SELECT COUNT(*) FROM orders").fetchone()[0],
+            "demo_volume": db.execute("SELECT COALESCE(SUM(CAST(total AS REAL)),0) FROM orders").fetchone()[0],
+            "cart_items": db.execute("SELECT COUNT(*) FROM carts").fetchone()[0],
+            "searches_24h": db.execute("SELECT COUNT(*) FROM audit_log WHERE action='search' AND created_at >= ?", ((datetime.now(timezone.utc)-timedelta(days=1)).isoformat(timespec="seconds"),)).fetchone()[0],
+            "audit_events": db.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0],
+            "recent_orders": [dict(x) for x in db.execute("SELECT order_ref,currency,total,status,created_at FROM orders ORDER BY created_at DESC LIMIT 10").fetchall()],
+            "recent_audit": [dict(x) for x in db.execute("SELECT actor_id,action,detail,created_at FROM audit_log ORDER BY id DESC LIMIT 25").fetchall()],
+        }
+    return metrics
 
 
 @app.post("/api/purchase")
@@ -604,8 +774,11 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
                         row["qty"], str(line_total), row["url"], when, order_ref))
         db.execute("UPDATE balances SET amount=? WHERE telegram_id=?", (str(balance-total), tg_id))
         db.execute("DELETE FROM carts WHERE telegram_id=?", (tg_id,))
-    # Telegram confirmation is best-effort. No message is sent if bot config is missing.
-    if BOT_TOKEN:
+    audit(tg_id, "purchase_demo", f"order={order_ref}; total={total}; currency={currency}")
+    with conn() as db:
+        pref = db.execute("SELECT order_updates FROM notification_preferences WHERE telegram_id=?", (tg_id,)).fetchone()
+    # Telegram confirmation is best-effort and opt-out aware. This is not a real purchase.
+    if BOT_TOKEN and (pref is None or pref["order_updates"]):
         try:
             async with httpx.AsyncClient(timeout=8) as client:
                 await client.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
