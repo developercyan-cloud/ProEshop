@@ -1,7 +1,14 @@
-import os, hmac, hashlib, json, time, secrets, sqlite3, logging, re
+import os
+import hmac
+import hashlib
+import json
+import time
+import secrets
+import sqlite3
+import logging
+import re
 from urllib.parse import parse_qsl, quote_plus, urlparse
 from datetime import datetime, timezone, timedelta
-from html import escape
 from html import escape
 from decimal import Decimal, InvalidOperation
 from contextlib import contextmanager
@@ -33,9 +40,9 @@ SESSION_TTL = int(os.getenv("SESSION_TTL_MINUTES", "120")) * 60
 
 app = FastAPI(title="ProEshop Telegram Mini App", docs_url=None, redoc_url=None)
 
-# Lightweight per-process throttling for public-facing credential/search endpoints.
 _RATE_BUCKETS = {}
 _SEARCH_CACHE = {}
+
 
 @app.middleware("http")
 async def security_and_rate_limit(request: Request, call_next):
@@ -47,19 +54,36 @@ async def security_and_rate_limit(request: Request, call_next):
         window, limit = (60, 12 if path == "/api/login" else 30)
         hits = [t for t in _RATE_BUCKETS.get(key, []) if now - t < window]
         if len(hits) >= limit:
-            return JSONResponse({"detail": "Demasiadas solicitudes. Espera un minuto e inténtalo otra vez."}, status_code=429)
-        hits.append(now); _RATE_BUCKETS[key] = hits
+            return JSONResponse(
+                {"detail": "Demasiadas solicitudes. Espera un minuto e inténtalo otra vez."},
+                status_code=429,
+            )
+        hits.append(now)
+        _RATE_BUCKETS[key] = hits
         if len(_RATE_BUCKETS) > 5000:
-            for old_key in list(_RATE_BUCKETS)[:1000]: _RATE_BUCKETS.pop(old_key, None)
+            for old_key in list(_RATE_BUCKETS)[:1000]:
+                _RATE_BUCKETS.pop(old_key, None)
+
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("X-Frame-Options", "DENY")
-    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-    response.headers.setdefault("Content-Security-Policy", "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' https://api.telegram.org; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+    response.headers.setdefault(
+        "Permissions-Policy",
+        "camera=(), microphone=(), geolocation=()",
+    )
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self' https://telegram.org; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; "
+        "connect-src 'self' https://api.telegram.org; frame-ancestors 'none'; "
+        "base-uri 'self'; form-action 'self'",
+    )
     if path == "/" or path.startswith("/api/"):
         response.headers.setdefault("Cache-Control", "no-store")
     return response
+
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
@@ -73,7 +97,6 @@ def conn():
     db = sqlite3.connect(DATABASE_PATH, timeout=20)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA foreign_keys=ON")
-    db.execute("PRAGMA busy_timeout=20000")
     db.execute("PRAGMA busy_timeout=20000")
     try:
         yield db
@@ -89,7 +112,8 @@ def init_db():
           telegram_id TEXT PRIMARY KEY, username TEXT, demo_login TEXT, created_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS sessions(
-          token TEXT PRIMARY KEY, telegram_id TEXT NOT NULL, created_at REAL NOT NULL, active INTEGER NOT NULL DEFAULT 1
+          token TEXT PRIMARY KEY, telegram_id TEXT NOT NULL, created_at REAL NOT NULL,
+          active INTEGER NOT NULL DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS carts(
           id INTEGER PRIMARY KEY AUTOINCREMENT, telegram_id TEXT NOT NULL, platform TEXT NOT NULL,
@@ -133,12 +157,20 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
         """)
         db.execute("PRAGMA journal_mode=WAL")
-        # Safe migration for databases created by earlier ShopCart versions.
-        purchase_columns = {row["name"] for row in db.execute("PRAGMA table_info(purchases)").fetchall()}
+
+        purchase_columns = {
+            row["name"]
+            for row in db.execute("PRAGMA table_info(purchases)").fetchall()
+        }
         if "order_ref" not in purchase_columns:
-            db.execute("ALTER TABLE purchases ADD COLUMN order_ref TEXT NOT NULL DEFAULT ''")
-        # Additive migrations only: preserve the existing Railway volume and all data.
-        order_columns = {row["name"] for row in db.execute("PRAGMA table_info(orders)").fetchall()}
+            db.execute(
+                "ALTER TABLE purchases ADD COLUMN order_ref TEXT NOT NULL DEFAULT ''"
+            )
+
+        order_columns = {
+            row["name"]
+            for row in db.execute("PRAGMA table_info(orders)").fetchall()
+        }
         for column, declaration in {
             "shipping_name": "TEXT NOT NULL DEFAULT ''",
             "shipping_city": "TEXT NOT NULL DEFAULT ''",
@@ -147,47 +179,70 @@ def init_db():
             "payment_method": "TEXT NOT NULL DEFAULT 'demo_balance'",
         }.items():
             if column not in order_columns:
-                db.execute(f"ALTER TABLE orders ADD COLUMN {column} {declaration}")
+                db.execute(
+                    f"ALTER TABLE orders ADD COLUMN {column} {declaration}"
+                )
 
 
 def audit(actor_id: str, action: str, detail: str = ""):
-    """Store a minimal audit event; do not record passwords, tokens, or full addresses."""
+    """Store minimal audit events without passwords, tokens, or full addresses."""
     with conn() as db:
-        db.execute("INSERT INTO audit_log(actor_id,action,detail,created_at) VALUES(?,?,?,?)",
-                   (str(actor_id or "")[:80], str(action)[:80], str(detail)[:240], now_iso()))
-
-
-def audit(actor_id: str, action: str, detail: str = ""):
-    """Store a minimal audit event; do not record passwords, tokens, or full addresses."""
-    with conn() as db:
-        db.execute("INSERT INTO audit_log(actor_id,action,detail,created_at) VALUES(?,?,?,?)",
-                   (str(actor_id or "")[:80], str(action)[:80], str(detail)[:240], now_iso()))
+        db.execute(
+            "INSERT INTO audit_log(actor_id,action,detail,created_at) VALUES(?,?,?,?)",
+            (
+                str(actor_id or "")[:80],
+                str(action)[:80],
+                str(detail)[:240],
+                now_iso(),
+            ),
+        )
 
 
 def validate_init_data(init_data: str):
-    """Validate Telegram Mini App initData using Telegram's documented HMAC scheme."""
+    """Validate Telegram Mini App initData using Telegram's HMAC scheme."""
     if not BOT_TOKEN:
         raise HTTPException(503, "El bot no está configurado.")
+
     try:
         pairs = dict(parse_qsl(init_data, keep_blank_values=True))
         received_hash = pairs.pop("hash")
     except Exception:
         raise HTTPException(401, "Falta initData válido de Telegram.")
-    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(pairs.items()))
-    secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
-    expected = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+
+    data_check_string = "\n".join(
+        f"{k}={v}" for k, v in sorted(pairs.items())
+    )
+    secret_key = hmac.new(
+        b"WebAppData",
+        BOT_TOKEN.encode(),
+        hashlib.sha256,
+    ).digest()
+    expected = hmac.new(
+        secret_key,
+        data_check_string.encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
     if not hmac.compare_digest(expected, received_hash):
         raise HTTPException(401, "Firma de Telegram no válida.")
+
     try:
         auth_date = int(pairs.get("auth_date", "0"))
         if time.time() - auth_date > 86400 or auth_date > time.time() + 300:
-            raise HTTPException(401, "La autorización de Telegram expiró. Vuelve a abrir la miniapp.")
+            raise HTTPException(
+                401,
+                "La autorización de Telegram expiró. Vuelve a abrir la miniapp.",
+            )
         user = json.loads(pairs["user"])
         tg_id = str(user["id"])
     except HTTPException:
         raise
     except Exception:
-        raise HTTPException(401, "No se pudo validar el usuario de Telegram.")
+        raise HTTPException(
+            401,
+            "No se pudo validar el usuario de Telegram.",
+        )
+
     return tg_id, user
 
 
@@ -195,13 +250,29 @@ def get_auth(request: Request):
     token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
     if not token:
         raise HTTPException(401, "Inicia sesión primero.")
+
     with conn() as db:
-        row = db.execute("SELECT * FROM sessions WHERE token=? AND active=1", (token,)).fetchone()
+        row = db.execute(
+            "SELECT * FROM sessions WHERE token=? AND active=1",
+            (token,),
+        ).fetchone()
+
         if not row or time.time() - row["created_at"] > SESSION_TTL:
             if row:
-                db.execute("UPDATE sessions SET active=0 WHERE token=?", (token,))
-            raise HTTPException(401, "Sesión expirada. Inicia sesión nuevamente.")
-        db.execute("UPDATE sessions SET created_at=? WHERE token=?", (time.time(), token))
+                db.execute(
+                    "UPDATE sessions SET active=0 WHERE token=?",
+                    (token,),
+                )
+            raise HTTPException(
+                401,
+                "Sesión expirada. Inicia sesión nuevamente.",
+            )
+
+        db.execute(
+            "UPDATE sessions SET created_at=? WHERE token=?",
+            (time.time(), token),
+        )
+
     return row["telegram_id"]
 
 
@@ -233,17 +304,7 @@ class NotificationBody(BaseModel):
     security_alerts: bool = True
 
 
-class QtyBody(BaseModel):
-    qty: int = Field(ge=1, le=25)
-
-
-class NotificationBody(BaseModel):
-    order_updates: bool = True
-    security_alerts: bool = True
-
-
 class CheckoutBody(BaseModel):
-    # These are explicitly demo-only details; never collect card or bank credentials.
     shipping_name: str = Field(default="", max_length=100)
     shipping_city: str = Field(default="", max_length=80)
     shipping_country: str = Field(default="", max_length=80)
@@ -252,30 +313,67 @@ class CheckoutBody(BaseModel):
 
 
 PLATFORMS = {
-    "amazon": {"label": "Amazon", "url": "https://www.amazon.com/s?k={q}"},
-    "target": {"label": "Target", "url": "https://www.target.com/s?searchTerm={q}"},
-    "walmart": {"label": "Walmart", "url": "https://www.walmart.com/search?q={q}"},
+    "amazon": {
+        "label": "Amazon",
+        "url": "https://www.amazon.com/s?k={q}",
+        "domains": ("amazon.com",),
+    },
+    "target": {
+        "label": "Target",
+        "url": "https://www.target.com/s?searchTerm={q}",
+        "domains": ("target.com",),
+    },
+    "walmart": {
+        "label": "Walmart",
+        "url": "https://www.walmart.com/search?q={q}",
+        "domains": ("walmart.com",),
+    },
 }
+
+
+def belongs_to_store(raw_url: str, platform: str) -> bool:
+    """Only accept HTTPS product links on the selected retailer's own domain."""
+    try:
+        parsed = urlparse(raw_url)
+        if parsed.scheme.lower() != "https" or not parsed.hostname:
+            return False
+
+        host = parsed.hostname.lower().rstrip(".")
+        allowed_domains = PLATFORMS[platform]["domains"]
+
+        return any(
+            host == domain or host.endswith("." + domain)
+            for domain in allowed_domains
+        )
+    except (KeyError, ValueError, TypeError):
+        return False
 
 
 @app.on_event("startup")
 async def startup():
     init_db()
+
     if BOT_TOKEN and PUBLIC_BASE_URL:
         async with httpx.AsyncClient(timeout=15) as client:
-            r = await client.post(
+            response = await client.post(
                 f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook",
-                json={"url": f"{PUBLIC_BASE_URL}/telegram-webhook/{WEBHOOK_SECRET}",
-                      "allowed_updates": ["message"], "drop_pending_updates": False},
+                json={
+                    "url": f"{PUBLIC_BASE_URL}/telegram-webhook/{WEBHOOK_SECRET}",
+                    "allowed_updates": ["message"],
+                    "drop_pending_updates": False,
+                },
             )
-            if r.status_code >= 400:
-                log.error("No se pudo configurar webhook: %s", r.text[:300])
+            if response.status_code >= 400:
+                log.error(
+                    "No se pudo configurar webhook: %s",
+                    response.text[:300],
+                )
 
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
-    with open("static/index.html", encoding="utf-8") as f:
-        return HTMLResponse(f.read())
+    with open("static/index.html", encoding="utf-8") as file:
+        return HTMLResponse(file.read())
 
 
 @app.get("/health")
@@ -287,69 +385,121 @@ async def health():
 async def telegram_webhook(secret: str, request: Request):
     if not hmac.compare_digest(secret, WEBHOOK_SECRET):
         raise HTTPException(404, "Not found")
+
     update = await request.json()
     message = update.get("message") or {}
     text = (message.get("text") or "").strip()
     chat_id = (message.get("chat") or {}).get("id")
+
     if chat_id and text.startswith("/start"):
-        keyboard = {"inline_keyboard": [[{
-            "text": "🛍️ Abrir ShopCart",
-            "web_app": {"url": PUBLIC_BASE_URL}
-        }]]}
+        keyboard = {
+            "inline_keyboard": [[{
+                "text": "🛍️ Abrir ProEshop",
+                "web_app": {"url": PUBLIC_BASE_URL},
+            }]]
+        }
+
         async with httpx.AsyncClient(timeout=15) as client:
-            await client.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
-                "chat_id": chat_id,
-                "text": "Bienvenido a ShopCart. Abre la miniapp para buscar artículos y gestionar tu carrito ficticio.",
-                "reply_markup": keyboard
-            })
+            await client.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": (
+                        "Bienvenido a ProEshop. Busca productos y compara "
+                        "resultados de las tiendas disponibles."
+                    ),
+                    "reply_markup": keyboard,
+                },
+            )
+
     return {"ok": True}
 
 
 @app.post("/api/login")
 async def login(body: AuthBody):
     tg_id, tg_user = validate_init_data(body.init_data)
-    # Demo/local app account gate. Never use retailer credentials here.
-    if not (hmac.compare_digest(body.username, DEMO_USERNAME) and
-            hmac.compare_digest(body.password, DEMO_PASSWORD)):
+
+    if not (
+        hmac.compare_digest(body.username, DEMO_USERNAME)
+        and hmac.compare_digest(body.password, DEMO_PASSWORD)
+    ):
         raise HTTPException(401, "Usuario o contraseña incorrectos.")
+
     token = secrets.token_urlsafe(32)
+
     with conn() as db:
-        db.execute("INSERT OR IGNORE INTO users(telegram_id,username,demo_login,created_at) VALUES(?,?,?,?)",
-                   (tg_id, tg_user.get("username", ""), body.username, now_iso()))
-        db.execute("INSERT OR IGNORE INTO balances(telegram_id,amount) VALUES(?,?)",
-                   (tg_id, str(INITIAL_BALANCE)))
-        db.execute("UPDATE sessions SET active=0 WHERE telegram_id=?", (tg_id,))
-        db.execute("INSERT INTO sessions(token,telegram_id,created_at,active) VALUES(?,?,?,1)",
-                   (token, tg_id, time.time()))
-        balance = db.execute("SELECT amount FROM balances WHERE telegram_id=?", (tg_id,)).fetchone()["amount"]
+        db.execute(
+            "INSERT OR IGNORE INTO users(telegram_id,username,demo_login,created_at) "
+            "VALUES(?,?,?,?)",
+            (tg_id, tg_user.get("username", ""), body.username, now_iso()),
+        )
+        db.execute(
+            "INSERT OR IGNORE INTO balances(telegram_id,amount) VALUES(?,?)",
+            (tg_id, str(INITIAL_BALANCE)),
+        )
+        db.execute(
+            "UPDATE sessions SET active=0 WHERE telegram_id=?",
+            (tg_id,),
+        )
+        db.execute(
+            "INSERT INTO sessions(token,telegram_id,created_at,active) VALUES(?,?,?,1)",
+            (token, tg_id, time.time()),
+        )
+        balance = db.execute(
+            "SELECT amount FROM balances WHERE telegram_id=?",
+            (tg_id,),
+        ).fetchone()["amount"]
+
     audit(tg_id, "login", "Sesión de demostración iniciada")
+
     with conn() as db:
-        pref = db.execute("SELECT security_alerts FROM notification_preferences WHERE telegram_id=?", (tg_id,)).fetchone()
+        pref = db.execute(
+            "SELECT security_alerts FROM notification_preferences WHERE telegram_id=?",
+            (tg_id,),
+        ).fetchone()
+
     if BOT_TOKEN and (pref is None or pref["security_alerts"]):
         try:
             async with httpx.AsyncClient(timeout=5) as client:
-                await client.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
-                    "chat_id": tg_id, "text": "🔐 ProEshop: se inició una nueva sesión de demostración en tu cuenta. Si no fuiste tú, cierra la sesión y revisa el acceso al bot."
-                })
+                await client.post(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                    json={
+                        "chat_id": tg_id,
+                        "text": (
+                            "🔐 ProEshop: se inició una nueva sesión de "
+                            "demostración en tu cuenta."
+                        ),
+                    },
+                )
         except httpx.HTTPError:
             log.info("No se pudo enviar alerta de inicio de sesión")
-    return {"token": token, "username": body.username, "balance": balance, "currency": CURRENCY}
+
+    return {
+        "token": token,
+        "username": body.username,
+        "balance": balance,
+        "currency": CURRENCY,
+    }
 
 
 @app.post("/api/logout")
 async def logout(request: Request):
     tg_id = get_auth(request)
     token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+
     with conn() as db:
-        db.execute("UPDATE sessions SET active=0 WHERE token=? AND telegram_id=?", (token, tg_id))
+        db.execute(
+            "UPDATE sessions SET active=0 WHERE token=? AND telegram_id=?",
+            (token, tg_id),
+        )
+
     audit(tg_id, "logout", "Sesión cerrada")
     return {"ok": True}
 
 
 @app.post("/api/search")
 async def search(body: SearchBody, request: Request):
-    get_auth(request)
-
+    tg_id = get_auth(request)
     platform = body.platform.lower().strip()
     query = body.query.strip()
 
@@ -357,7 +507,12 @@ async def search(body: SearchBody, request: Request):
         raise HTTPException(400, "Tienda no admitida.")
     if not query:
         raise HTTPException(400, "Escribe el nombre de un producto.")
-    audit(get_auth(request), "search", f"platform={platform}; query_length={len(query)}")
+
+    audit(
+        tg_id,
+        "search",
+        f"platform={platform}; query_length={len(query)}",
+    )
 
     store = PLATFORMS[platform]
     search_url = store["url"].format(q=quote_plus(query))
@@ -375,29 +530,22 @@ async def search(body: SearchBody, request: Request):
             ),
         }
 
-    domains = {
-        "amazon": ("amazon.com",),
-        "walmart": ("walmart.com",),
-        "target": ("target.com",),
-    }
-    aliases = {
-        "amazon": ("amazon",),
-        "walmart": ("walmart",),
-        "target": ("target",),
-    }
-    expected_domains = domains[platform]
-    expected_aliases = aliases[platform]
+    cache_key = (platform, query.casefold())
+    cached = _SEARCH_CACHE.get(cache_key)
+    if cached and time.time() - cached["timestamp"] < 90:
+        return cached["data"]
 
     try:
         async with httpx.AsyncClient(
-            timeout=httpx.Timeout(45.0, connect=10.0),
+            timeout=httpx.Timeout(35.0, connect=10.0),
             follow_redirects=True,
         ) as client:
             response = await client.get(
                 "https://serpapi.com/search.json",
                 params={
                     "engine": "google_shopping",
-                    "q": f"{query} {store['label']}",
+                    "q": query,
+                    "google_domain": "google.com",
                     "gl": "us",
                     "hl": "en",
                     "api_key": SERPAPI_KEY,
@@ -430,110 +578,95 @@ async def search(body: SearchBody, request: Request):
             or payload.get("inline_shopping_results")
             or []
         )
-        log.info(
-            "SERPAPI DEBUG platform=%s total=%s sources=%s",
-            platform,
-            len(items),
-            [str(item.get("source") or "SIN FUENTE") for item in items[:15]],
-        )
 
         matched_results = []
-        other_results = []
 
-        for item in items[:40]:
-            source = str(
-                item.get("source")
-                or item.get("seller")
-                or item.get("merchant")
+        for item in items[:60]:
+            raw_link = (
+                item.get("product_link")
+                or item.get("link")
+                or item.get("product_url")
                 or ""
-            ).strip()
-            raw_link = item.get("product_link") or item.get("link") or ""
-            parsed = urlparse(raw_link)
-            host = parsed.netloc.lower().split(":")[0].removeprefix("www.")
-
-            domain_match = any(
-                host == domain or host.endswith("." + domain)
-                for domain in expected_domains
             )
-            source_lower = source.lower()
-            source_match = any(alias in source_lower for alias in expected_aliases)
 
-            price = item.get("extracted_price")
-            if isinstance(price, dict):
-                price = price.get("value") or price.get("extracted_price")
+            # No basta con que Google muestre el nombre de Amazon o Target:
+            # el enlace debe pertenecer al dominio oficial de la tienda elegida.
+            if not belongs_to_store(raw_link, platform):
+                continue
 
-            if price is None:
+            title = str(item.get("title") or "").strip()
+            if not title:
+                continue
+
+            raw_price = item.get("extracted_price")
+            if isinstance(raw_price, dict):
+                raw_price = (
+                    raw_price.get("value")
+                    or raw_price.get("extracted_price")
+                )
+
+            if raw_price is None:
                 raw_price = item.get("price")
                 if isinstance(raw_price, dict):
-                    price = raw_price.get("value") or raw_price.get("extracted_price")
+                    raw_price = (
+                        raw_price.get("value")
+                        or raw_price.get("extracted_price")
+                    )
                 elif raw_price is not None:
                     match = re.search(
                         r"([0-9][0-9,]*(?:\.[0-9]{1,2})?)",
                         str(raw_price),
                     )
-                    if match:
-                        price = match.group(1).replace(",", "")
+                    raw_price = (
+                        match.group(1).replace(",", "")
+                        if match else None
+                    )
 
             try:
-                price = float(price)
+                price = float(raw_price)
             except (TypeError, ValueError):
                 continue
-            if not (0 < price <= 10_000_000):
+
+            if not 0 < price <= 10_000_000:
                 continue
 
-            # Never label a result as belonging to the selected store unless
-            # its seller or product domain actually matches. Keep an official
-            # store search URL when the source is a Google Shopping redirect.
-            if parsed.scheme == "https" and parsed.netloc:
-                product_url = raw_link
-            else:
-                product_url = search_url
-
             product = {
-                "title": str(item.get("title") or "Producto")[:180],
+                "title": title[:180],
                 "price": round(price, 2),
                 "currency": "USD",
-                "url": product_url,
+                "url": raw_link,
                 "image": str(item.get("thumbnail") or ""),
-                "source": source or "Vendedor no identificado",
+                "source": store["label"],
             }
-            other_results.append(product)
-            if domain_match or source_match:
-                matched_results.append(product)
 
-        if matched_results:
-            results = matched_results[:12]
-        else:
-            # Show related priced results when seller identity is not explicit,
-            # while clearly telling the user the store could not be verified.
-            results = other_results[:12]
+            matched_results.append(product)
 
-        log.info(
-            "SEARCH COMPLETE platform=%s total=%s matched=%s fallback=%s",
-            platform,
-            len(results),
-            len(matched_results),
-            bool(results and not matched_results),
-        )
+        # Deduplicar por URL sin aceptar enlaces de otros comercios.
+        seen_urls = set()
+        results = []
+        for item in matched_results:
+            normalized_url = item["url"].split("#", 1)[0].rstrip("/")
+            if normalized_url in seen_urls:
+                continue
+            seen_urls.add(normalized_url)
+            results.append(item)
+            if len(results) >= 12:
+                break
 
-        if matched_results:
+        if results:
             notice = (
-                "Precios en USD; pueden variar por vendedor, ubicación, "
-                "impuestos y disponibilidad. Confirma el precio final en la tienda."
-            )
-        elif results:
-            notice = (
-                f"No se pudo confirmar que estos productos pertenezcan a {store['label']}. "
-                "Se muestran resultados relacionados de Google Shopping con su vendedor "
-                "identificado. Verifica la tienda y el precio antes de comprar."
+                "Resultados filtrados por dominio oficial. Los precios, "
+                "impuestos, disponibilidad y envío pueden variar; "
+                "confirma el precio final en la tienda."
             )
         else:
             notice = (
-                "Google Shopping no devolvió productos con precio verificable. "
-                "Prueba otro término o abre la tienda oficial."
+                f"No se encontraron productos verificables con enlaces "
+                f"directos a {store['label']}. Se ocultaron los resultados "
+                "de otras tiendas. Prueba otro término o abre la tienda oficial."
             )
 
-        return {
+        data = {
             "platform": platform,
             "label": store["label"],
             "query": query,
@@ -541,6 +674,21 @@ async def search(body: SearchBody, request: Request):
             "live_results": results,
             "notice": notice,
         }
+
+        _SEARCH_CACHE[cache_key] = {
+            "timestamp": time.time(),
+            "data": data,
+        }
+
+        # Limpiar entradas antiguas de caché.
+        if len(_SEARCH_CACHE) > 500:
+            now = time.time()
+            for key in list(_SEARCH_CACHE):
+                entry = _SEARCH_CACHE.get(key)
+                if not entry or now - entry["timestamp"] > 300:
+                    _SEARCH_CACHE.pop(key, None)
+
+        return data
 
     except httpx.TimeoutException:
         log.warning("SERPAPI TIMEOUT platform=%s", platform)
@@ -580,12 +728,31 @@ async def search(body: SearchBody, request: Request):
 @app.get("/api/state")
 async def state(request: Request):
     tg_id = get_auth(request)
+
     with conn() as db:
-        balance = db.execute("SELECT amount FROM balances WHERE telegram_id=?", (tg_id,)).fetchone()
-        cart = db.execute("SELECT * FROM carts WHERE telegram_id=? ORDER BY id DESC", (tg_id,)).fetchall()
-        history = db.execute("SELECT * FROM purchases WHERE telegram_id=? ORDER BY id DESC LIMIT 50", (tg_id,)).fetchall()
-        orders = db.execute("SELECT * FROM orders WHERE telegram_id=? ORDER BY created_at DESC LIMIT 50", (tg_id,)).fetchall()
-        order_events = db.execute("SELECT e.* FROM order_events e JOIN orders o ON o.order_ref=e.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
+        balance = db.execute(
+            "SELECT amount FROM balances WHERE telegram_id=?",
+            (tg_id,),
+        ).fetchone()
+        cart = db.execute(
+            "SELECT * FROM carts WHERE telegram_id=? ORDER BY id DESC",
+            (tg_id,),
+        ).fetchall()
+        history = db.execute(
+            "SELECT * FROM purchases WHERE telegram_id=? ORDER BY id DESC LIMIT 50",
+            (tg_id,),
+        ).fetchall()
+        orders = db.execute(
+            "SELECT * FROM orders WHERE telegram_id=? ORDER BY created_at DESC LIMIT 50",
+            (tg_id,),
+        ).fetchall()
+        order_events = db.execute(
+            "SELECT e.* FROM order_events e "
+            "JOIN orders o ON o.order_ref=e.order_ref "
+            "WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC",
+            (tg_id,),
+        ).fetchall()
+
     return {
         "balance": balance["amount"] if balance else str(INITIAL_BALANCE),
         "currency": CURRENCY,
@@ -595,45 +762,80 @@ async def state(request: Request):
         "history": [dict(x) for x in history],
         "orders": [dict(x) for x in orders],
         "order_events": [dict(x) for x in order_events],
-        "platforms": [{"id": k, "label": v["label"]} for k,v in PLATFORMS.items()]
+        "platforms": [
+            {"id": key, "label": value["label"]}
+            for key, value in PLATFORMS.items()
+        ],
     }
 
 
 @app.post("/api/cart")
 async def add_cart(body: AddBody, request: Request):
     tg_id = get_auth(request)
-    if body.platform.lower() not in PLATFORMS:
+    platform = body.platform.lower().strip()
+
+    if platform not in PLATFORMS:
         raise HTTPException(400, "Tienda no admitida.")
     if body.currency.upper() != CURRENCY.upper():
-        raise HTTPException(400, f"El saldo ficticio está denominado en {CURRENCY}; usa esa misma moneda.")
+        raise HTTPException(
+            400,
+            f"El saldo ficticio está denominado en {CURRENCY}; usa esa misma moneda.",
+        )
+
     try:
         price = Decimal(body.price).quantize(Decimal("0.01"))
-        if not price.is_finite() or price <= 0 or price > Decimal("10000000"):
+        if (
+            not price.is_finite()
+            or price <= 0
+            or price > Decimal("10000000")
+        ):
             raise InvalidOperation()
     except (InvalidOperation, ValueError):
-        raise HTTPException(400, "Introduce un precio válido mayor que cero.")
-    from urllib.parse import urlparse
-    parsed = urlparse(body.url)
-    allowed = {"amazon.com", "www.amazon.com", "target.com", "www.target.com",
-               "walmart.com", "www.walmart.com"}
-    if parsed.scheme != "https" or parsed.netloc.lower() not in allowed:
-        raise HTTPException(400, "Usa un enlace HTTPS de Amazon.com, Target.com o Walmart.com.")
+        raise HTTPException(
+            400,
+            "Introduce un precio válido mayor que cero.",
+        )
+
+    if not belongs_to_store(body.url, platform):
+        raise HTTPException(
+            400,
+            "El enlace no pertenece al dominio oficial de la tienda seleccionada.",
+        )
+
     with conn() as db:
-        db.execute("""INSERT INTO carts(telegram_id,platform,title,price,currency,url,qty,created_at)
-                      VALUES(?,?,?,?,?,?,1,?)""",
-                   (tg_id, body.platform.lower(), body.title.strip(), str(price),
-                    body.currency.upper(), body.url, now_iso()))
-    audit(tg_id, "cart_add", f"platform={body.platform.lower()}; price={price}")
+        db.execute(
+            "INSERT INTO carts(telegram_id,platform,title,price,currency,url,qty,created_at) "
+            "VALUES(?,?,?,?,?,?,1,?)",
+            (
+                tg_id,
+                platform,
+                body.title.strip(),
+                str(price),
+                body.currency.upper(),
+                body.url,
+                now_iso(),
+            ),
+        )
+
+    audit(tg_id, "cart_add", f"platform={platform}; price={price}")
     return {"ok": True}
 
 
 @app.put("/api/cart/{item_id}")
 async def update_cart(item_id: int, body: QtyBody, request: Request):
     tg_id = get_auth(request)
+
     with conn() as db:
-        cur = db.execute("UPDATE carts SET qty=? WHERE id=? AND telegram_id=?", (body.qty, item_id, tg_id))
+        cur = db.execute(
+            "UPDATE carts SET qty=? WHERE id=? AND telegram_id=?",
+            (body.qty, item_id, tg_id),
+        )
         if cur.rowcount == 0:
-            raise HTTPException(404, "Artículo no encontrado en tu carrito.")
+            raise HTTPException(
+                404,
+                "Artículo no encontrado en tu carrito.",
+            )
+
     audit(tg_id, "cart_qty", f"item={item_id}; qty={body.qty}")
     return {"ok": True, "qty": body.qty}
 
@@ -641,156 +843,118 @@ async def update_cart(item_id: int, body: QtyBody, request: Request):
 @app.delete("/api/cart/{item_id}")
 async def remove_cart(item_id: int, request: Request):
     tg_id = get_auth(request)
+
     with conn() as db:
-        cur = db.execute("DELETE FROM carts WHERE id=? AND telegram_id=?", (item_id, tg_id))
-    if cur.rowcount: audit(tg_id, "cart_remove", f"item={item_id}")
+        cur = db.execute(
+            "DELETE FROM carts WHERE id=? AND telegram_id=?",
+            (item_id, tg_id),
+        )
+
+    if cur.rowcount:
+        audit(tg_id, "cart_remove", f"item={item_id}")
+
     return {"ok": True}
 
 
 @app.delete("/api/cart")
 async def clear_cart(request: Request):
     tg_id = get_auth(request)
+
     with conn() as db:
-        db.execute("DELETE FROM carts WHERE telegram_id=?", (tg_id,))
+        db.execute(
+            "DELETE FROM carts WHERE telegram_id=?",
+            (tg_id,),
+        )
+
     return {"ok": True}
 
 
 @app.get("/api/notifications")
 async def get_notifications(request: Request):
     tg_id = get_auth(request)
+
     with conn() as db:
-        row = db.execute("SELECT * FROM notification_preferences WHERE telegram_id=?", (tg_id,)).fetchone()
-    return {"order_updates": bool(row["order_updates"]) if row else True,
-            "security_alerts": bool(row["security_alerts"]) if row else True,
-            "telegram_configured": bool(BOT_TOKEN)}
+        row = db.execute(
+            "SELECT * FROM notification_preferences WHERE telegram_id=?",
+            (tg_id,),
+        ).fetchone()
+
+    return {
+        "order_updates": bool(row["order_updates"]) if row else True,
+        "security_alerts": bool(row["security_alerts"]) if row else True,
+        "telegram_configured": bool(BOT_TOKEN),
+    }
 
 
 @app.post("/api/notifications")
 async def set_notifications(body: NotificationBody, request: Request):
     tg_id = get_auth(request)
+
     with conn() as db:
-        db.execute("""INSERT INTO notification_preferences(telegram_id,order_updates,security_alerts,updated_at)
-                      VALUES(?,?,?,?) ON CONFLICT(telegram_id) DO UPDATE SET
-                      order_updates=excluded.order_updates, security_alerts=excluded.security_alerts,
-                      updated_at=excluded.updated_at""",
-                   (tg_id, int(body.order_updates), int(body.security_alerts), now_iso()))
-    audit(tg_id, "notification_preferences", f"orders={int(body.order_updates)}; security={int(body.security_alerts)}")
-    return {"ok": True, "order_updates": body.order_updates, "security_alerts": body.security_alerts,
-            "telegram_configured": bool(BOT_TOKEN)}
+        db.execute(
+            """
+            INSERT INTO notification_preferences(
+                telegram_id,order_updates,security_alerts,updated_at
+            ) VALUES(?,?,?,?)
+            ON CONFLICT(telegram_id) DO UPDATE SET
+              order_updates=excluded.order_updates,
+              security_alerts=excluded.security_alerts,
+              updated_at=excluded.updated_at
+            """,
+            (
+                tg_id,
+                int(body.order_updates),
+                int(body.security_alerts),
+                now_iso(),
+            ),
+        )
+
+    audit(
+        tg_id,
+        "notification_preferences",
+        f"orders={int(body.order_updates)}; security={int(body.security_alerts)}",
+    )
+
+    return {
+        "ok": True,
+        "order_updates": body.order_updates,
+        "security_alerts": body.security_alerts,
+        "telegram_configured": bool(BOT_TOKEN),
+    }
 
 
 @app.get("/api/orders/{order_ref}/receipt", response_class=HTMLResponse)
 async def receipt(order_ref: str, request: Request):
     tg_id = get_auth(request)
+
     with conn() as db:
-        order = db.execute("SELECT * FROM orders WHERE order_ref=? AND telegram_id=?", (order_ref, tg_id)).fetchone()
+        order = db.execute(
+            "SELECT * FROM orders WHERE order_ref=? AND telegram_id=?",
+            (order_ref, tg_id),
+        ).fetchone()
         if not order:
             raise HTTPException(404, "Recibo no encontrado.")
-        lines = db.execute("SELECT * FROM purchases WHERE order_ref=? AND telegram_id=? ORDER BY id", (order_ref, tg_id)).fetchall()
+
+        lines = db.execute(
+            "SELECT * FROM purchases WHERE order_ref=? AND telegram_id=? ORDER BY id",
+            (order_ref, tg_id),
+        ).fetchall()
+
     esc = lambda value: escape(str(value or ""))
-    rows = "".join(f"<tr><td>{esc(x['title'])}</td><td>{int(x['qty'])}</td><td>{esc(x['currency'])} {Decimal(x['total']):.2f}</td></tr>" for x in lines)
-    page = f"""<!doctype html><html lang='es'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
-    <title>Recibo de prueba {esc(order_ref)}</title><style>body{{font:16px system-ui;max-width:760px;margin:40px auto;padding:20px;color:#15243b}}.tag{{display:inline-block;background:#fff0cf;padding:8px 12px;border-radius:8px;font-weight:700}}table{{width:100%;border-collapse:collapse;margin:24px 0}}td,th{{padding:12px;border-bottom:1px solid #ddd;text-align:left}}.total{{font-size:1.4rem;font-weight:800}}button{{padding:12px 16px;background:#075fc7;color:white;border:0;border-radius:8px}}@media print{{button{{display:none}}}}</style>
-    <h1>ProEshop</h1><div class='tag'>RECIBO DE PRUEBA · SIN VALOR FISCAL</div><h2>Pedido {esc(order_ref)}</h2><p>Fecha: {esc(order['created_at'])}<br>Estado: Confirmado (simulado)</p>
-    <table><thead><tr><th>Artículo</th><th>Cantidad</th><th>Total de línea</th></tr></thead><tbody>{rows}</tbody></table>
-    <p>Subtotal: {esc(order['currency'])} {Decimal(order['subtotal']):.2f}</p><p>Impuestos estimados: {esc(order['currency'])} {Decimal(order['tax']):.2f}</p><p>Envío estimado: {esc(order['currency'])} {Decimal(order['shipping']):.2f}</p><p class='total'>Total estimado: {esc(order['currency'])} {Decimal(order['total']):.2f}</p>
-    <p>Este documento solo registra una operación ficticia del simulador. No acredita pago, compra, envío ni obligación fiscal.</p><p>Para guardar una copia, usa la opción Imprimir del navegador y selecciona Guardar como PDF.</p></html>"""
-    audit(tg_id, "receipt_view", f"order={order_ref}")
-    return HTMLResponse(page)
+    rows = "".join(
+        f"<tr><td>{esc(item['title'])}</td>"
+        f"<td>{int(item['qty'])}</td>"
+        f"<td>{esc(item['currency'])} {Decimal(item['total']):.2f}</td></tr>"
+        for item in lines
+    )
 
-
-@app.get("/api/admin/metrics")
-async def admin_metrics(request: Request):
-    if not ADMIN_API_KEY:
-        raise HTTPException(503, "Configura ADMIN_API_KEY en Railway para habilitar el panel administrativo.")
-    supplied = request.headers.get("X-Admin-Key", "")
-    if not hmac.compare_digest(supplied, ADMIN_API_KEY):
-        raise HTTPException(403, "Clave administrativa no válida.")
-    audit("admin", "admin_metrics_view", "Métricas administrativas consultadas")
-    with conn() as db:
-        metrics = {
-            "users": db.execute("SELECT COUNT(*) FROM users").fetchone()[0],
-            "orders": db.execute("SELECT COUNT(*) FROM orders").fetchone()[0],
-            "demo_volume": db.execute("SELECT COALESCE(SUM(CAST(total AS REAL)),0) FROM orders").fetchone()[0],
-            "cart_items": db.execute("SELECT COUNT(*) FROM carts").fetchone()[0],
-            "searches_24h": db.execute("SELECT COUNT(*) FROM audit_log WHERE action='search' AND created_at >= ?", ((datetime.now(timezone.utc)-timedelta(days=1)).isoformat(timespec="seconds"),)).fetchone()[0],
-            "audit_events": db.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0],
-            "recent_orders": [dict(x) for x in db.execute("SELECT order_ref,currency,total,status,created_at FROM orders ORDER BY created_at DESC LIMIT 10").fetchall()],
-            "recent_audit": [dict(x) for x in db.execute("SELECT actor_id,action,detail,created_at FROM audit_log ORDER BY id DESC LIMIT 25").fetchall()],
-        }
-    return metrics
-
-
-@app.post("/api/purchase")
-async def fictional_purchase(body: CheckoutBody, request: Request):
-    tg_id = get_auth(request)
-    if body.payment_method != "demo_balance":
-        raise HTTPException(400, "Solo está disponible el método de pago de demostración.")
-    submitted_shipping = [body.shipping_name.strip(), body.shipping_city.strip(),
-                          body.shipping_country.strip(), body.shipping_address.strip()]
-    # Backward-compatible fallback for older clients that POST an empty JSON body.
-    # New UI users enter explicitly fictional delivery details in the checkout form.
-    if any(submitted_shipping) and not all(submitted_shipping):
-        raise HTTPException(400, "Completa todos los datos de entrega de demostración.")
-    if all(submitted_shipping):
-        shipping_name, shipping_city, shipping_country, shipping_address = submitted_shipping
-    else:
-        shipping_name, shipping_city, shipping_country, shipping_address = (
-            "Demo Recipient", "Demo City", "Demo Region", "Demo Address"
-        )
-    with conn() as db:
-        rows = db.execute("SELECT * FROM carts WHERE telegram_id=? ORDER BY id", (tg_id,)).fetchall()
-        if not rows:
-            raise HTTPException(400, "El carrito está vacío.")
-        currencies = {r["currency"] for r in rows}
-        if len(currencies) != 1:
-            raise HTTPException(400, "No combines monedas distintas en una misma compra ficticia.")
-        subtotal = sum((Decimal(r["price"]) * r["qty"] for r in rows), Decimal("0")).quantize(Decimal("0.01"))
-        tax = (subtotal * ESTIMATED_TAX_RATE).quantize(Decimal("0.01"))
-        shipping = ESTIMATED_SHIPPING_FEE if subtotal > 0 else Decimal("0.00")
-        total = (subtotal + tax + shipping).quantize(Decimal("0.01"))
-        b = db.execute("SELECT amount FROM balances WHERE telegram_id=?", (tg_id,)).fetchone()
-        balance = Decimal(b["amount"] if b else str(INITIAL_BALANCE))
-        if total > balance:
-            raise HTTPException(400, f"Saldo ficticio insuficiente. Total estimado {total:.2f}; saldo {balance:.2f}.")
-        when = now_iso()
-        order_ref = "SC-" + secrets.token_hex(5).upper()
-        currency = next(iter(currencies))
-        db.execute("""INSERT INTO orders(order_ref,telegram_id,subtotal,tax,shipping,total,currency,status,created_at,updated_at,
-                      shipping_name,shipping_city,shipping_country,shipping_address,payment_method)
-                      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                   (order_ref, tg_id, str(subtotal), str(tax), str(shipping), str(total),
-                    currency, "confirmed_simulated", when, when, shipping_name,
-                    shipping_city, shipping_country, shipping_address, "demo_balance"))
-        db.execute("""INSERT INTO order_events(order_ref,status,label,detail,created_at)
-                      VALUES(?,?,?,?,?)""",
-                   (order_ref, "confirmed_simulated", "Confirmado (simulado)",
-                    "Pedido registrado en el simulador; no se envió una orden al comercio.", when))
-        for row in rows:
-            line_total = (Decimal(row["price"]) * row["qty"]).quantize(Decimal("0.01"))
-            db.execute("""INSERT INTO purchases(telegram_id,platform,title,price,currency,qty,total,url,purchased_at,order_ref)
-                          VALUES(?,?,?,?,?,?,?,?,?,?)""",
-                       (tg_id, row["platform"], row["title"], row["price"], row["currency"],
-                        row["qty"], str(line_total), row["url"], when, order_ref))
-        db.execute("UPDATE balances SET amount=? WHERE telegram_id=?", (str(balance-total), tg_id))
-        db.execute("DELETE FROM carts WHERE telegram_id=?", (tg_id,))
-    audit(tg_id, "purchase_demo", f"order={order_ref}; total={total}; currency={currency}")
-    with conn() as db:
-        pref = db.execute("SELECT order_updates FROM notification_preferences WHERE telegram_id=?", (tg_id,)).fetchone()
-    # Telegram confirmation is best-effort and opt-out aware. This is not a real purchase.
-    if BOT_TOKEN and (pref is None or pref["order_updates"]):
-        try:
-            async with httpx.AsyncClient(timeout=8) as client:
-                await client.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
-                    "chat_id": tg_id,
-                    "text": (f"🛍️ ShopCart — pedido de demostración\\n"
-                             f"Referencia: {order_ref}\\nTotal estimado: {currency} {total:.2f}\\n"
-                             "Estado: Confirmado (simulado). No se realizó ninguna compra real.")
-                })
-        except httpx.HTTPError:
-            log.info("No se pudo enviar notificación de pedido %s", order_ref)
-    return {"ok": True, "order_ref": order_ref, "subtotal": str(subtotal), "tax": str(tax),
-            "shipping": str(shipping), "total": str(total), "balance": str(balance-total),
-            "currency": currency, "status": "confirmed_simulated", "purchased_at": when,
-            "tracking": {"available": False, "label": "No disponible: pedido simulado, sin transportista real"},
-            "message": "Pedido de demostración registrado. No se envió ningún pedido real."}
+    page = f"""<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recibo de prueba {esc(order_ref)}</title>
+<style>
+body{{font:16px system-ui;max-width:760px;margin:40px auto;padding:20px;color:#15243b}}
+.tag{{display:inline-block;background:#fff0cf;padding:8px 12px;border-radius:8px;font-weight:700}}
+table{{width:100%;border-collapse:collapse;margin:24px 0}}
+td,th{{padding
