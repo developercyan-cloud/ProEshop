@@ -1,4 +1,4 @@
-import os, hmac, hashlib, json, time, secrets, sqlite3, logging
+import os, hmac, hashlib, json, time, secrets, sqlite3, logging, re
 from urllib.parse import parse_qsl
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -23,6 +23,9 @@ DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "change-me")
 INITIAL_BALANCE = Decimal(os.getenv("INITIAL_FAKE_BALANCE", "1000.00"))
 CURRENCY = os.getenv("CURRENCY", "USD")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", secrets.token_urlsafe(24))
+SERPAPI_KEY = os.getenv("SERPAPI_KEY", "").strip()
+ESTIMATED_TAX_RATE = Decimal(os.getenv("ESTIMATED_TAX_RATE", "0.08"))
+ESTIMATED_SHIPPING_FEE = Decimal(os.getenv("ESTIMATED_SHIPPING_FEE", "5.99"))
 SESSION_TTL = int(os.getenv("SESSION_TTL_MINUTES", "120")) * 60
 
 app = FastAPI(title="ShopCart Telegram Mini App")
@@ -63,12 +66,22 @@ def init_db():
         CREATE TABLE IF NOT EXISTS purchases(
           id INTEGER PRIMARY KEY AUTOINCREMENT, telegram_id TEXT NOT NULL, platform TEXT NOT NULL,
           title TEXT NOT NULL, price TEXT NOT NULL, currency TEXT NOT NULL, qty INTEGER NOT NULL,
-          total TEXT NOT NULL, url TEXT NOT NULL, purchased_at TEXT NOT NULL
+          total TEXT NOT NULL, url TEXT NOT NULL, purchased_at TEXT NOT NULL,
+          order_ref TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS orders(
+          order_ref TEXT PRIMARY KEY, telegram_id TEXT NOT NULL, subtotal TEXT NOT NULL,
+          tax TEXT NOT NULL, shipping TEXT NOT NULL, total TEXT NOT NULL, currency TEXT NOT NULL,
+          status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS balances(
           telegram_id TEXT PRIMARY KEY, amount TEXT NOT NULL
         );
         """)
+        # Safe migration for databases created by earlier ShopCart versions.
+        purchase_columns = {row["name"] for row in db.execute("PRAGMA table_info(purchases)").fetchall()}
+        if "order_ref" not in purchase_columns:
+            db.execute("ALTER TABLE purchases ADD COLUMN order_ref TEXT NOT NULL DEFAULT ''")
 
 
 def validate_init_data(init_data: str):
@@ -222,12 +235,69 @@ async def search(body: SearchBody, request: Request):
         raise HTTPException(400, "Tienda no admitida.")
     from urllib.parse import quote_plus
     url = PLATFORMS[platform]["url"].format(q=quote_plus(body.query))
-    # No retailer catalog API has been configured. Do not fabricate live prices.
-    return {
-        "platform": platform, "label": PLATFORMS[platform]["label"],
-        "query": body.query, "search_url": url, "live_results": [],
-        "notice": "Consulta el precio en la tienda oficial e introdúcelo para registrar un artículo en el carrito ficticio."
-    }
+    if not SERPAPI_KEY:
+        return {
+            "platform": platform, "label": PLATFORMS[platform]["label"],
+            "query": body.query, "search_url": url, "live_results": [],
+            "notice": "Para mostrar precios automáticos en USD, configura SERPAPI_KEY en Railway. Sin esa clave puedes abrir la tienda oficial; no se inventan precios."
+        }
+    domains = {"amazon": "amazon.com", "target": "target.com", "walmart": "walmart.com"}
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            response = await client.get("https://serpapi.com/search.json", params={
+                "engine": "google_shopping", "q": f"{body.query} site:{domains[platform]}",
+                "gl": "us", "hl": "en", "api_key": SERPAPI_KEY
+            })
+        if response.status_code >= 400:
+            log.warning("Proveedor de búsqueda respondió %s", response.status_code)
+            raise HTTPException(502, "El proveedor de búsqueda no respondió correctamente. Intenta de nuevo más tarde.")
+        payload = response.json()
+        results = []
+        for item in payload.get("shopping_results", [])[:12]:
+            source = str(item.get("source", ""))
+            link = item.get("link") or item.get("product_link") or ""
+            # Search results must belong to the selected store. Google Shopping redirect
+            # links are not accepted as store product URLs, so fall back to the store search.
+            from urllib.parse import urlparse
+            parsed_link = urlparse(link)
+            host = parsed_link.netloc.lower().split(":")[0]
+            store_hosts = {
+                "amazon": {"amazon.com", "www.amazon.com"},
+                "target": {"target.com", "www.target.com"},
+                "walmart": {"walmart.com", "www.walmart.com"},
+            }
+            haystack = (source + " " + link).lower()
+            if domains[platform] not in haystack and PLATFORMS[platform]["label"].lower() not in source.lower():
+                continue
+            if parsed_link.scheme != "https" or host not in store_hosts[platform]:
+                link = url
+            price = item.get("extracted_price")
+            if price is None:
+                raw = str(item.get("price", ""))
+                match = re.search(r"([0-9][0-9,]*(?:\.[0-9]{1,2})?)", raw)
+                if match:
+                    try: price = float(match.group(1).replace(",", ""))
+                    except ValueError: price = None
+            try:
+                price = float(price)
+                if price <= 0: continue
+            except (TypeError, ValueError):
+                continue
+            results.append({
+                "title": str(item.get("title", "Producto"))[:180],
+                "price": round(price, 2), "currency": "USD", "url": link,
+                "image": item.get("thumbnail", ""), "source": source or PLATFORMS[platform]["label"]
+            })
+        return {
+            "platform": platform, "label": PLATFORMS[platform]["label"],
+            "query": body.query, "search_url": url, "live_results": results,
+            "notice": ("Precios de resultados de búsqueda en USD; pueden variar según ubicación, vendedor, disponibilidad e impuestos. Verifica el precio final en el comercio." if results else "No se encontraron resultados con precio verificable para este comercio. Prueba otra búsqueda o abre la tienda oficial.")
+        }
+    except HTTPException:
+        raise
+    except (httpx.HTTPError, ValueError) as exc:
+        log.warning("Fallo de búsqueda de productos: %s", type(exc).__name__)
+        raise HTTPException(502, "No se pudo consultar el catálogo ahora. Intenta de nuevo.")
 
 
 @app.get("/api/state")
@@ -237,11 +307,15 @@ async def state(request: Request):
         balance = db.execute("SELECT amount FROM balances WHERE telegram_id=?", (tg_id,)).fetchone()
         cart = db.execute("SELECT * FROM carts WHERE telegram_id=? ORDER BY id DESC", (tg_id,)).fetchall()
         history = db.execute("SELECT * FROM purchases WHERE telegram_id=? ORDER BY id DESC LIMIT 50", (tg_id,)).fetchall()
+        orders = db.execute("SELECT * FROM orders WHERE telegram_id=? ORDER BY created_at DESC LIMIT 50", (tg_id,)).fetchall()
     return {
         "balance": balance["amount"] if balance else str(INITIAL_BALANCE),
         "currency": CURRENCY,
+        "tax_rate": str(ESTIMATED_TAX_RATE),
+        "shipping_fee": str(ESTIMATED_SHIPPING_FEE),
         "cart": [dict(x) for x in cart],
         "history": [dict(x) for x in history],
+        "orders": [dict(x) for x in orders],
         "platforms": [{"id": k, "label": v["label"]} for k,v in PLATFORMS.items()]
     }
 
@@ -299,21 +373,42 @@ async def fictional_purchase(request: Request):
         currencies = {r["currency"] for r in rows}
         if len(currencies) != 1:
             raise HTTPException(400, "No combines monedas distintas en una misma compra ficticia.")
-        total = sum((Decimal(r["price"]) * r["qty"] for r in rows), Decimal("0")).quantize(Decimal("0.01"))
+        subtotal = sum((Decimal(r["price"]) * r["qty"] for r in rows), Decimal("0")).quantize(Decimal("0.01"))
+        tax = (subtotal * ESTIMATED_TAX_RATE).quantize(Decimal("0.01"))
+        shipping = ESTIMATED_SHIPPING_FEE if subtotal > 0 else Decimal("0.00")
+        total = (subtotal + tax + shipping).quantize(Decimal("0.01"))
         b = db.execute("SELECT amount FROM balances WHERE telegram_id=?", (tg_id,)).fetchone()
         balance = Decimal(b["amount"] if b else str(INITIAL_BALANCE))
         if total > balance:
-            raise HTTPException(400, f"Saldo ficticio insuficiente. Total {total:.2f}; saldo {balance:.2f}.")
+            raise HTTPException(400, f"Saldo ficticio insuficiente. Total estimado {total:.2f}; saldo {balance:.2f}.")
         when = now_iso()
         order_ref = "SC-" + secrets.token_hex(5).upper()
+        currency = next(iter(currencies))
+        db.execute("""INSERT INTO orders(order_ref,telegram_id,subtotal,tax,shipping,total,currency,status,created_at,updated_at)
+                      VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                   (order_ref, tg_id, str(subtotal), str(tax), str(shipping), str(total),
+                    currency, "confirmed_simulated", when, when))
         for row in rows:
             line_total = (Decimal(row["price"]) * row["qty"]).quantize(Decimal("0.01"))
-            db.execute("""INSERT INTO purchases(telegram_id,platform,title,price,currency,qty,total,url,purchased_at)
-                          VALUES(?,?,?,?,?,?,?,?,?)""",
+            db.execute("""INSERT INTO purchases(telegram_id,platform,title,price,currency,qty,total,url,purchased_at,order_ref)
+                          VALUES(?,?,?,?,?,?,?,?,?,?)""",
                        (tg_id, row["platform"], row["title"], row["price"], row["currency"],
-                        row["qty"], str(line_total), row["url"], when))
+                        row["qty"], str(line_total), row["url"], when, order_ref))
         db.execute("UPDATE balances SET amount=? WHERE telegram_id=?", (str(balance-total), tg_id))
         db.execute("DELETE FROM carts WHERE telegram_id=?", (tg_id,))
-    return {"ok": True, "order_ref": order_ref, "total": str(total),
-            "balance": str(balance-total), "currency": next(iter(currencies)),
-            "purchased_at": when, "message": "Compra ficticia registrada. No se envió ningún pedido real."}
+    # Telegram confirmation is best-effort. No message is sent if bot config is missing.
+    if BOT_TOKEN:
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                await client.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
+                    "chat_id": tg_id,
+                    "text": (f"🛍️ ShopCart — pedido de demostración\\n"
+                             f"Referencia: {order_ref}\\nTotal estimado: {currency} {total:.2f}\\n"
+                             "Estado: Confirmado (simulado). No se realizó ninguna compra real.")
+                })
+        except httpx.HTTPError:
+            log.info("No se pudo enviar notificación de pedido %s", order_ref)
+    return {"ok": True, "order_ref": order_ref, "subtotal": str(subtotal), "tax": str(tax),
+            "shipping": str(shipping), "total": str(total), "balance": str(balance-total),
+            "currency": currency, "status": "confirmed_simulated", "purchased_at": when,
+            "message": "Pedido de demostración registrado. No se envió ningún pedido real."}
