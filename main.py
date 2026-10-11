@@ -361,6 +361,17 @@ async def search(body: SearchBody, request: Request):
     audit(tg_id, "search", f"platform={platform}; query_length={len(query)}")
     store = PLATFORMS[platform]
     search_url = store["url"].format(q=quote_plus(query))
+    # HUBLOT is served by the local catalog in static/app.js; do not send it to
+    # the retailer-only SerpApi filtering branch (which has no Hublot merchant domain).
+    if platform == "hublot":
+        return {
+            "platform": "hublot",
+            "label": "HUBLOT",
+            "query": query,
+            "search_url": search_url,
+            "live_results": [],
+            "notice": "La búsqueda HUBLOT se resuelve con el catálogo local de ProEshop.",
+        }
     domains = {"amazon": "amazon.com", "target": "target.com", "walmart": "walmart.com"}
     domain = domains[platform]
 
