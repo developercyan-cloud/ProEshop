@@ -49,3 +49,7 @@ No se procesan pagos, no se envían órdenes a Amazon/Walmart/Target y no se cre
 - El checkout descuenta únicamente el saldo ficticio configurado y guarda el pedido/recibo en las tablas actuales. No hay pagos, reserva ni envío real.
 - Las fichas de esta versión son una selección ilustrativa de ocho modelos/estilos y precios de referencia no oficiales, no un volcado completo ni una cotización de HUBLOT. El enlace «Catálogo oficial» abre el sitio oficial para comprobar modelos, precios y disponibilidad actuales.
 - Se amplió la lista de plataformas aceptadas en el carrito para admitir enlaces HTTPS de `hublot.com`. No se añadieron ni eliminaron tablas ni se cambió `DATABASE_PATH`.
+
+
+## Búsqueda independiente HUBLOT
+La sección HUBLOT incorpora un campo y botón propios que filtran únicamente el catálogo HUBLOT integrado. No cambia el término de búsqueda ni los resultados de Amazon, Walmart o Target. La compra sigue siendo simulada y el descuento del 50% se aplica al catálogo HUBLOT.
