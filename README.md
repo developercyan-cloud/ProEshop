@@ -42,3 +42,6 @@ No se procesan pagos, no se envían órdenes a Amazon/Walmart/Target y no se cre
 
 
 GUI restoration: the original ProEshop layout and store search area are retained. HUBLOT appears in a separate collapsed panel so it does not push out or replace the existing interface. HUBLOT purchases remain simulated with 50% demo discount; preserve DATABASE_PATH=/data/shopcart.db and the Railway persistent volume.
+
+
+HUBLOT fix: `/api/search` returns local illustrative catalogue entries for HUBLOT as well as the client-side catalogue. This supports cached/older Telegram webviews; static asset URLs include a version query to invalidate cache. A non-matching query falls back to the catalogue instead of displaying an empty result set.
