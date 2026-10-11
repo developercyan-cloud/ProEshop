@@ -1,7 +1,8 @@
-import os, hmac, hashlib, json, time, secrets, sqlite3, logging, re
+import os, hmac, hashlib, json, time, secrets, sqlite3, logging, re, asyncio, smtplib
 from urllib.parse import parse_qsl, quote_plus, urlparse
 from datetime import datetime, timezone, timedelta
 from html import escape
+from email.message import EmailMessage
 from html import escape
 from decimal import Decimal, InvalidOperation
 from contextlib import contextmanager
@@ -30,6 +31,12 @@ SERPAPI_KEY = os.getenv("SERPAPI_KEY", "").strip()
 ESTIMATED_TAX_RATE = Decimal(os.getenv("ESTIMATED_TAX_RATE", "0.08"))
 ESTIMATED_SHIPPING_FEE = Decimal(os.getenv("ESTIMATED_SHIPPING_FEE", "5.99"))
 SESSION_TTL = int(os.getenv("SESSION_TTL_MINUTES", "120")) * 60
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USER).strip()
+SMTP_USE_SSL = os.getenv("SMTP_USE_SSL", "false").strip().lower() in ("1", "true", "yes")
 
 app = FastAPI(title="ProEshop Telegram Mini App", docs_url=None, redoc_url=None)
 
@@ -243,7 +250,8 @@ class NotificationBody(BaseModel):
 
 
 class CheckoutBody(BaseModel):
-    # These details are for order registration only; never collect card or bank credentials.
+    # Email is used only to send the order confirmation; never collect card or bank credentials.
+    email: str = Field(min_length=5, max_length=254)
     shipping_name: str = Field(default="", max_length=100)
     shipping_city: str = Field(default="", max_length=80)
     shipping_country: str = Field(default="", max_length=80)
@@ -675,9 +683,62 @@ async def admin_metrics(request: Request):
     return metrics
 
 
+def _send_order_confirmation_email(to_email: str, order_ref: str, subtotal: str,
+                                   tax: str, shipping: str, total: str, currency: str,
+                                   item_lines: list[str]) -> tuple[bool, str]:
+    """Send order confirmation over configured SMTP; never block checkout on mail failure."""
+    if not all((SMTP_HOST, SMTP_USER, SMTP_PASSWORD, SMTP_FROM_EMAIL)):
+        return False, "email_not_configured"
+    msg = EmailMessage()
+    msg["Subject"] = f"Confirmación de pedido {order_ref} · ProEshop"
+    msg["From"] = SMTP_FROM_EMAIL
+    msg["To"] = to_email
+    rows = "".join(f"<li>{escape(line)}</li>" for line in item_lines)
+    msg.set_content(
+        f"Tu pedido {order_ref} quedó registrado en ProEshop.\\n\\n"
+        + "\\n".join(item_lines)
+        + f"\\n\\nSubtotal: {currency} {subtotal}\\nImpuestos estimados: {currency} {tax}"
+          f"\\nEnvío estimado: {currency} {shipping}\\nTotal: {currency} {total}\\n\\n"
+          "Este correo confirma el registro del pedido en ProEshop; no es comprobante de pago "
+          "ni confirma una compra en una tienda externa."
+    )
+    msg.add_alternative(
+        f"""<!doctype html><html lang="es"><meta charset="utf-8">
+        <body style="font-family:Arial,sans-serif;color:#172033;max-width:640px;margin:auto;padding:24px">
+        <h1 style="color:#4f46e5">ProEshop</h1><h2>Confirmación de pedido</h2>
+        <p>Tu pedido <strong>{escape(order_ref)}</strong> quedó registrado.</p>
+        <ul>{rows}</ul><hr>
+        <p>Subtotal: <strong>{escape(currency)} {escape(subtotal)}</strong></p>
+        <p>Impuestos estimados: {escape(currency)} {escape(tax)}</p>
+        <p>Envío estimado: {escape(currency)} {escape(shipping)}</p>
+        <p style="font-size:20px">Total: <strong>{escape(currency)} {escape(total)}</strong></p>
+        <p style="color:#667085;font-size:12px">Este correo confirma el registro del pedido en ProEshop; no es comprobante de pago ni confirma una compra en una tienda externa.</p>
+        </body></html>""",
+        subtype="html")
+    try:
+        if SMTP_USE_SSL:
+            with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=12) as server:
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=12) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.send_message(msg)
+        return True, "sent"
+    except (OSError, smtplib.SMTPException) as exc:
+        log.warning("No se pudo enviar confirmación por correo: %s", type(exc).__name__)
+        return False, "email_send_failed"
+
+
 @app.post("/api/purchase")
 async def fictional_purchase(body: CheckoutBody, request: Request):
     tg_id = get_auth(request)
+    email = body.email.strip()
+    if not re.fullmatch(r"[^\\s@]+@[^\\s@]+\\.[^\\s@]+", email):
+        raise HTTPException(400, "Introduce un correo electrónico válido.")
     if body.payment_method != "demo_balance":
         raise HTTPException(400, "El procesamiento de pagos no está disponible en esta versión.")
     submitted_shipping = [body.shipping_name.strip(), body.shipping_city.strip(),
@@ -696,6 +757,8 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
         rows = db.execute("SELECT * FROM carts WHERE telegram_id=? ORDER BY id", (tg_id,)).fetchall()
         if not rows:
             raise HTTPException(400, "El carrito está vacío.")
+        email_item_lines = [f"{r['title']} · Cantidad: {int(r['qty'])} · Precio unitario: {r['currency']} {Decimal(r['price']):.2f}"
+                            for r in rows]
         currencies = {r["currency"] for r in rows}
         if len(currencies) != 1:
             raise HTTPException(400, "No combines monedas distintas en un mismo pedido.")
@@ -729,6 +792,10 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
         db.execute("UPDATE balances SET amount=? WHERE telegram_id=?", (str(balance-total), tg_id))
         db.execute("DELETE FROM carts WHERE telegram_id=?", (tg_id,))
     audit(tg_id, "purchase_demo", f"order={order_ref}; total={total}; currency={currency}")
+    email_sent, email_status = await asyncio.to_thread(
+        _send_order_confirmation_email, email, order_ref, str(subtotal), str(tax),
+        str(shipping), str(total), currency, email_item_lines
+    )
     with conn() as db:
         pref = db.execute("SELECT order_updates FROM notification_preferences WHERE telegram_id=?", (tg_id,)).fetchone()
     # Telegram confirmation is best-effort and opt-out aware. This is not a real purchase.

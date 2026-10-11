@@ -45,3 +45,8 @@ GUI restoration: the original ProEshop layout and store search area are retained
 
 
 HUBLOT fix: `/api/search` returns local illustrative catalogue entries for HUBLOT as well as the client-side catalogue. This supports cached/older Telegram webviews; static asset URLs include a version query to invalidate cache. A non-matching query falls back to the catalogue instead of displaying an empty result set.
+
+
+## Confirmaciones por correo electrónico
+
+El checkout solicita el correo de destino y, después de registrar el pedido, intenta enviar una confirmación mediante SMTP. En Railway configura `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` y `SMTP_FROM_EMAIL`. Para servidores SMTP con STARTTLS usa `SMTP_USE_SSL=false` (puerto habitual 587); para SSL implícito usa `SMTP_USE_SSL=true` (puerto habitual 465). Con Gmail utiliza una contraseña de aplicación, no la contraseña normal de la cuenta. Si SMTP no está configurado o el envío falla, el pedido permanece registrado y la respuesta de la API indica que el correo no se envió. El mensaje confirma el registro dentro de ProEshop, no una compra o pago externo.
