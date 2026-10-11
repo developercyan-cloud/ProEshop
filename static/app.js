@@ -1,6 +1,6 @@
 'use strict';
 const tg = window.Telegram?.WebApp;
-if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor('#080b18'); tg.setBackgroundColor('#080b18'); } catch (_) {} }
+if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor('#075fc7'); tg.setBackgroundColor('#f4f7fc'); } catch (_) {} }
 const $ = id => document.getElementById(id);
 let token = sessionStorage.getItem('shopcart_token') || '';
 let selectedStore = 'walmart';
@@ -8,59 +8,445 @@ let state = {balance:'1000.00',currency:'USD',cart:[],history:[],orders:[],tax_r
 let lastSearch = [], lastSearchResponse = null, currentResults = [], favorites = new Set(), compareItems = new Map(), searchBusy = false, adminKey = ''; 
 const money = (v,c='USD') => `${c} ${Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const escapeHtml = s => String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const storeLabel = s => ({all:'Todas las tiendas',amazon:'Amazon',walmart:'Walmart',target:'Target'}[String(s||'').toLowerCase()]||'Tienda');
+const storeLabel = s => ({amazon:'Amazon',walmart:'Walmart',target:'Target',hublot:'HUBLOT'}[String(s||'').toLowerCase()]||'Tienda');
 function toast(msg){ const el=$('toast'); if(!el)return; el.textContent=msg;el.classList.remove('hidden');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.add('hidden'),3000); }
 async function api(path,opts={}){const headers={'Content-Type':'application/json',...(token?{'Authorization':`Bearer ${token}`}:{})};const r=await fetch(path,{...opts,headers:{...headers,...opts.headers}});const data=await r.json().catch(()=>({detail:'Respuesta inválida del servidor.'}));if(!r.ok){if(r.status===401&&token){token='';sessionStorage.removeItem('shopcart_token');setLoggedIn(false)}throw new Error(data.detail||data.error||'Ocurrió un error. Intenta nuevamente.')}return data;}
 function showView(view){if(view==='search'){showView('home');setTimeout(()=>$('query')?.focus(),100);return;}const ids={home:'shopView',cart:'cartView',checkout:'checkoutView',history:'historyView',account:'accountView'};document.querySelectorAll('main .view').forEach(v=>v.classList.add('hidden'));const target=$(ids[view]||`${view}View`);if(!target){console.error('Vista no encontrada:',view);return;}target.classList.remove('hidden');document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===(view==='checkout'?'cart':view)));window.scrollTo({top:0,behavior:'smooth'});}
 function setLoggedIn(on){$('loginView').classList.toggle('hidden',on);$('shopView').classList.toggle('hidden',!on);$('bottomNav').classList.toggle('hidden',!on);$('logoutBtn').classList.toggle('hidden',!on);if(on)showView('home');}
-async function refresh(){state=await api('/api/state');$('balanceValue').textContent=money(state.balance,state.currency);$('accountBalance').textContent=money(state.balance,state.currency);$('cartCount').textContent=`${state.cart.length} artículo${state.cart.length===1?'':'s'}`;$('historyCount').textContent=`${(state.orders||[]).length} pedido${(state.orders||[]).length===1?'':'s'}`;$('orderCountLabel').textContent=`${(state.orders||[]).length} pedido${(state.orders||[]).length===1?'':'s'}`;$('navCartCount').textContent=state.cart.length;$('navCartCount').classList.toggle('hidden',!state.cart.length);$('greetingName').textContent=$('username').value.trim()||'bienvenido';$('accountName').textContent=$('username').value.trim()||'Sesión activa';renderCart();renderHistory();}
+async function refresh(){state=await api('/api/state');$('balanceValue').textContent=money(state.balance,state.currency);$('accountBalance').textContent=money(state.balance,state.currency);$('cartCount').textContent=`${state.cart.length} artículo${state.cart.length===1?'':'s'}`;$('historyCount').textContent=`${(state.orders||[]).length} pedido${(state.orders||[]).length===1?'':'s'}`;$('orderCountLabel').textContent=`${(state.orders||[]).length} pedido${(state.orders||[]).length===1?'':'s'}`;$('navCartCount').textContent=state.cart.length;$('navCartCount').classList.toggle('hidden',!state.cart.length);$('greetingName').textContent=$('username').value.trim()||'bienvenido';$('accountName').textContent=$('username').value.trim()||'Sesión activa';renderCart();renderHistory();renderHublot();}
 function estimateCart(){const subtotal=state.cart.reduce((sum,x)=>sum+Number(x.price)*Number(x.qty||1),0);const tax=subtotal*Number(state.tax_rate||0);const shipping=subtotal>0?Number(state.shipping_fee||0):0;return {subtotal,tax,shipping,total:subtotal+tax+shipping};}
-function storeIcon(s){return s==='walmart'?'✳':s==='amazon'?'a':s==='target'?'◎':s==='all'?'✦':'▧';}
-function renderCart(){const wrap=$('cartItems');wrap.innerHTML='';$('cartEmpty').classList.toggle('hidden',!!state.cart.length);$('cartSummary').classList.toggle('hidden',!state.cart.length);state.cart.forEach(x=>{const el=document.createElement('article');el.className='item-card';el.innerHTML=`<div class="item-icon">${storeIcon(x.platform)}</div><div class="item-info"><h3>${escapeHtml(x.title)}</h3><p>${escapeHtml(storeLabel(x.platform))} · ${Number(x.qty||1)} unidad(es)</p><div class="item-price">${money(Number(x.price)*Number(x.qty||1),x.currency)}</div><div class="item-actions"><button class="qty-btn" data-qty="${Number(x.id)}" data-next="${Math.max(1,Number(x.qty||1)-1)}" aria-label="Disminuir cantidad">−</button><span class="qty-value">${Number(x.qty||1)}</span><button class="qty-btn" data-qty="${Number(x.id)}" data-next="${Math.min(25,Number(x.qty||1)+1)}" aria-label="Aumentar cantidad">＋</button><a class="external" href="${escapeHtml(x.url)}" target="_blank" rel="noopener noreferrer">Ver tienda ↗</a><button class="text-btn" data-remove="${Number(x.id)}">Quitar</button></div></div>`;wrap.appendChild(el)});const t=estimateCart();$('cartSubtotal').textContent=money(t.subtotal);$('cartTax').textContent=money(t.tax);$('cartShipping').textContent=money(t.shipping);$('cartTotal').textContent=money(t.total);$('cartSubtitle').textContent=`${state.cart.length} artículo(s) · ${money(t.total)} estimado`;wrap.querySelectorAll('[data-remove]').forEach(b=>b.onclick=async()=>{try{await api('/api/cart/'+b.dataset.remove,{method:'DELETE'});await refresh();toast('Artículo retirado del carrito.')}catch(e){toast(e.message)}});wrap.querySelectorAll('[data-qty]').forEach(b=>b.onclick=async()=>{try{await api('/api/cart/'+b.dataset.qty,{method:'PUT',body:JSON.stringify({qty:Number(b.dataset.next)})});await refresh();}catch(e){toast(e.message)}});}
+function storeIcon(s){return s==='walmart'?'✳':s==='amazon'?'a':s==='target'?'◎':s==='hublot'?'H':'▧';}
+function renderCart(){const wrap=$('cartItems');wrap.innerHTML='';$('cartEmpty').classList.toggle('hidden',!!state.cart.length);$('cartSummary').classList.toggle('hidden',!state.cart.length);state.cart.forEach(x=>{const el=document.createElement('article');el.className='item-card';el.innerHTML=`<div class="item-icon">${storeIcon(x.platform)}</div><div class="item-info"><h3>${escapeHtml(x.title)}</h3><p>${escapeHtml(storeLabel(x.platform))} · ${Number(x.qty||1)} unidad(es)</p><div class="item-price">${String(x.platform).toLowerCase()==='hublot'?`<del>${money(Number(x.price)*2*Number(x.qty||1),x.currency)}</del> <strong>${money(Number(x.price)*Number(x.qty||1),x.currency)}</strong><small class="discount-note">50% descuento simulado aplicado</small>`:money(Number(x.price)*Number(x.qty||1),x.currency)}</div><div class="item-actions"><button class="qty-btn" data-qty="${Number(x.id)}" data-next="${Math.max(1,Number(x.qty||1)-1)}" aria-label="Disminuir cantidad">−</button><span class="qty-value">${Number(x.qty||1)}</span><button class="qty-btn" data-qty="${Number(x.id)}" data-next="${Math.min(25,Number(x.qty||1)+1)}" aria-label="Aumentar cantidad">＋</button><a class="external" href="${escapeHtml(x.url)}" target="_blank" rel="noopener noreferrer">Ver tienda ↗</a><button class="text-btn" data-remove="${Number(x.id)}">Quitar</button></div></div>`;wrap.appendChild(el)});const t=estimateCart();$('cartSubtotal').textContent=money(t.subtotal);$('cartTax').textContent=money(t.tax);$('cartShipping').textContent=money(t.shipping);$('cartTotal').textContent=money(t.total);$('cartSubtitle').textContent=`${state.cart.length} artículo(s) · ${money(t.total)} estimado`;wrap.querySelectorAll('[data-remove]').forEach(b=>b.onclick=async()=>{try{await api('/api/cart/'+b.dataset.remove,{method:'DELETE'});await refresh();toast('Artículo retirado del carrito.')}catch(e){toast(e.message)}});wrap.querySelectorAll('[data-qty]').forEach(b=>b.onclick=async()=>{try{await api('/api/cart/'+b.dataset.qty,{method:'PUT',body:JSON.stringify({qty:Number(b.dataset.next)})});await refresh();}catch(e){toast(e.message)}});}
 function formatDate(value){try{return new Date(value).toLocaleString('es-CO',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}catch{return String(value||'Fecha no disponible')}}
 function renderHistory(){const wrap=$('historyItems');wrap.innerHTML='';const orders=state.orders||[];$('historyEmpty').classList.toggle('hidden',!!orders.length);orders.forEach(order=>{const lines=(state.history||[]).filter(x=>x.order_ref===order.order_ref);const el=document.createElement('article');el.className='order-card';const orderStatus=String(order.status||'confirmed_simulated');const statusLabel=orderStatus==='confirmed_simulated'?'Confirmado · Simulado':escapeHtml(orderStatus.replaceAll('_',' '));const stages=[['✓','Confirmado'],['2','Procesado'],['3','Enviado'],['4','Entregado']];el.innerHTML=`<div class="order-top"><div><small>REFERENCIA DEL PEDIDO</small><strong>${escapeHtml(order.order_ref)}</strong></div><span class="status-pill">${statusLabel}</span></div><div class="order-meta"><span>${escapeHtml(formatDate(order.created_at))}</span><strong>${money(order.total,order.currency)}</strong></div><button class="secondary small-button receipt-btn" data-receipt="${escapeHtml(order.order_ref)}">Ver recibo de prueba ↗</button><div class="order-breakdown"><span>Subtotal ${money(order.subtotal,order.currency)}</span><span>Impuestos ${money(order.tax,order.currency)}</span><span>Envío ${money(order.shipping,order.currency)}</span></div><div class="tracking-heading"><b>Seguimiento del pedido</b><span>SIMULADO</span></div><div class="tracking-steps">${stages.map((s,i)=>`<div class="step ${i===0?'active':'simulated'}"><i>${s[0]}</i><span>${s[1]}</span></div>`).join('')}</div><p class="tracking-caption">Estado registrado: <b>confirmado (simulado)</b>. Los pasos siguientes no han ocurrido; no existe envío real ni guía de transportista en esta demo.</p><div class="tracking-ref">Guía de transporte: <b>No disponible — sin envío real</b></div><details class="order-details"><summary>Ver artículos y datos del pedido (${lines.length})</summary>${lines.map(x=>`<div class="order-line"><span>${escapeHtml(x.title)} · ${escapeHtml(storeLabel(x.platform))} × ${Number(x.qty||1)}</span><strong>${money(x.total,x.currency)}</strong></div>`).join('')||'<p>Detalle no disponible para pedidos anteriores a esta versión.</p>'}${order.shipping_city?`<div class="order-line"><span>Destino de prueba</span><strong>${escapeHtml(order.shipping_city)}${order.shipping_country?`, ${escapeHtml(order.shipping_country)}`:''}</strong></div>`:''}<div class="order-line"><span>Método</span><strong>Saldo ficticio</strong></div>${(state.order_events||[]).filter(ev=>ev.order_ref===order.order_ref).map(ev=>`<div class="order-line"><span>${escapeHtml(ev.label)}<br><small>${escapeHtml(ev.detail)}</small></span><strong>${escapeHtml(formatDate(ev.created_at))}</strong></div>`).join('')}</details>`;wrap.appendChild(el)});wrap.querySelectorAll('[data-receipt]').forEach(b=>b.onclick=()=>openReceipt(b.dataset.receipt));}
 function officialStoreUrl(platform,query){const q=encodeURIComponent(String(query||'producto').trim()||'producto');return {amazon:`https://www.amazon.com/s?k=${q}`,walmart:`https://www.walmart.com/search?q=${q}`,target:`https://www.target.com/s?searchTerm=${q}`}[String(platform||'').toLowerCase()]||'https://www.walmart.com/';}
 function normalizeStoreUrl(rawUrl,platform,title){const hosts={amazon:['amazon.com','www.amazon.com'],walmart:['walmart.com','www.walmart.com'],target:['target.com','www.target.com']};try{const u=new URL(String(rawUrl||''));if(u.protocol==='https:'&&(hosts[String(platform||'').toLowerCase()]||[]).includes(u.hostname.toLowerCase()))return u.href;}catch(_){}return officialStoreUrl(platform,title);}
-function productCards(items,r){return items.map((x,i)=>`<article class="product-result"><div class="product-media"><button class="favorite-btn ${favorites.has(x.title+'|'+x.url)?'active':''}" data-fav="${i}" aria-label="Guardar favorito">${favorites.has(x.title+'|'+x.url)?'♥':'♡'}</button>${x.image?`<img class="product-thumb" src="${escapeHtml(x.image)}" alt="Imagen de producto" loading="lazy" referrerpolicy="no-referrer"><div class="product-placeholder hidden">▧</div>`:`<div class="product-placeholder">▧</div>`}</div><div class="product-result-info"><div class="product-store">${escapeHtml(storeLabel(x.platform||r.platform))} · ${escapeHtml(x.source||'Vendedor por verificar')}</div><strong>${escapeHtml(x.title)}</strong><div class="product-price">${money(x.price,'USD')}</div><small>Precio consultado · confirma el importe final en la tienda.</small><div class="product-actions"><button class="external details-btn" data-details="${i}" type="button">Detalles ↗</button><button class="secondary compare-btn ${compareItems.has(x.title+'|'+x.url)?'active':''}" data-compare="${i}" type="button">⇄ Comparar</button><button class="primary add-result" data-add="${i}" type="button">＋ Agregar</button></div></div></article>`).join('');}
-function renderResults(r){const result=$('searchResult');if(!result||!r)return;let items=[...lastSearch];const min=Number($('minPrice')?.value||0),maxVal=$('maxPrice')?.value; if(min>0)items=items.filter(x=>Number(x.price)>=min);if(maxVal!==''&&maxVal!=null)items=items.filter(x=>Number(x.price)<=Number(maxVal));const sort=$('sortResults')?.value||'relevance';if(sort==='low')items.sort((a,b)=>a.price-b.price);if(sort==='high')items.sort((a,b)=>b.price-a.price);currentResults=items;const grid=result.querySelector('.product-results');if(!grid)return;grid.innerHTML=productCards(items,r)||`<div class="empty"><div>⌕</div><strong>No hay resultados con estos filtros</strong><p>Prueba con otro rango de precio o cambia la búsqueda.</p></div>`;grid.querySelectorAll('img.product-thumb').forEach(img=>img.addEventListener('error',()=>{img.style.display='none';img.nextElementSibling?.classList.remove('hidden')}));grid.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{const item=items[Number(b.dataset.add)];if(item)addItem(item,item.platform||r.platform)});grid.querySelectorAll('[data-details]').forEach(b=>b.onclick=()=>openProduct(items[Number(b.dataset.details)],r));grid.querySelectorAll('[data-compare]').forEach(b=>b.onclick=()=>{const item=items[Number(b.dataset.compare)];if(!item)return;const key=item.title+'|'+item.url;if(compareItems.has(key)){compareItems.delete(key);toast('Artículo retirado del comparador.')}else if(compareItems.size>=3){toast('Compara hasta 3 artículos a la vez.');return}else{compareItems.set(key,{...item,platform:item.platform||r.platform});toast('Artículo añadido al comparador.')}renderCompare();b.classList.toggle('active',compareItems.has(key));});grid.querySelectorAll('[data-fav]').forEach(b=>b.onclick=()=>{const item=items[Number(b.dataset.fav)];if(!item)return;const key=item.title+'|'+item.url;favorites.has(key)?favorites.delete(key):favorites.add(key);b.classList.toggle('active',favorites.has(key));b.textContent=favorites.has(key)?'♥':'♡';});const count=result.querySelector('#resultCount');if(count)count.textContent=`${items.length} resultado${items.length===1?'':'s'}`;}
-function openProduct(item,r){if(!item)return;const platform=item.platform||r.platform;const d=$('productDialogContent');d.innerHTML=`<div class="product-dialog-media">${item.image?`<img src="${escapeHtml(item.image)}" alt="Producto">`:'<span style="font-size:42px;color:#86a0bf">▧</span>'}</div><div class="eyebrow dark-eyebrow">${escapeHtml(storeLabel(platform))} · DETALLE</div><h2>${escapeHtml(item.title)}</h2><div class="dialog-price">${money(item.price,'USD')}</div><p class="dialog-note">Vendedor mostrado por el proveedor: ${escapeHtml(item.source||'No identificado')}. No se inventan valoraciones, descuentos ni disponibilidad. Confirma todos los detalles en la tienda oficial.</p><div class="dialog-actions"><a class="external" href="${escapeHtml(normalizeStoreUrl(item.url,platform,item.title))}" target="_blank" rel="noopener noreferrer">Ver en tienda ↗</a><button id="dialogAdd" class="primary">Agregar al carrito</button></div>`;$('productDialog').showModal();d.querySelector('img')?.addEventListener('error',e=>{e.currentTarget.style.display='none'});$('dialogAdd').onclick=async()=>{await addItem(item,platform);$('productDialog').close()};}
+function productCards(items,r){return items.map((x,i)=>`<article class="product-result"><div class="product-media"><button class="favorite-btn ${favorites.has(x.title+'|'+x.url)?'active':''}" data-fav="${i}" aria-label="Guardar favorito">${favorites.has(x.title+'|'+x.url)?'♥':'♡'}</button>${x.image?`<img class="product-thumb" src="${escapeHtml(x.image)}" alt="Imagen de producto" loading="lazy" referrerpolicy="no-referrer"><div class="product-placeholder hidden">▧</div>`:`<div class="product-placeholder">▧</div>`}</div><div class="product-result-info"><div class="product-store">${escapeHtml(storeLabel(r.platform))} · ${escapeHtml(x.source||'Vendedor por verificar')}</div><strong>${escapeHtml(x.title)}</strong><div class="product-price">${money(x.price,'USD')}</div><small>Precio consultado · confirma el importe final en la tienda.</small><div class="product-actions"><button class="external details-btn" data-details="${i}" type="button">Detalles ↗</button><button class="secondary compare-btn ${compareItems.has(x.title+'|'+x.url)?'active':''}" data-compare="${i}" type="button">⇄ Comparar</button><button class="primary add-result" data-add="${i}" type="button">＋ Agregar</button></div></div></article>`).join('');}
+function renderResults(r){const result=$('searchResult');if(!result||!r)return;let items=[...lastSearch];const min=Number($('minPrice')?.value||0),maxVal=$('maxPrice')?.value; if(min>0)items=items.filter(x=>Number(x.price)>=min);if(maxVal!==''&&maxVal!=null)items=items.filter(x=>Number(x.price)<=Number(maxVal));const sort=$('sortResults')?.value||'relevance';if(sort==='low')items.sort((a,b)=>a.price-b.price);if(sort==='high')items.sort((a,b)=>b.price-a.price);currentResults=items;const grid=result.querySelector('.product-results');if(!grid)return;grid.innerHTML=productCards(items,r)||`<div class="empty"><div>⌕</div><strong>No hay resultados con estos filtros</strong><p>Prueba con otro rango de precio o cambia la búsqueda.</p></div>`;grid.querySelectorAll('img.product-thumb').forEach(img=>img.addEventListener('error',()=>{img.style.display='none';img.nextElementSibling?.classList.remove('hidden')}));grid.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{const item=items[Number(b.dataset.add)];if(item)addItem(item,r.platform)});grid.querySelectorAll('[data-details]').forEach(b=>b.onclick=()=>openProduct(items[Number(b.dataset.details)],r));grid.querySelectorAll('[data-compare]').forEach(b=>b.onclick=()=>{const item=items[Number(b.dataset.compare)];if(!item)return;const key=item.title+'|'+item.url;if(compareItems.has(key)){compareItems.delete(key);toast('Artículo retirado del comparador.')}else if(compareItems.size>=3){toast('Compara hasta 3 artículos a la vez.');return}else{compareItems.set(key,{...item,platform:r.platform});toast('Artículo añadido al comparador.')}renderCompare();b.classList.toggle('active',compareItems.has(key));});grid.querySelectorAll('[data-fav]').forEach(b=>b.onclick=()=>{const item=items[Number(b.dataset.fav)];if(!item)return;const key=item.title+'|'+item.url;favorites.has(key)?favorites.delete(key):favorites.add(key);b.classList.toggle('active',favorites.has(key));b.textContent=favorites.has(key)?'♥':'♡';});const count=result.querySelector('#resultCount');if(count)count.textContent=`${items.length} resultado${items.length===1?'':'s'}`;}
+function openProduct(item,r){if(!item)return;const d=$('productDialogContent');d.innerHTML=`<div class="product-dialog-media">${item.image?`<img src="${escapeHtml(item.image)}" alt="Producto">`:'<span style="font-size:42px;color:#86a0bf">▧</span>'}</div><div class="eyebrow dark-eyebrow">${escapeHtml(storeLabel(r.platform))} · DETALLE</div><h2>${escapeHtml(item.title)}</h2><div class="dialog-price">${money(item.price,'USD')}</div><p class="dialog-note">Vendedor mostrado por el proveedor: ${escapeHtml(item.source||'No identificado')}. No se inventan valoraciones, descuentos ni disponibilidad. Confirma todos los detalles en la tienda oficial.</p><div class="dialog-actions"><a class="external" href="${escapeHtml(normalizeStoreUrl(item.url,r.platform,item.title))}" target="_blank" rel="noopener noreferrer">Ver en tienda ↗</a><button id="dialogAdd" class="primary">Agregar al carrito</button></div>`;$('productDialog').showModal();d.querySelector('img')?.addEventListener('error',e=>{e.currentTarget.style.display='none'});$('dialogAdd').onclick=async()=>{await addItem(item,r.platform);$('productDialog').close()};}
 async function addItem(item,platform=selectedStore){try{const p=String(platform||selectedStore).toLowerCase();const url=normalizeStoreUrl(item.url,p,item.title);await api('/api/cart',{method:'POST',body:JSON.stringify({platform:p,title:String(item.title||'Producto').slice(0,180),price:String(item.price),currency:'USD',url})});await refresh();toast('Artículo agregado al carrito');}catch(e){toast(e.message||'No se pudo agregar el artículo');}}
-async function performSearch(queryOverride){
- const query=String(queryOverride??$('query').value).trim();
- if(!query)return toast('Escribe qué artículo buscas.');
- if(searchBusy)return;
- searchBusy=true;
- $('query').value=query;$('clearSearch').classList.remove('hidden');$('homeEmpty').classList.add('hidden');
- const btn=$('searchBtn');btn.disabled=true;btn.textContent='Comparando…';
- $('searchResult').classList.remove('hidden');
- const platforms=selectedStore==='all'?['amazon','walmart','target']:[selectedStore];
- $('searchResult').innerHTML=`<div class="home-empty"><div class="empty-orbit">✦</div><strong>Comparando tiendas…</strong><p>Consultando ${platforms.map(storeLabel).join(', ')}. Los precios finales se verifican en cada comercio.</p></div>`;
- try{
-   const responses=await Promise.all(platforms.map(async platform=>{
-     try { return await api('/api/search',{method:'POST',body:JSON.stringify({platform,query})}); }
-     catch(e){return {platform,label:storeLabel(platform),query,search_url:officialStoreUrl(platform,query),live_results:[],notice:e.message||'Proveedor no disponible.'};}
-   }));
-   let combined=[];
-   responses.forEach(r=>(r.live_results||[]).forEach(item=>combined.push({...item,platform:r.platform||'walmart'})));
-   combined.sort((a,b)=>Number(a.price)-Number(b.price));
-   const primary=responses[0]||{platform:selectedStore,label:storeLabel(selectedStore),search_url:officialStoreUrl(selectedStore,query)};
-   const unique= new Map();
-   combined.forEach(item=>{const key=`${String(item.title||'').toLowerCase().replace(/\W/g,'')}|${Number(item.price).toFixed(2)}|${item.platform}`;if(!unique.has(key))unique.set(key,item);});
-   lastSearch=[...unique.values()];lastSearchResponse={...primary,platform:selectedStore,label:selectedStore==='all'?'Comparador de tiendas':primary.label,search_url:primary.search_url,notice:responses.map(r=>`${r.label||storeLabel(r.platform)}: ${r.notice||'Resultados consultados.'}`).join(' · ')};
-   const countByStore=platforms.map(p=>`${storeLabel(p)}: ${(responses.find(r=>r.platform===p)?.live_results||[]).length}`).join(' · ');
-   $('searchResult').innerHTML=`<div class="results-heading"><div><div class="eyebrow dark-eyebrow">RESULTADOS AGREGADOS</div><h3>${selectedStore==='all'?'Comparador de tiendas':'Resultados de '+escapeHtml(primary.label||storeLabel(selectedStore))}</h3><p id="resultCount">${lastSearch.length} resultados para “${escapeHtml(query)}”</p></div><span class="live-dot">● PRECIOS USD</span></div><div class="aggregate-summary"><div><span class="aggregate-icon">↗</span><div><b>${platforms.length} ${platforms.length===1?'tienda consultada':'tiendas consultadas'}</b><small>${escapeHtml(countByStore)}</small></div></div><span class="aggregate-note">Ordena por precio y abre la oferta original para confirmar disponibilidad.</span></div><p class="provider-notice">${escapeHtml(lastSearchResponse.notice||'Los precios pueden variar; confirma el total en la tienda.')}</p><div class="filter-row"><label>Precio mínimo<input id="minPrice" type="number" min="0" step="1" placeholder="USD 0"></label><label>Precio máximo<input id="maxPrice" type="number" min="0" step="1" placeholder="Sin límite"></label><label>Ordenar por<select id="sortResults"><option value="relevance">Relevancia</option><option value="low">Menor precio</option><option value="high">Mayor precio</option></select></label></div><div class="filter-extra"><label><input id="showImages" type="checkbox" checked> Mostrar imágenes</label><span class="view-toggle"><button type="button" class="active" data-layout="grid">▦</button><button type="button" data-layout="list">☰</button></span></div><a class="external" href="${escapeHtml(primary.search_url||officialStoreUrl(selectedStore==='all'?'amazon':selectedStore,query))}" target="_blank" rel="noopener noreferrer">Abrir búsqueda en tienda ↗</a><div id="comparePanel" class="compare-panel hidden"></div><div class="product-results"></div><details class="manual-details"><summary>＋ Agregar artículo manualmente</summary><form id="manualAdd" class="manual-form"><label>Nombre del artículo<input name="title" required maxlength="180" placeholder="Nombre como aparece en la tienda"></label><label>Precio en USD<input name="price" required type="number" min="0.01" max="10000000" step="0.01" placeholder="Ej. 49.99"></label><label>Tienda<select name="platform"><option value="amazon">Amazon</option><option value="walmart">Walmart</option><option value="target">Target</option></select></label><label>Enlace del producto<input name="url" type="url" required placeholder="https://..."></label><button class="primary full" type="submit">Agregar al carrito demo</button></form></details>`;
-   const redraw=()=>renderResults(lastSearchResponse);
-   ['minPrice','maxPrice','sortResults'].forEach(id=>$(id).addEventListener(id==='sortResults'?'change':'input',redraw));
-   $('showImages').onchange=e=>document.querySelectorAll('.product-thumb').forEach(img=>img.classList.toggle('hidden',!e.target.checked));
-   document.querySelectorAll('[data-layout]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-layout]').forEach(x=>x.classList.toggle('active',x===b));$('searchResult').querySelector('.product-results')?.classList.toggle('list-layout',b.dataset.layout==='list')});
-   $('manualAdd').onsubmit=async ev=>{ev.preventDefault();const f=new FormData(ev.currentTarget);await addItem({title:f.get('title'),price:f.get('price'),url:f.get('url')},f.get('platform')||selectedStore);};
-   renderResults(lastSearchResponse);renderCompare();$('searchResult').scrollIntoView({behavior:'smooth',block:'start'});
- }catch(e){
-   $('searchResult').innerHTML=`<div class="empty"><div>⚠</div><strong>No se pudo completar la búsqueda</strong><p>${escapeHtml(e.message)}</p><button class="secondary" id="retrySearch">Intentar de nuevo</button></div>`;
-   $('retrySearch').onclick=()=>performSearch(query);
- }finally{searchBusy=false;btn.disabled=false;btn.textContent='Buscar';}
-}
+async function performSearch(queryOverride){const query=String(queryOverride??$('query').value).trim();if(!query)return toast('Escribe qué artículo buscas.');if(searchBusy)return;searchBusy=true;$('query').value=query;$('clearSearch').classList.remove('hidden');$('homeEmpty').classList.add('hidden');const btn=$('searchBtn');btn.disabled=true;btn.textContent='Buscando…';$('searchResult').classList.remove('hidden');$('searchResult').innerHTML='<div class="home-empty"><div class="empty-orbit">⌕</div><strong>Buscando productos…</strong><p>Consultando resultados del proveedor para '+escapeHtml(storeLabel(selectedStore))+'.</p></div>';try{const r=await api('/api/search',{method:'POST',body:JSON.stringify({platform:selectedStore,query})});lastSearch=r.live_results||[];lastSearchResponse=r;$('searchResult').innerHTML=`<div class="results-heading"><div><h3>${escapeHtml(r.label)} · Resultados</h3><p id="resultCount">${lastSearch.length} resultados para “${escapeHtml(query)}”</p></div><span class="live-dot">PRECIOS USD</span></div><p>${escapeHtml(r.notice||'Los precios pueden variar; confirma el total en la tienda.')}</p><div class="filter-row"><label>Precio mínimo<input id="minPrice" type="number" min="0" step="1" placeholder="USD 0"></label><label>Precio máximo<input id="maxPrice" type="number" min="0" step="1" placeholder="Sin límite"></label><label>Ordenar por<select id="sortResults"><option value="relevance">Relevancia</option><option value="low">Menor precio</option><option value="high">Mayor precio</option></select></label></div><div class="filter-extra"><label><input id="showImages" type="checkbox" checked> Mostrar imágenes</label><span class="view-toggle"><button type="button" class="active" data-layout="grid">▦</button><button type="button" data-layout="list">☰</button></span></div><a class="external" href="${escapeHtml(r.search_url)}" target="_blank" rel="noopener noreferrer">Abrir tienda oficial ↗</a><div id="comparePanel" class="compare-panel hidden"></div><div class="product-results"></div><details class="manual-details"><summary>＋ Agregar artículo manualmente</summary><form id="manualAdd" class="manual-form"><label>Nombre del artículo<input name="title" required maxlength="180" placeholder="Nombre como aparece en la tienda"></label><label>Precio en USD<input name="price" required type="number" min="0.01" max="10000000" step="0.01" placeholder="Ej. 49.99"></label><label>Enlace del producto<input name="url" type="url" required placeholder="https://www.walmart.com/…"></label><button class="primary full" type="submit">Agregar al carrito demo</button></form></details>`;const redraw=()=>renderResults(r);['minPrice','maxPrice','sortResults'].forEach(id=>$(id).addEventListener(id==='sortResults'?'change':'input',redraw));$('showImages').onchange=e=>document.querySelectorAll('.product-thumb').forEach(img=>img.classList.toggle('hidden',!e.target.checked));document.querySelectorAll('[data-layout]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-layout]').forEach(x=>x.classList.toggle('active',x===b));$('searchResult').querySelector('.product-results')?.classList.toggle('list-layout',b.dataset.layout==='list')});$('manualAdd').onsubmit=async ev=>{ev.preventDefault();const f=new FormData(ev.currentTarget);await addItem({title:f.get('title'),price:f.get('price'),url:f.get('url')},selectedStore)};renderResults(r);renderCompare();$('searchResult').scrollIntoView({behavior:'smooth',block:'start'});}catch(e){$('searchResult').innerHTML=`<div class="empty"><div>⚠</div><strong>No se pudo completar la búsqueda</strong><p>${escapeHtml(e.message)}</p><button class="secondary" id="retrySearch">Intentar de nuevo</button></div>`;$('retrySearch').onclick=()=>performSearch(query);}finally{searchBusy=false;btn.disabled=false;btn.textContent='Buscar';}}
 function renderCompare(){const panel=$('comparePanel');if(!panel)return;const items=[...compareItems.values()];panel.classList.toggle('hidden',!items.length);if(!items.length){panel.innerHTML='';return;}panel.innerHTML=`<div class="compare-head"><div><b>Comparador de productos</b><small>${items.length} de 3 artículos</small></div><button class="text-btn" id="clearCompare">Limpiar</button></div><div class="compare-table-wrap"><table class="compare-table"><thead><tr><th>Característica</th>${items.map(x=>`<th>${escapeHtml(storeLabel(x.platform))}</th>`).join('')}</tr></thead><tbody><tr><td>Producto</td>${items.map(x=>`<td>${escapeHtml(x.title)}</td>`).join('')}</tr><tr><td>Precio consultado</td>${items.map(x=>`<td><b>${money(x.price,'USD')}</b></td>`).join('')}</tr><tr><td>Vendedor</td>${items.map(x=>`<td>${escapeHtml(x.source||'No verificado')}</td>`).join('')}</tr><tr><td>Acción</td>${items.map(x=>`<td><button class="primary compare-add" data-key="${escapeHtml(x.title+'|'+x.url)}">Agregar</button></td>`).join('')}</tr></tbody></table></div><p class="hint">Los precios se consultaron en el proveedor y pueden cambiar. Verifica precio, vendedor, impuestos y disponibilidad en la tienda.</p>`;$('clearCompare').onclick=()=>{compareItems.clear();renderCompare();renderResults(lastSearchResponse||{platform:selectedStore,label:storeLabel(selectedStore)});};panel.querySelectorAll('.compare-add').forEach(b=>b.onclick=()=>{const x=compareItems.get(b.dataset.key);if(x)addItem(x,x.platform)});}
+const HUBLOT_PRODUCTS = [
+ {
+  "id": "bb-original-red",
+  "name": "Big Bang Original Soft Touch All Red",
+  "collection": "Big Bang",
+  "price": 24900,
+  "desc": "Rojo integral y diseño deportivo contemporáneo.",
+  "img": "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-original-black",
+  "name": "Big Bang Original Soft Touch All Black",
+  "collection": "Big Bang",
+  "price": 24900,
+  "desc": "Acabado negro integral de carácter técnico.",
+  "img": "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-original-titanium",
+  "name": "Big Bang Original Titanium 43 mm",
+  "collection": "Big Bang",
+  "price": 20400,
+  "desc": "Titanio ligero con estética emblemática.",
+  "img": "https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-original-titanium-ceramic",
+  "name": "Big Bang Original Titanium Ceramic 43 mm",
+  "collection": "Big Bang",
+  "price": 21600,
+  "desc": "Titanio y cerámica en contraste.",
+  "img": "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-original-king-gold",
+  "name": "Big Bang Original King Gold Ceramic 43 mm",
+  "collection": "Big Bang",
+  "price": 39600,
+  "desc": "King Gold combinado con cerámica.",
+  "img": "https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-original-black-magic",
+  "name": "Big Bang Original Black Magic 43 mm",
+  "collection": "Big Bang",
+  "price": 22800,
+  "desc": "Cerámica negra con presencia discreta.",
+  "img": "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-original-coal-blue",
+  "name": "Big Bang Original Titanium Coal Blue 43 mm",
+  "collection": "Big Bang",
+  "price": 20400,
+  "desc": "Esfera azul carbón y caja de titanio.",
+  "img": "https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-reloaded-uefa",
+  "name": "Big Bang Reloaded UEFA Champions League 44 mm",
+  "collection": "Big Bang",
+  "price": 25200,
+  "desc": "Edición temática de fútbol.",
+  "img": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-sapphire-sky",
+  "name": "Big Bang Sapphire Sky Blue 44 mm",
+  "collection": "Big Bang",
+  "price": 84300,
+  "desc": "Caja de zafiro azul translúcido.",
+  "img": "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-summer-42",
+  "name": "Big Bang Summer Multi-Colored Ceramic 42 mm",
+  "collection": "Big Bang",
+  "price": 34300,
+  "desc": "Cerámica multicolor de edición llamativa.",
+  "img": "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-summer-44",
+  "name": "Big Bang Summer Multi-Colored Ceramic 44 mm",
+  "collection": "Big Bang",
+  "price": 119000,
+  "desc": "Versión de alta complejidad multicolor.",
+  "img": "https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-peach-42",
+  "name": "Big Bang Titanium Peach Ceramic 42 mm",
+  "collection": "Big Bang",
+  "price": 24000,
+  "desc": "Cerámica tono melocotón y titanio.",
+  "img": "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-peach-33",
+  "name": "Big Bang Peach Ceramic 33 mm",
+  "collection": "Big Bang",
+  "price": 15500,
+  "desc": "Formato compacto en cerámica melocotón.",
+  "img": "https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-petrol-33",
+  "name": "Big Bang Petrol Blue Ceramic 33 mm",
+  "collection": "Big Bang",
+  "price": 15500,
+  "desc": "Cerámica azul petróleo.",
+  "img": "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-mint-33",
+  "name": "Big Bang Mint Green Ceramic 33 mm",
+  "collection": "Big Bang",
+  "price": 15500,
+  "desc": "Cerámica verde menta.",
+  "img": "https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-unico-grey",
+  "name": "Big Bang Unico Essential Grey 42 mm",
+  "collection": "Big Bang",
+  "price": 24000,
+  "desc": "Cronógrafo Unico en tonos grises.",
+  "img": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-magic-gold",
+  "name": "Big Bang Reloaded Magic Gold 44 mm",
+  "collection": "Big Bang",
+  "price": 44500,
+  "desc": "Aleación Magic Gold resistente a rayaduras.",
+  "img": "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-king-gold",
+  "name": "Big Bang Original King Gold 43 mm",
+  "collection": "Big Bang",
+  "price": 39600,
+  "desc": "King Gold en silueta clásica Big Bang.",
+  "img": "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "bb-unico-titanium",
+  "name": "Big Bang Unico Titanium 42 mm",
+  "collection": "Big Bang",
+  "price": 26400,
+  "desc": "Cronógrafo con caja de titanio.",
+  "img": "https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "square-unico-titanium",
+  "name": "Square Bang Unico Titanium 42 mm",
+  "collection": "Big Bang",
+  "price": 26400,
+  "desc": "Caja cuadrada y movimiento Unico.",
+  "img": "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "square-unico-ceramic",
+  "name": "Square Bang Unico Titanium Ceramic 42 mm",
+  "collection": "Big Bang",
+  "price": 27600,
+  "desc": "Titanio y cerámica en formato cuadrado.",
+  "img": "https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "square-king-gold",
+  "name": "Square Bang Unico King Gold 42 mm",
+  "collection": "Big Bang",
+  "price": 49300,
+  "desc": "King Gold con geometría cuadrada.",
+  "img": "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "square-black-magic",
+  "name": "Square Bang Unico Black Magic 42 mm",
+  "collection": "Big Bang",
+  "price": 30000,
+  "desc": "Caja cuadrada de cerámica negra.",
+  "img": "https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "classic-original-titanium",
+  "name": "Classic Fusion Original Titanium 42 mm",
+  "collection": "Classic Fusion",
+  "price": 9400,
+  "desc": "Elegancia minimalista en titanio.",
+  "img": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "classic-original-black",
+  "name": "Classic Fusion Original Black Magic 42 mm",
+  "collection": "Classic Fusion",
+  "price": 11400,
+  "desc": "Diseño sobrio con acabado negro.",
+  "img": "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "classic-titanium",
+  "name": "Classic Fusion Titanium 42 mm",
+  "collection": "Classic Fusion",
+  "price": 8700,
+  "desc": "Perfil limpio y caja de titanio.",
+  "img": "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "classic-blue",
+  "name": "Classic Fusion Titanium Blue 42 mm",
+  "collection": "Classic Fusion",
+  "price": 8700,
+  "desc": "Esfera azul y estética refinada.",
+  "img": "https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "classic-king-gold",
+  "name": "Classic Fusion King Gold 42 mm",
+  "collection": "Classic Fusion",
+  "price": 25200,
+  "desc": "Oro cálido con líneas depuradas.",
+  "img": "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "classic-black-magic",
+  "name": "Classic Fusion Black Magic 42 mm",
+  "collection": "Classic Fusion",
+  "price": 10700,
+  "desc": "Cerámica negra y diseño elegante.",
+  "img": "https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "classic-chrono-ti",
+  "name": "Classic Fusion Chronograph Titanium 42 mm",
+  "collection": "Classic Fusion",
+  "price": 12300,
+  "desc": "Cronógrafo clásico en titanio.",
+  "img": "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "classic-chrono-gold",
+  "name": "Classic Fusion Chronograph King Gold 42 mm",
+  "collection": "Classic Fusion",
+  "price": 32400,
+  "desc": "Cronógrafo con caja King Gold.",
+  "img": "https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "classic-chrono-black",
+  "name": "Classic Fusion Chronograph Black Magic 42 mm",
+  "collection": "Classic Fusion",
+  "price": 13500,
+  "desc": "Cronógrafo con acabado cerámico negro.",
+  "img": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "classic-aero-ti",
+  "name": "Classic Fusion Aerofusion Titanium 45 mm",
+  "collection": "Classic Fusion",
+  "price": 17100,
+  "desc": "Esfera esqueletizada y caja de titanio.",
+  "img": "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "classic-aero-black",
+  "name": "Classic Fusion Aerofusion Black Magic 45 mm",
+  "collection": "Classic Fusion",
+  "price": 18800,
+  "desc": "Arquitectura esqueletizada en negro.",
+  "img": "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-ti",
+  "name": "Spirit of Big Bang Titanium 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 26400,
+  "desc": "Caja tonneau y titanio ligero.",
+  "img": "https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-ti-ceramic",
+  "name": "Spirit of Big Bang Titanium Ceramic 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 27600,
+  "desc": "Tonneau con combinación de materiales.",
+  "img": "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-king-gold",
+  "name": "Spirit of Big Bang King Gold 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 49300,
+  "desc": "Caja tonneau en King Gold.",
+  "img": "https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-king-ceramic",
+  "name": "Spirit of Big Bang King Gold Ceramic 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 45700,
+  "desc": "King Gold y cerámica negra.",
+  "img": "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-black-magic",
+  "name": "Spirit of Big Bang Black Magic 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 30000,
+  "desc": "Silueta tonneau con acabado negro.",
+  "img": "https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-taupe",
+  "name": "Spirit of Big Bang Essential Taupe 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 24800,
+  "desc": "Tono taupe, edición exclusiva online según fabricante.",
+  "img": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-impact-black",
+  "name": "Spirit of Big Bang Impact All Black 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 33700,
+  "desc": "Diseño oscuro de alta presencia.",
+  "img": "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-impact-sapphire",
+  "name": "Spirit of Big Bang Impact Sapphire 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 114500,
+  "desc": "Caja de zafiro y diseño escultural.",
+  "img": "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-sapphire-blue",
+  "name": "Spirit of Big Bang Sapphire Blue 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 102400,
+  "desc": "Caja de zafiro azul.",
+  "img": "https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-coal-blue",
+  "name": "Spirit of Big Bang Titanium Coal Blue 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 24000,
+  "desc": "Titanio y esfera azul carbón.",
+  "img": "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-white",
+  "name": "Spirit of Big Bang Titanium White 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 26400,
+  "desc": "Titanio con estética blanca.",
+  "img": "https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-meca-ti",
+  "name": "Spirit of Big Bang Meca-10 Titanium 45 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 27600,
+  "desc": "Reserva de marcha larga y arquitectura mecánica.",
+  "img": "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-meca-gold",
+  "name": "Spirit of Big Bang Meca-10 King Gold 45 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 52900,
+  "desc": "Meca-10 con caja King Gold.",
+  "img": "https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-tourbillon-black",
+  "name": "Spirit of Big Bang Tourbillon 5-Day Power Reserve Black Magic 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 109000,
+  "desc": "Tourbillon y reserva de marcha de cinco días.",
+  "img": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-tourbillon-red",
+  "name": "Spirit of Big Bang Tourbillon 5-Day Power Reserve Red Magic 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 109000,
+  "desc": "Cerámica roja y tourbillon.",
+  "img": "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-tourbillon-blue",
+  "name": "Spirit of Big Bang Tourbillon 5-Day Power Reserve Sky Blue Ceramic 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 109000,
+  "desc": "Cerámica azul cielo y tourbillon.",
+  "img": "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-tourbillon-yellow",
+  "name": "Spirit of Big Bang Tourbillon 5-Day Power Reserve Yellow Magic 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 109000,
+  "desc": "Cerámica amarilla y tourbillon.",
+  "img": "https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85"
+ },
+ {
+  "id": "spirit-tourbillon-sapphire",
+  "name": "Spirit of Big Bang Tourbillon 5-Day Power Reserve Black Sapphire 42 mm",
+  "collection": "Spirit of Big Bang",
+  "price": 169000,
+  "desc": "Caja de zafiro negro y tourbillon.",
+  "img": "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85"
+ }
+];
+function renderHublot(){const root=$('hublotProducts');if(!root)return;const filter=$('hublotFilter')?.value||'all';const items=HUBLOT_PRODUCTS.filter(x=>filter==='all'||x.collection===filter);root.innerHTML=items.map(x=>`<article class="hublot-card"><div class="hublot-image"><img src="${x.img}" alt="Imagen ilustrativa de reloj; consultar modelo en HUBLOT" loading="lazy"><span>50% OFF · SIMULADO</span></div><div class="hublot-card-copy"><small>${escapeHtml(x.collection)}</small><h4>${escapeHtml(x.name)}</h4><p>${escapeHtml(x.desc)}</p><div class="hublot-price"><del>${money(x.price,'USD')}</del><strong>${money(x.price/2,'USD')}</strong><small>50% de descuento de simulación · precio oficial puede variar</small></div><div class="hublot-card-actions"><button class="primary hublot-add" data-hublot="${x.id}">Añadir al carrito · 50% OFF</button><a href="https://www.hublot.com/en-us/watches" target="_blank" rel="noopener noreferrer">Ver catálogo oficial ↗</a></div></div></article>`).join('');root.querySelectorAll('[data-hublot]').forEach(btn=>btn.onclick=async()=>{const x=HUBLOT_PRODUCTS.find(p=>p.id===btn.dataset.hublot);if(!x)return;btn.disabled=true;btn.textContent='Añadiendo…';try{await api('/api/cart',{method:'POST',body:JSON.stringify({platform:'hublot',title:x.name,price:x.price.toFixed(2),currency:'USD',url:'https://www.hublot.com/en-us/watches'})});await refresh();toast(`${x.name}: descuento simulado del 50% aplicado`);}catch(e){toast(e.message)}finally{btn.disabled=false;btn.textContent='Añadir al carrito · 50% OFF';}});}
+$('hublotFilter')?.addEventListener('change',renderHublot);
 async function openReceipt(ref){const win=window.open('about:blank','_blank');if(win)win.opener=null;try{const r=await fetch('/api/orders/'+encodeURIComponent(ref)+'/receipt',{headers:token?{'Authorization':`Bearer ${token}`}:{}});const html=await r.text();if(!r.ok)throw new Error('No se pudo cargar el recibo.');const blob=new Blob([html],{type:'text/html;charset=utf-8'});const url=URL.createObjectURL(blob);if(win)win.location.href=url;else toast('Permite ventanas emergentes para ver el recibo.');setTimeout(()=>URL.revokeObjectURL(url),60000);}catch(e){if(win)win.close();toast(e.message||'No se pudo abrir el recibo.')}}
 async function loadNotificationPreferences(){try{const p=await api('/api/notifications');$('notifyOrders').checked=!!p.order_updates;$('notifySecurity').checked=!!p.security_alerts;$('notificationStatusText').textContent=p.telegram_configured?'Telegram configurado; los avisos dependen de la disponibilidad del bot.':'Bot no configurado en servidor; las preferencias se guardan, pero no se enviarán mensajes.';}catch(e){toast(e.message)}}
 async function saveNotificationPreferences(){try{const r=await api('/api/notifications',{method:'POST',body:JSON.stringify({order_updates:$('notifyOrders').checked,security_alerts:$('notifySecurity').checked})});$('notificationStatusText').textContent=r.telegram_configured?'Preferencias guardadas. Telegram está configurado.':'Preferencias guardadas. Configura el bot para recibir mensajes.';toast('Preferencias guardadas.');}catch(e){toast(e.message)}}
