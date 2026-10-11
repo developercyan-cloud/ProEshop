@@ -255,6 +255,7 @@ PLATFORMS = {
     "amazon": {"label": "Amazon", "url": "https://www.amazon.com/s?k={q}"},
     "target": {"label": "Target", "url": "https://www.target.com/s?searchTerm={q}"},
     "walmart": {"label": "Walmart", "url": "https://www.walmart.com/search?q={q}"},
+    "hublot": {"label": "HUBLOT", "url": "https://www.hublot.com/en-us/watches"},
 }
 
 
@@ -519,12 +520,17 @@ async def add_cart(body: AddBody, request: Request):
     except (InvalidOperation, ValueError):
         raise HTTPException(400, "Introduce un precio válido mayor que cero.")
     platform = body.platform.lower().strip()
+    # Oferta simulada exclusiva de HUBLOT: se aplica en servidor para que
+    # el subtotal, los impuestos, el saldo ficticio y el historial usen el precio rebajado.
+    if platform == "hublot":
+        price = (price / Decimal("2")).quantize(Decimal("0.01"))
     parsed = urlparse(body.url)
     host = (parsed.hostname or "").lower().rstrip(".")
     allowed_domains = {
         "amazon": ("amazon.com",),
         "target": ("target.com",),
         "walmart": ("walmart.com",),
+        "hublot": ("hublot.com",),
     }
     if (
         parsed.scheme.lower() != "https"
