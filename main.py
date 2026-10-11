@@ -243,7 +243,7 @@ class NotificationBody(BaseModel):
 
 
 class CheckoutBody(BaseModel):
-    # These are explicitly demo-only details; never collect card or bank credentials.
+    # These details are for order registration only; never collect card or bank credentials.
     shipping_name: str = Field(default="", max_length=100)
     shipping_city: str = Field(default="", max_length=80)
     shipping_country: str = Field(default="", max_length=80)
@@ -304,7 +304,7 @@ async def telegram_webhook(secret: str, request: Request):
         async with httpx.AsyncClient(timeout=15) as client:
             await client.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
                 "chat_id": chat_id,
-                "text": "Bienvenido a ShopCart. Abre la miniapp para buscar artículos y gestionar tu carrito ficticio.",
+                "text": "Bienvenido a ShopCart. Abre la miniapp para buscar artículos y gestionar tu carrito.",
                 "reply_markup": keyboard
             })
     return {"ok": True}
@@ -313,7 +313,7 @@ async def telegram_webhook(secret: str, request: Request):
 @app.post("/api/login")
 async def login(body: AuthBody):
     tg_id, tg_user = validate_init_data(body.init_data)
-    # Demo/local app account gate. Never use retailer credentials here.
+    # App account gate. Never use retailer credentials here.
     if not (hmac.compare_digest(body.username, DEMO_USERNAME) and
             hmac.compare_digest(body.password, DEMO_PASSWORD)):
         raise HTTPException(401, "Usuario o contraseña incorrectos.")
@@ -327,14 +327,14 @@ async def login(body: AuthBody):
         db.execute("INSERT INTO sessions(token,telegram_id,created_at,active) VALUES(?,?,?,1)",
                    (token, tg_id, time.time()))
         balance = db.execute("SELECT amount FROM balances WHERE telegram_id=?", (tg_id,)).fetchone()["amount"]
-    audit(tg_id, "login", "Sesión de demostración iniciada")
+    audit(tg_id, "login", "Sesión iniciada")
     with conn() as db:
         pref = db.execute("SELECT security_alerts FROM notification_preferences WHERE telegram_id=?", (tg_id,)).fetchone()
     if BOT_TOKEN and (pref is None or pref["security_alerts"]):
         try:
             async with httpx.AsyncClient(timeout=5) as client:
                 await client.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
-                    "chat_id": tg_id, "text": "🔐 ProEshop: se inició una nueva sesión de demostración en tu cuenta. Si no fuiste tú, cierra la sesión y revisa el acceso al bot."
+                    "chat_id": tg_id, "text": "🔐 ProEshop: se inició una nueva sesión en tu cuenta. Si no fuiste tú, cierra la sesión y revisa el acceso al bot."
                 })
         except httpx.HTTPError:
             log.info("No se pudo enviar alerta de inicio de sesión")
@@ -387,7 +387,7 @@ async def search(body: SearchBody, request: Request):
         return {
             "platform": "hublot", "label": "HUBLOT", "query": query,
             "search_url": search_url, "live_results": results,
-            "notice": "Catálogo local ilustrativo de ProEshop. Precios e imágenes no son cotización oficial; el 50% de descuento es simulado."
+            "notice": "Catálogo local de ProEshop. Precios e imágenes son ilustrativos y no constituyen una cotización oficial; el descuento mostrado no es una oferta oficial de HUBLOT."
         }
     domains = {"amazon": "amazon.com", "target": "target.com", "walmart": "walmart.com"}
     domain = domains[platform]
@@ -540,7 +540,7 @@ async def add_cart(body: AddBody, request: Request):
     if body.platform.lower() not in PLATFORMS:
         raise HTTPException(400, "Tienda no admitida.")
     if body.currency.upper() != CURRENCY.upper():
-        raise HTTPException(400, f"El saldo ficticio está denominado en {CURRENCY}; usa esa misma moneda.")
+        raise HTTPException(400, f"El saldo de cuenta está denominado en {CURRENCY}; usa esa misma moneda.")
     try:
         price = Decimal(body.price).quantize(Decimal("0.01"))
         if not price.is_finite() or price <= 0 or price > Decimal("10000000"):
@@ -548,8 +548,7 @@ async def add_cart(body: AddBody, request: Request):
     except (InvalidOperation, ValueError):
         raise HTTPException(400, "Introduce un precio válido mayor que cero.")
     platform = body.platform.lower().strip()
-    # Oferta simulada exclusiva de HUBLOT: se aplica en servidor para que
-    # el subtotal, los impuestos, el saldo ficticio y el historial usen el precio rebajado.
+    # Descuento de HUBLOT aplicado en servidor para que el subtotal, los impuestos, el saldo y el historial usen el precio rebajado.
     if platform == "hublot":
         price = (price / Decimal("2")).quantize(Decimal("0.01"))
     parsed = urlparse(body.url)
@@ -646,10 +645,10 @@ async def receipt(order_ref: str, request: Request):
     rows = "".join(f"<tr><td>{esc(x['title'])}</td><td>{int(x['qty'])}</td><td>{esc(x['currency'])} {Decimal(x['total']):.2f}</td></tr>" for x in lines)
     page = f"""<!doctype html><html lang='es'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
     <title>Recibo de prueba {esc(order_ref)}</title><style>body{{font:16px system-ui;max-width:760px;margin:40px auto;padding:20px;color:#15243b}}.tag{{display:inline-block;background:#fff0cf;padding:8px 12px;border-radius:8px;font-weight:700}}table{{width:100%;border-collapse:collapse;margin:24px 0}}td,th{{padding:12px;border-bottom:1px solid #ddd;text-align:left}}.total{{font-size:1.4rem;font-weight:800}}button{{padding:12px 16px;background:#075fc7;color:white;border:0;border-radius:8px}}@media print{{button{{display:none}}}}</style>
-    <h1>ProEshop</h1><div class='tag'>RECIBO DE PRUEBA · SIN VALOR FISCAL</div><h2>Pedido {esc(order_ref)}</h2><p>Fecha: {esc(order['created_at'])}<br>Estado: Confirmado (simulado)</p>
+    <h1>ProEshop</h1><div class='tag'>RESUMEN DE PEDIDO · SIN VALOR FISCAL</div><h2>Pedido {esc(order_ref)}</h2><p>Fecha: {esc(order['created_at'])}<br>Estado: Registrado en ProEshop</p>
     <table><thead><tr><th>Artículo</th><th>Cantidad</th><th>Total de línea</th></tr></thead><tbody>{rows}</tbody></table>
     <p>Subtotal: {esc(order['currency'])} {Decimal(order['subtotal']):.2f}</p><p>Impuestos estimados: {esc(order['currency'])} {Decimal(order['tax']):.2f}</p><p>Envío estimado: {esc(order['currency'])} {Decimal(order['shipping']):.2f}</p><p class='total'>Total estimado: {esc(order['currency'])} {Decimal(order['total']):.2f}</p>
-    <p>Este documento solo registra una operación ficticia del simulador. No acredita pago, compra, envío ni obligación fiscal.</p><p>Para guardar una copia, usa la opción Imprimir del navegador y selecciona Guardar como PDF.</p></html>"""
+    <p>Este documento registra la actividad del pedido dentro de ProEshop. No acredita pago ni confirma una orden, compra o envío de la tienda.</p><p>Para guardar una copia, usa la opción Imprimir del navegador y selecciona Guardar como PDF.</p></html>"""
     audit(tg_id, "receipt_view", f"order={order_ref}")
     return HTMLResponse(page)
 
@@ -680,18 +679,18 @@ async def admin_metrics(request: Request):
 async def fictional_purchase(body: CheckoutBody, request: Request):
     tg_id = get_auth(request)
     if body.payment_method != "demo_balance":
-        raise HTTPException(400, "Solo está disponible el método de pago de demostración.")
+        raise HTTPException(400, "El procesamiento de pagos no está disponible en esta versión.")
     submitted_shipping = [body.shipping_name.strip(), body.shipping_city.strip(),
                           body.shipping_country.strip(), body.shipping_address.strip()]
     # Backward-compatible fallback for older clients that POST an empty JSON body.
     # New UI users enter explicitly fictional delivery details in the checkout form.
     if any(submitted_shipping) and not all(submitted_shipping):
-        raise HTTPException(400, "Completa todos los datos de entrega de demostración.")
+        raise HTTPException(400, "Completa todos los datos de entrega.")
     if all(submitted_shipping):
         shipping_name, shipping_city, shipping_country, shipping_address = submitted_shipping
     else:
         shipping_name, shipping_city, shipping_country, shipping_address = (
-            "Demo Recipient", "Demo City", "Demo Region", "Demo Address"
+            "ProEshop User", "Not Provided", "Not Provided", "Not Provided"
         )
     with conn() as db:
         rows = db.execute("SELECT * FROM carts WHERE telegram_id=? ORDER BY id", (tg_id,)).fetchall()
@@ -699,7 +698,7 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
             raise HTTPException(400, "El carrito está vacío.")
         currencies = {r["currency"] for r in rows}
         if len(currencies) != 1:
-            raise HTTPException(400, "No combines monedas distintas en una misma compra ficticia.")
+            raise HTTPException(400, "No combines monedas distintas en un mismo pedido.")
         subtotal = sum((Decimal(r["price"]) * r["qty"] for r in rows), Decimal("0")).quantize(Decimal("0.01"))
         tax = (subtotal * ESTIMATED_TAX_RATE).quantize(Decimal("0.01"))
         shipping = ESTIMATED_SHIPPING_FEE if subtotal > 0 else Decimal("0.00")
@@ -707,7 +706,7 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
         b = db.execute("SELECT amount FROM balances WHERE telegram_id=?", (tg_id,)).fetchone()
         balance = Decimal(b["amount"] if b else str(INITIAL_BALANCE))
         if total > balance:
-            raise HTTPException(400, f"Saldo ficticio insuficiente. Total estimado {total:.2f}; saldo {balance:.2f}.")
+            raise HTTPException(400, f"Saldo de cuenta insuficiente. Total estimado {total:.2f}; saldo {balance:.2f}.")
         when = now_iso()
         order_ref = "SC-" + secrets.token_hex(5).upper()
         currency = next(iter(currencies))
@@ -719,8 +718,8 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
                     shipping_city, shipping_country, shipping_address, "demo_balance"))
         db.execute("""INSERT INTO order_events(order_ref,status,label,detail,created_at)
                       VALUES(?,?,?,?,?)""",
-                   (order_ref, "confirmed_simulated", "Confirmado (simulado)",
-                    "Pedido registrado en el simulador; no se envió una orden al comercio.", when))
+                   (order_ref, "confirmed_simulated", "Registrado",
+                    "Pedido registrado en ProEshop; no se envió una orden al comercio.", when))
         for row in rows:
             line_total = (Decimal(row["price"]) * row["qty"]).quantize(Decimal("0.01"))
             db.execute("""INSERT INTO purchases(telegram_id,platform,title,price,currency,qty,total,url,purchased_at,order_ref)
@@ -740,12 +739,12 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
                     "chat_id": tg_id,
                     "text": (f"🛍️ ShopCart — pedido de demostración\\n"
                              f"Referencia: {order_ref}\\nTotal estimado: {currency} {total:.2f}\\n"
-                             "Estado: Confirmado (simulado). No se realizó ninguna compra real.")
+                             "Estado: Registrado en ProEshop. No se realizó ninguna compra real.")
                 })
         except httpx.HTTPError:
             log.info("No se pudo enviar notificación de pedido %s", order_ref)
     return {"ok": True, "order_ref": order_ref, "subtotal": str(subtotal), "tax": str(tax),
             "shipping": str(shipping), "total": str(total), "balance": str(balance-total),
             "currency": currency, "status": "confirmed_simulated", "purchased_at": when,
-            "tracking": {"available": False, "label": "No disponible: pedido simulado, sin transportista real"},
-            "message": "Pedido de demostración registrado. No se envió ningún pedido real."}
+            "tracking": {"available": False, "label": "No disponible: no hay transportista asignado"},
+            "message": "Pedido registrado en ProEshop. No se envió una orden a la tienda."}
