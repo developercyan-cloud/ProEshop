@@ -15,3 +15,9 @@
 El backend usa migraciones SQLite aditivas (`CREATE TABLE IF NOT EXISTS` y `ALTER TABLE` cuando falta una columna); no elimina tablas ni registros existentes. Aun así, realiza una copia de seguridad antes de desplegar.
 
 Las compras de este proyecto son de demostración: el registro de pedido/correo no acredita una compra real ni un pago al comercio.
+
+## Correos HTML
+El backend envía correos HTML adaptables por estado y tienda mediante `htmlContent` de Brevo (o alternativa HTML SMTP). El remitente siempre es ProEshop; los colores por tienda son solo acentos visuales.
+
+## Base de datos Railway
+Conserva el volumen persistente y `DATABASE_PATH=/data/shopcart.db`. No elimines ni recrees el volumen.

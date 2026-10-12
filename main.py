@@ -240,21 +240,67 @@ ORDER_EMAIL_COPY = {
     "returned": ("Actualización de devolución", "El pedido fue marcado como devuelto. El estado de cualquier reembolso se gestiona por separado."),
 }
 
-def send_status_email(recipient: str, order_ref: str, status: str, total: str, currency: str, detail: str = ""):
-    """Send order notification through Brevo HTTPS API when configured.
+def _email_store_theme(detail: str = ""):
+    """Choose a neutral ProEshop accent by store; never impersonate the retailer."""
+    match = re.search(r"(?:^|[.\n])\s*Tienda:\s*([^.;\n]+)", detail or "", re.IGNORECASE)
+    store = (match.group(1).strip() if match else "ProEshop")[:80]
+    normalized = store.lower()
+    themes = {
+        "amazon": ("#232f3e", "#ffb84d"),
+        "walmart": ("#073b75", "#ffc220"),
+        "target": ("#9f1239", "#f87171"),
+        "hublot": ("#111827", "#c7a76c"),
+        "jewelers": ("#173b35", "#c9a96e"),
+    }
+    accent, highlight = ("#24205b", "#8b7cff")
+    for key, colors in themes.items():
+        if key in normalized:
+            accent, highlight = colors
+            break
+    return store, accent, highlight
 
-    HTTPS API is preferred because Railway Free/Trial may block outbound SMTP.
-    SMTP remains as a backward-compatible fallback when BREVO_API_KEY is absent.
-    """
+
+def send_status_email(recipient: str, order_ref: str, status: str, total: str, currency: str, detail: str = ""):
+    """Send branded responsive HTML email through Brevo API or legacy SMTP."""
     if not all([SMTP_FROM_EMAIL, recipient]):
         raise RuntimeError("Falta SMTP_FROM_EMAIL/remitente o el pedido no tiene correo del cliente")
 
     subject, message = ORDER_EMAIL_COPY.get(status, ("Actualización de tu pedido", "El estado de tu pedido ha cambiado."))
-    extra = f"\nDetalle: {detail}" if detail else ""
+    status_label = ORDER_STATUS_LABELS.get(status, status)
+    store, accent, highlight = _email_store_theme(detail)
+    total_formatted = f"{escape(str(currency))} {Decimal(total):,.2f}"
+    detail_text = str(detail or "").strip()
+    detail_html = (f'<div style="margin-top:20px;padding:14px 16px;border-left:3px solid {highlight};background:#fbfbfe;color:#4b5568;font-size:13px;line-height:1.65;"><strong style="color:#172033;">Detalle</strong><br>{escape(detail_text)}</div>' if detail_text else "")
+    # The email clearly comes from ProEshop; store-specific colors are only an accent.
+    html_content = f"""<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f3f5fa;font-family:Arial,Helvetica,sans-serif;color:#172033;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f5fa;padding:28px 10px;"><tr><td align="center">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 8px 28px rgba(20,28,55,.10);">
+<tr><td style="background:{accent};padding:26px 30px;border-bottom:4px solid {highlight};">
+<div style="font-size:12px;letter-spacing:3px;font-weight:700;color:#ffffff;opacity:.85;">PROESHOP</div>
+<div style="font-size:26px;line-height:1.25;font-weight:700;color:#ffffff;margin-top:9px;">{escape(subject)}</div>
+<div style="font-size:13px;color:#ffffff;margin-top:8px;opacity:.9;">Actualización de tu pedido · {escape(store)}</div>
+</td></tr>
+<tr><td style="padding:30px;">
+<p style="font-size:16px;line-height:1.65;margin:0 0 12px;">Hola,</p>
+<p style="font-size:15px;line-height:1.7;color:#4b5568;margin:0 0 24px;">{escape(message)}</p>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8f9fc;border:1px solid #e5e9f2;border-radius:12px;">
+<tr><td style="padding:17px 18px;border-bottom:1px solid #e5e9f2;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#667085;">Tienda</div><div style="font-size:16px;font-weight:700;margin-top:5px;color:#172033;">{escape(store)}</div></td></tr>
+<tr><td style="padding:17px 18px;border-bottom:1px solid #e5e9f2;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#667085;">Referencia del pedido</div><div style="font-size:16px;font-weight:700;margin-top:5px;color:#172033;">{escape(order_ref)}</div></td></tr>
+<tr><td style="padding:17px 18px;border-bottom:1px solid #e5e9f2;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#667085;">Estado actual</div><span style="display:inline-block;margin-top:8px;padding:8px 12px;border-radius:999px;background:{highlight};color:#171717;font-size:13px;font-weight:700;">{escape(status_label)}</span></td></tr>
+<tr><td style="padding:17px 18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#667085;">Total registrado de esta tienda</div><div style="font-size:24px;font-weight:700;margin-top:5px;color:{accent};">{total_formatted}</div></td></tr>
+</table>
+{detail_html}
+<div style="margin-top:22px;padding:14px 16px;background:#fff8e8;border:1px solid #f3dfad;border-radius:10px;color:#73551a;font-size:12px;line-height:1.65;">Esta notificación informa el estado registrado en ProEshop. Por sí sola no confirma que se haya recibido un pago ni que la compra se haya completado en la tienda proveedora.</div>
+<p style="font-size:14px;line-height:1.6;margin:24px 0 0;color:#4b5568;">Gracias por usar <strong style="color:#172033;">ProEshop</strong>.</p>
+</td></tr>
+<tr><td style="background:#f8f9fc;border-top:1px solid #e8ebf2;padding:18px 30px;color:#8a93a5;font-size:11px;line-height:1.6;">Mensaje automático de ProEshop. No respondas a este correo si el remitente no admite respuestas.</td></tr>
+</table></td></tr></table></body></html>"""
     text_content = (
-        f"Hola,\n\n{message}\n\nPedido: {order_ref}\n"
-        f"Estado: {ORDER_STATUS_LABELS.get(status, status)}\n"
-        f"Total registrado: {currency} {Decimal(total):.2f}{extra}\n\n"
+        f"Hola,\n\n{message}\n\nTienda: {store}\nPedido: {order_ref}\n"
+        f"Estado: {status_label}\nTotal registrado de esta tienda: {currency} {Decimal(total):.2f}"
+        f"{chr(10) + 'Detalle: ' + detail_text if detail_text else ''}\n\n"
         "El estado del pedido no implica por sí mismo que el pago haya sido recibido.\nProEshop"
     )
 
@@ -262,22 +308,18 @@ def send_status_email(recipient: str, order_ref: str, status: str, total: str, c
         payload = {
             "sender": {"email": SMTP_FROM_EMAIL, "name": "ProEshop"},
             "to": [{"email": recipient}],
-            "subject": f"ProEshop · {subject} · {order_ref}",
+            "subject": f"ProEshop · {store} · {subject} · {order_ref}",
             "textContent": text_content,
+            "htmlContent": html_content,
         }
         try:
             with httpx.Client(timeout=httpx.Timeout(20.0, connect=8.0)) as client:
                 response = client.post(
                     "https://api.brevo.com/v3/smtp/email",
-                    headers={
-                        "api-key": BREVO_API_KEY,
-                        "accept": "application/json",
-                        "content-type": "application/json",
-                    },
+                    headers={"api-key": BREVO_API_KEY, "accept": "application/json", "content-type": "application/json"},
                     json=payload,
                 )
             if response.status_code not in (200, 201, 202):
-                # Avoid logging request headers or API key; keep only a short API response.
                 raise RuntimeError(f"Brevo API HTTP {response.status_code}: {response.text[:240]}")
             return
         except httpx.TimeoutException as exc:
@@ -285,26 +327,22 @@ def send_status_email(recipient: str, order_ref: str, status: str, total: str, c
         except httpx.HTTPError as exc:
             raise RuntimeError(f"Error de conexión con la API HTTPS de Brevo: {type(exc).__name__}") from exc
 
-    # Legacy fallback. On Railway Free/Trial this can time out because outbound SMTP is restricted.
     if not SMTP_HOST:
         raise RuntimeError("Configura BREVO_API_KEY en Railway para enviar por la API HTTPS de Brevo")
     msg = EmailMessage()
-    msg["Subject"] = f"ProEshop · {subject} · {order_ref}"
-    msg["From"] = SMTP_FROM_EMAIL
+    msg["Subject"] = f"ProEshop · {store} · {subject} · {order_ref}"
+    msg["From"] = f"ProEshop <{SMTP_FROM_EMAIL}>"
     msg["To"] = recipient
     msg.set_content(text_content)
+    msg.add_alternative(html_content, subtype="html")
     if SMTP_USE_SSL:
         with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=15) as server:
-            if SMTP_USER:
-                server.login(SMTP_USER, SMTP_PASSWORD)
+            if SMTP_USER: server.login(SMTP_USER, SMTP_PASSWORD)
             server.send_message(msg)
     else:
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
-            server.ehlo()
-            server.starttls()
-            server.ehlo()
-            if SMTP_USER:
-                server.login(SMTP_USER, SMTP_PASSWORD)
+            server.ehlo(); server.starttls(); server.ehlo()
+            if SMTP_USER: server.login(SMTP_USER, SMTP_PASSWORD)
             server.send_message(msg)
 
 def enqueue_and_send_order_email(order_ref: str, status: str, recipient: str, total: str, currency: str, detail: str = ""):
