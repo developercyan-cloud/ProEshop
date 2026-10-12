@@ -1,8 +1,8 @@
-import os, hmac, hashlib, json, time, secrets, sqlite3, logging, re
+import os, hmac, hashlib, json, time, secrets, sqlite3, logging, re, smtplib
 from urllib.parse import parse_qsl, quote_plus, urlparse
 from datetime import datetime, timezone, timedelta
 from html import escape
-from html import escape
+from email.message import EmailMessage
 from decimal import Decimal, InvalidOperation
 from contextlib import contextmanager
 
@@ -30,6 +30,13 @@ SERPAPI_KEY = os.getenv("SERPAPI_KEY", "").strip()
 ESTIMATED_TAX_RATE = Decimal(os.getenv("ESTIMATED_TAX_RATE", "0.08"))
 ESTIMATED_SHIPPING_FEE = Decimal(os.getenv("ESTIMATED_SHIPPING_FEE", "5.99"))
 SESSION_TTL = int(os.getenv("SESSION_TTL_MINUTES", "120")) * 60
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USER).strip()
+SMTP_USE_SSL = os.getenv("SMTP_USE_SSL", "false").lower() in {"1", "true", "yes"}
+
 
 app = FastAPI(title="ProEshop Telegram Mini App", docs_url=None, redoc_url=None)
 
@@ -108,12 +115,21 @@ def init_db():
           status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
           shipping_name TEXT NOT NULL DEFAULT '', shipping_city TEXT NOT NULL DEFAULT '',
           shipping_country TEXT NOT NULL DEFAULT '', shipping_address TEXT NOT NULL DEFAULT '',
-          payment_method TEXT NOT NULL DEFAULT 'demo_balance'
+          payment_method TEXT NOT NULL DEFAULT 'demo_balance',
+          customer_email TEXT NOT NULL DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS order_events(
           id INTEGER PRIMARY KEY AUTOINCREMENT, order_ref TEXT NOT NULL,
           status TEXT NOT NULL, label TEXT NOT NULL, detail TEXT NOT NULL,
           created_at TEXT NOT NULL,
+          FOREIGN KEY(order_ref) REFERENCES orders(order_ref) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS order_notifications(
+          id INTEGER PRIMARY KEY AUTOINCREMENT, order_ref TEXT NOT NULL,
+          event_key TEXT NOT NULL, recipient TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+          UNIQUE(order_ref,event_key),
           FOREIGN KEY(order_ref) REFERENCES orders(order_ref) ON DELETE CASCADE
         );
         CREATE TABLE IF NOT EXISTS balances(
@@ -145,6 +161,7 @@ def init_db():
             "shipping_country": "TEXT NOT NULL DEFAULT ''",
             "shipping_address": "TEXT NOT NULL DEFAULT ''",
             "payment_method": "TEXT NOT NULL DEFAULT 'demo_balance'",
+            "customer_email": "TEXT NOT NULL DEFAULT ''",
         }.items():
             if column not in order_columns:
                 db.execute(f"ALTER TABLE orders ADD COLUMN {column} {declaration}")
@@ -163,6 +180,86 @@ def audit(actor_id: str, action: str, detail: str = ""):
         db.execute("INSERT INTO audit_log(actor_id,action,detail,created_at) VALUES(?,?,?,?)",
                    (str(actor_id or "")[:80], str(action)[:80], str(detail)[:240], now_iso()))
 
+
+ORDER_STATUS_LABELS = {
+    "confirmed_simulated": "Confirmado (simulado, legado)",
+    "received": "Pedido recibido",
+    "reviewing": "En revisión",
+    "action_required": "Requiere acción del cliente",
+    "confirmed": "Pedido confirmado",
+    "preparing": "En preparación",
+    "shipped": "Enviado",
+    "delivered": "Entregado",
+    "unavailable": "Producto no disponible",
+    "cancelled": "Cancelado",
+    "returned": "Devuelto",
+}
+ORDER_TRANSITIONS = {
+    "confirmed_simulated": {"reviewing", "cancelled", "unavailable"},
+    "received": {"reviewing", "action_required", "cancelled", "unavailable"},
+    "reviewing": {"confirmed", "action_required", "cancelled", "unavailable"},
+    "action_required": {"reviewing", "cancelled"},
+    "confirmed": {"preparing", "cancelled"},
+    "preparing": {"shipped", "cancelled"},
+    "shipped": {"delivered", "returned"},
+    "delivered": {"returned"},
+    "unavailable": {"cancelled"},
+    "cancelled": set(),
+    "returned": set(),
+}
+ORDER_EMAIL_COPY = {
+    "received": ("Recibimos tu pedido", "Tu pedido fue registrado en ProEshop. Esto confirma el registro, no un pago ni una compra con un proveedor."),
+    "reviewing": ("Estamos revisando tu pedido", "Estamos verificando los detalles y la disponibilidad del pedido."),
+    "action_required": ("Necesitamos información para tu pedido", "Tu pedido requiere una acción adicional. Revisa los detalles con el equipo de ProEshop."),
+    "confirmed": ("Tu pedido ha sido confirmado", "El pedido fue confirmado por el equipo de ProEshop. El estado del pago se informa por separado."),
+    "preparing": ("Tu pedido está en preparación", "Tu pedido ha pasado a la etapa de preparación."),
+    "shipped": ("Tu pedido fue enviado", "Tu pedido figura como enviado. Consulta el número de guía en los detalles del pedido si se ha registrado."),
+    "delivered": ("Tu pedido figura como entregado", "Se registró la entrega del pedido."),
+    "unavailable": ("Actualización sobre disponibilidad", "El producto no está disponible actualmente. El equipo de ProEshop te informará sobre las opciones."),
+    "cancelled": ("Tu pedido fue cancelado", "El pedido fue marcado como cancelado en ProEshop."),
+    "returned": ("Actualización de devolución", "El pedido fue marcado como devuelto. El estado de cualquier reembolso se gestiona por separado."),
+}
+
+def send_status_email(recipient: str, order_ref: str, status: str, total: str, currency: str, detail: str = ""):
+    if not all([SMTP_HOST, SMTP_FROM_EMAIL, recipient]):
+        raise RuntimeError("SMTP no configurado o pedido sin correo del cliente")
+    subject, message = ORDER_EMAIL_COPY.get(status, ("Actualización de tu pedido", "El estado de tu pedido ha cambiado."))
+    msg = EmailMessage()
+    msg["Subject"] = f"ProEshop · {subject} · {order_ref}"
+    msg["From"] = SMTP_FROM_EMAIL
+    msg["To"] = recipient
+    extra = f"\nDetalle: {detail}" if detail else ""
+    msg.set_content(f"Hola,\n\n{message}\n\nPedido: {order_ref}\nEstado: {ORDER_STATUS_LABELS.get(status, status)}\nTotal registrado: {currency} {Decimal(total):.2f}{extra}\n\nEl estado del pedido no implica por sí mismo que el pago haya sido recibido.\nProEshop")
+    if SMTP_USE_SSL:
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+            if SMTP_USER: server.login(SMTP_USER, SMTP_PASSWORD)
+            server.send_message(msg)
+    else:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+            server.ehlo(); server.starttls(); server.ehlo()
+            if SMTP_USER: server.login(SMTP_USER, SMTP_PASSWORD)
+            server.send_message(msg)
+
+def enqueue_and_send_order_email(order_ref: str, status: str, recipient: str, total: str, currency: str, detail: str = ""):
+    if not recipient:
+        return {"sent": False, "reason": "El cliente no proporcionó correo electrónico."}
+    now = now_iso()
+    with conn() as db:
+        db.execute("INSERT OR IGNORE INTO order_notifications(order_ref,event_key,recipient,status,created_at,updated_at) VALUES(?,?,?,'pending',?,?)", (order_ref, status, recipient, now, now))
+        row = db.execute("SELECT * FROM order_notifications WHERE order_ref=? AND event_key=?", (order_ref, status)).fetchone()
+        if row and row["status"] == "sent": return {"sent": True, "duplicate": True}
+        db.execute("UPDATE order_notifications SET attempts=attempts+1,updated_at=? WHERE order_ref=? AND event_key=?", (now, order_ref, status))
+    try:
+        send_status_email(recipient, order_ref, status, total, currency, detail)
+        with conn() as db:
+            db.execute("UPDATE order_notifications SET status='sent',last_error='',updated_at=? WHERE order_ref=? AND event_key=?", (now_iso(), order_ref, status))
+        return {"sent": True}
+    except Exception as exc:
+        err = str(exc)[:300]
+        with conn() as db:
+            db.execute("UPDATE order_notifications SET status='failed',last_error=?,updated_at=? WHERE order_ref=? AND event_key=?", (err, now_iso(), order_ref, status))
+        log.warning("Email de pedido falló order=%s event=%s: %s", order_ref, status, err)
+        return {"sent": False, "reason": "No se pudo enviar el correo; quedó registrado para reintento."}
 
 def validate_init_data(init_data: str):
     """Validate Telegram Mini App initData using Telegram's documented HMAC scheme."""
@@ -248,6 +345,7 @@ class CheckoutBody(BaseModel):
     shipping_city: str = Field(default="", max_length=80)
     shipping_country: str = Field(default="", max_length=80)
     shipping_address: str = Field(default="", max_length=180)
+    customer_email: str = Field(default="", max_length=254)
     payment_method: str = Field(default="demo_balance", max_length=32)
 
 
@@ -702,6 +800,71 @@ async def set_notifications(body: NotificationBody, request: Request):
             "telegram_configured": bool(BOT_TOKEN)}
 
 
+@app.get("/api/admin/orders")
+async def admin_orders(request: Request, status: str = ""):
+    if not ADMIN_API_KEY:
+        raise HTTPException(503, "Configura ADMIN_API_KEY en Railway.")
+    if not hmac.compare_digest(request.headers.get("X-Admin-Key", ""), ADMIN_API_KEY):
+        raise HTTPException(403, "Clave administrativa no válida.")
+    with conn() as db:
+        if status:
+            rows = db.execute("SELECT order_ref,telegram_id,total,currency,status,created_at,updated_at,customer_email FROM orders WHERE status=? ORDER BY created_at DESC LIMIT 100", (status,)).fetchall()
+        else:
+            rows = db.execute("SELECT order_ref,telegram_id,total,currency,status,created_at,updated_at,customer_email FROM orders ORDER BY created_at DESC LIMIT 100").fetchall()
+    return {"orders": [dict(r) for r in rows], "statuses": ORDER_STATUS_LABELS}
+
+
+class OrderStatusBody(BaseModel):
+    status: str = Field(min_length=3, max_length=32)
+    detail: str = Field(default="", max_length=500)
+
+
+@app.post("/api/admin/orders/{order_ref}/status")
+async def admin_update_order_status(order_ref: str, body: OrderStatusBody, request: Request):
+    if not ADMIN_API_KEY:
+        raise HTTPException(503, "Configura ADMIN_API_KEY en Railway.")
+    if not hmac.compare_digest(request.headers.get("X-Admin-Key", ""), ADMIN_API_KEY):
+        raise HTTPException(403, "Clave administrativa no válida.")
+    new_status = body.status.strip().lower()
+    if new_status not in ORDER_STATUS_LABELS:
+        raise HTTPException(400, "Estado no reconocido.")
+    with conn() as db:
+        order = db.execute("SELECT * FROM orders WHERE order_ref=?", (order_ref,)).fetchone()
+        if not order: raise HTTPException(404, "Pedido no encontrado.")
+        old_status = order["status"]
+        if old_status == new_status:
+            return {"ok": True, "unchanged": True, "status": new_status, "email_sent": False}
+        if new_status not in ORDER_TRANSITIONS.get(old_status, set()):
+            raise HTTPException(409, f"Transición no permitida: {ORDER_STATUS_LABELS.get(old_status, old_status)} → {ORDER_STATUS_LABELS[new_status]}.")
+        now = now_iso()
+        detail = body.detail.strip() or f"Estado actualizado por administrador: {ORDER_STATUS_LABELS[new_status]}"
+        db.execute("UPDATE orders SET status=?,updated_at=? WHERE order_ref=?", (new_status, now, order_ref))
+        db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
+                   (order_ref, new_status, ORDER_STATUS_LABELS[new_status], detail, now))
+    audit("admin", "order_status_change", f"order={order_ref}; from={old_status}; to={new_status}")
+    email_result = enqueue_and_send_order_email(order_ref, new_status, order["customer_email"], order["total"], order["currency"], detail)
+    return {"ok": True, "order_ref": order_ref, "previous_status": old_status, "status": new_status,
+            "status_label": ORDER_STATUS_LABELS[new_status], "email_sent": bool(email_result.get("sent")),
+            "email_status": "sent" if email_result.get("sent") else email_result.get("reason", "not_configured")}
+
+
+@app.post("/api/admin/orders/{order_ref}/retry-email")
+async def admin_retry_order_email(order_ref: str, request: Request):
+    if not ADMIN_API_KEY:
+        raise HTTPException(503, "Configura ADMIN_API_KEY en Railway.")
+    if not hmac.compare_digest(request.headers.get("X-Admin-Key", ""), ADMIN_API_KEY):
+        raise HTTPException(403, "Clave administrativa no válida.")
+    with conn() as db:
+        order = db.execute("SELECT * FROM orders WHERE order_ref=?", (order_ref,)).fetchone()
+        if not order: raise HTTPException(404, "Pedido no encontrado.")
+        event = db.execute("SELECT * FROM order_notifications WHERE order_ref=? AND event_key=?", (order_ref, order["status"])).fetchone()
+        if not event: raise HTTPException(404, "No hay notificación registrada para el estado actual.")
+        if event["status"] == "sent": return {"ok": True, "sent": True, "message": "El correo ya fue enviado."}
+        db.execute("UPDATE order_notifications SET status='pending',last_error='',updated_at=? WHERE id=?", (now_iso(), event["id"]))
+    result = enqueue_and_send_order_email(order_ref, order["status"], order["customer_email"], order["total"], order["currency"], "Reintento de notificación del estado actual.")
+    return {"ok": bool(result.get("sent")), "email_sent": bool(result.get("sent")), "email_status": result.get("reason", "sent")}
+
+
 @app.get("/api/orders/{order_ref}/receipt", response_class=HTMLResponse)
 async def receipt(order_ref: str, request: Request):
     tg_id = get_auth(request)
@@ -714,7 +877,7 @@ async def receipt(order_ref: str, request: Request):
     rows = "".join(f"<tr><td>{esc(x['title'])}</td><td>{int(x['qty'])}</td><td>{esc(x['currency'])} {Decimal(x['total']):.2f}</td></tr>" for x in lines)
     page = f"""<!doctype html><html lang='es'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
     <title>Recibo de prueba {esc(order_ref)}</title><style>body{{font:16px system-ui;max-width:760px;margin:40px auto;padding:20px;color:#15243b}}.tag{{display:inline-block;background:#fff0cf;padding:8px 12px;border-radius:8px;font-weight:700}}table{{width:100%;border-collapse:collapse;margin:24px 0}}td,th{{padding:12px;border-bottom:1px solid #ddd;text-align:left}}.total{{font-size:1.4rem;font-weight:800}}button{{padding:12px 16px;background:#075fc7;color:white;border:0;border-radius:8px}}@media print{{button{{display:none}}}}</style>
-    <h1>ProEshop</h1><div class='tag'>RECIBO DE PRUEBA · SIN VALOR FISCAL</div><h2>Pedido {esc(order_ref)}</h2><p>Fecha: {esc(order['created_at'])}<br>Estado: Confirmado (simulado)</p>
+    <h1>ProEshop</h1><div class='tag'>RECIBO DE PRUEBA · SIN VALOR FISCAL</div><h2>Pedido {esc(order_ref)}</h2><p>Fecha: {esc(order['created_at'])}<br>Estado: {esc(ORDER_STATUS_LABELS.get(order['status'], order['status']))}</p>
     <table><thead><tr><th>Artículo</th><th>Cantidad</th><th>Total de línea</th></tr></thead><tbody>{rows}</tbody></table>
     <p>Subtotal: {esc(order['currency'])} {Decimal(order['subtotal']):.2f}</p><p>Impuestos estimados: {esc(order['currency'])} {Decimal(order['tax']):.2f}</p><p>Envío estimado: {esc(order['currency'])} {Decimal(order['shipping']):.2f}</p><p class='total'>Total estimado: {esc(order['currency'])} {Decimal(order['total']):.2f}</p>
     <p>Este documento solo registra una operación ficticia del simulador. No acredita pago, compra, envío ni obligación fiscal.</p><p>Para guardar una copia, usa la opción Imprimir del navegador y selecciona Guardar como PDF.</p></html>"""
@@ -749,6 +912,9 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
     tg_id = get_auth(request)
     if body.payment_method != "demo_balance":
         raise HTTPException(400, "Solo está disponible el método de pago de demostración.")
+    customer_email = body.customer_email.strip().lower()
+    if customer_email and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", customer_email):
+        raise HTTPException(400, "Introduce un correo electrónico válido.")
     submitted_shipping = [body.shipping_name.strip(), body.shipping_city.strip(),
                           body.shipping_country.strip(), body.shipping_address.strip()]
     # Backward-compatible fallback for older clients that POST an empty JSON body.
@@ -780,15 +946,15 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
         order_ref = "SC-" + secrets.token_hex(5).upper()
         currency = next(iter(currencies))
         db.execute("""INSERT INTO orders(order_ref,telegram_id,subtotal,tax,shipping,total,currency,status,created_at,updated_at,
-                      shipping_name,shipping_city,shipping_country,shipping_address,payment_method)
-                      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                      shipping_name,shipping_city,shipping_country,shipping_address,payment_method,customer_email)
+                      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                    (order_ref, tg_id, str(subtotal), str(tax), str(shipping), str(total),
-                    currency, "confirmed_simulated", when, when, shipping_name,
-                    shipping_city, shipping_country, shipping_address, "demo_balance"))
+                    currency, "received", when, when, shipping_name,
+                    shipping_city, shipping_country, shipping_address, "demo_balance", customer_email))
         db.execute("""INSERT INTO order_events(order_ref,status,label,detail,created_at)
                       VALUES(?,?,?,?,?)""",
-                   (order_ref, "confirmed_simulated", "Confirmado (simulado)",
-                    "Pedido registrado en el simulador; no se envió una orden al comercio.", when))
+                   (order_ref, "received", "Pedido recibido",
+                    "Pedido registrado en ProEshop; no se envió una orden al comercio ni se procesó un pago real.", when))
         for row in rows:
             line_total = (Decimal(row["price"]) * row["qty"]).quantize(Decimal("0.01"))
             db.execute("""INSERT INTO purchases(telegram_id,platform,title,price,currency,qty,total,url,purchased_at,order_ref)
@@ -798,6 +964,8 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
         db.execute("UPDATE balances SET amount=? WHERE telegram_id=?", (str(balance-total), tg_id))
         db.execute("DELETE FROM carts WHERE telegram_id=?", (tg_id,))
     audit(tg_id, "purchase_demo", f"order={order_ref}; total={total}; currency={currency}")
+    email_result = enqueue_and_send_order_email(order_ref, "received", customer_email, str(total), currency,
+        "Pedido registrado en modo sin pasarela de pago; no confirma una compra ni un cobro real.") if customer_email else {"sent": False, "reason": "Sin correo proporcionado"}
     with conn() as db:
         pref = db.execute("SELECT order_updates FROM notification_preferences WHERE telegram_id=?", (tg_id,)).fetchone()
     # Telegram confirmation is best-effort and opt-out aware. This is not a real purchase.
@@ -814,6 +982,8 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
             log.info("No se pudo enviar notificación de pedido %s", order_ref)
     return {"ok": True, "order_ref": order_ref, "subtotal": str(subtotal), "tax": str(tax),
             "shipping": str(shipping), "total": str(total), "balance": str(balance-total),
-            "currency": currency, "status": "confirmed_simulated", "purchased_at": when,
-            "tracking": {"available": False, "label": "No disponible: pedido simulado, sin transportista real"},
-            "message": "Pedido de demostración registrado. No se envió ningún pedido real."}
+            "currency": currency, "status": "received", "purchased_at": when,
+            "email_sent": bool(email_result.get("sent")),
+            "email_status": "sent" if email_result.get("sent") else email_result.get("reason", "not_configured"),
+            "tracking": {"available": False, "label": "No disponible hasta integrar un transportista real"},
+            "message": "Pedido registrado. Este flujo aún no procesa pagos ni envía órdenes a los comercios."}

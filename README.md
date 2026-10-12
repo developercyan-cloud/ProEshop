@@ -9,7 +9,8 @@ Aplicación de demostración para comparar resultados de Amazon, Walmart y Targe
 - Carrito persistente en SQLite con cantidades editables y desglose de subtotal, impuestos estimados, envío y total.
 - Historial de pedidos, línea de tiempo marcada como simulada y recibo imprimible sin valor fiscal.
 - Notificaciones opcionales de Telegram para confirmaciones de pedidos demo e inicio de sesión; requieren configurar el bot.
-- Panel administrativo protegido con `ADMIN_API_KEY`, métricas del simulador y eventos de auditoría.
+- Panel administrativo visual protegido con `ADMIN_API_KEY`: filtros por estado, búsqueda por referencia/correo, cambio de estado, detalle del cambio, resultado del correo y reintento de notificación.
+- API de pedidos: `GET /api/admin/orders`, `POST /api/admin/orders/{order_ref}/status` y `POST /api/admin/orders/{order_ref}/retry-email`. Las transiciones se validan en el servidor y se registran en el historial.
 - Cabeceras de seguridad, limitación básica de solicitudes, índices SQLite, WAL y `busy_timeout`.
 - Migraciones aditivas: no elimina ni recrea tablas existentes.
 
@@ -26,6 +27,7 @@ Configura estas variables en el servicio. **Conserva el volumen persistente exis
 - `SERPAPI_KEY` — necesaria para obtener resultados del proveedor.
 - `INITIAL_FAKE_BALANCE=1000.00`, `CURRENCY=USD`, `ESTIMATED_TAX_RATE=0.08`, `ESTIMATED_SHIPPING_FEE=5.99` (ajusta las estimaciones según la demo).
 - `SESSION_TTL_MINUTES=120`
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL` y `SMTP_USE_SSL` — necesarios para correos de pedido. Usa puerto 587 con STARTTLS (`SMTP_USE_SSL=false`) o 465 con SSL (`SMTP_USE_SSL=true`), según tu proveedor.
 
 Genera secretos fuertes y no publiques `.env` ni tokens. El panel administrativo no estará disponible si `ADMIN_API_KEY` no está configurada. La limitación de solicitudes está en memoria por proceso y no reemplaza un WAF o un limitador distribuido.
 
@@ -57,3 +59,40 @@ Se añadió una sección Rolex con seis modelos de referencia del catálogo ofic
 
 ### Catálogo Rolex ampliado
 Se incluyen 22 modelos/colecciones para navegación y búsqueda local. La página oficial de Rolex no publica un ranking de ventas en la vista consultada; no se etiquetan como best sellers. Algunas imágenes son ilustrativas de relojes y no fotografías oficiales verificadas de cada referencia. Precios de referencia deben confirmarse con vendedor autorizado y disponibilidad real antes de cualquier venta. El descuento del 40% es una oferta propuesta por ProEshop, no una promoción oficial de Rolex.
+
+
+## Estados de pedidos y correos automáticos
+
+Se añadió un flujo de estados y notificaciones de correo. Esta versión conserva el checkout sin pasarela: crear un pedido no representa un cobro ni una compra en Amazon/Walmart/Target ni un envío real. El correo confirma el registro y los cambios administrativos.
+
+### Variables SMTP en Railway
+- `SMTP_HOST` — servidor SMTP del proveedor de correo.
+- `SMTP_PORT` — normalmente `587` para STARTTLS o `465` para SSL.
+- `SMTP_USER` — usuario SMTP.
+- `SMTP_PASSWORD` — contraseña o clave de aplicación SMTP.
+- `SMTP_FROM_EMAIL` — remitente verificado.
+- `SMTP_USE_SSL=false` para puerto 587/STARTTLS; `true` para SMTP SSL (habitualmente puerto 465).
+
+El checkout solicita un correo de cliente. Si SMTP no está configurado o falla, el pedido queda registrado y la notificación se guarda como fallida para reintento.
+
+### API administrativa de estados
+Todas las rutas requieren el encabezado `X-Admin-Key: <ADMIN_API_KEY>` y deben llamarse desde un entorno administrativo seguro, no desde el navegador público.
+- `GET /api/admin/orders` — lista los últimos pedidos. Acepta `?status=received` para filtrar.
+- `POST /api/admin/orders/{order_ref}/status` con JSON `{"status":"reviewing","detail":"Disponibilidad solicitada al proveedor"}`.
+- `POST /api/admin/orders/{order_ref}/retry-email` — reintenta la notificación del estado actual si falló.
+
+Estados admitidos: `received`, `reviewing`, `action_required`, `confirmed`, `preparing`, `shipped`, `delivered`, `unavailable`, `cancelled`, `returned`. El backend bloquea transiciones no permitidas y registra cada cambio en `order_events` y `audit_log`. Solo deben seleccionarse estados de envío/entrega cuando existan confirmaciones reales.
+
+### Persistencia y actualización
+La migración añade `customer_email` y `order_notifications` de forma aditiva. Mantén el volumen persistente y `DATABASE_PATH=/data/shopcart.db`; no borres ni reinicialices la base de datos.
+
+
+## Panel visual de gestión de pedidos
+
+1. Despliega el proyecto manteniendo el volumen `/data` y `DATABASE_PATH=/data/shopcart.db`.
+2. Configura `ADMIN_API_KEY` y las variables SMTP en Railway.
+3. Entra a la miniapp, abre **Mi cuenta → Panel administrativo** e introduce la clave administrativa.
+4. Filtra pedidos, selecciona un estado permitido, añade una nota y pulsa **Guardar estado y notificar**.
+5. Si el correo falla, corrige la configuración SMTP y pulsa **Reintentar correo**.
+
+El panel muestra estados guardados por el backend. El cambio de estado no confirma un pago ni una compra en una tienda externa. Esta versión sigue usando el flujo de pedido de demostración y no integra una pasarela de pago real. Prueba SMTP y las transiciones en Railway antes de utilizarlo con clientes.
