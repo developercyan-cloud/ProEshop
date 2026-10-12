@@ -36,6 +36,7 @@ SMTP_USER = os.getenv("SMTP_USER", "").strip()
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USER).strip()
 SMTP_USE_SSL = os.getenv("SMTP_USE_SSL", "false").lower() in {"1", "true", "yes"}
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
 
 
 app = FastAPI(title="ProEshop Telegram Mini App", docs_url=None, redoc_url=None)
@@ -221,23 +222,70 @@ ORDER_EMAIL_COPY = {
 }
 
 def send_status_email(recipient: str, order_ref: str, status: str, total: str, currency: str, detail: str = ""):
-    if not all([SMTP_HOST, SMTP_FROM_EMAIL, recipient]):
-        raise RuntimeError("SMTP no configurado o pedido sin correo del cliente")
+    """Send order notification through Brevo HTTPS API when configured.
+
+    HTTPS API is preferred because Railway Free/Trial may block outbound SMTP.
+    SMTP remains as a backward-compatible fallback when BREVO_API_KEY is absent.
+    """
+    if not all([SMTP_FROM_EMAIL, recipient]):
+        raise RuntimeError("Falta SMTP_FROM_EMAIL/remitente o el pedido no tiene correo del cliente")
+
     subject, message = ORDER_EMAIL_COPY.get(status, ("Actualización de tu pedido", "El estado de tu pedido ha cambiado."))
+    extra = f"\nDetalle: {detail}" if detail else ""
+    text_content = (
+        f"Hola,\n\n{message}\n\nPedido: {order_ref}\n"
+        f"Estado: {ORDER_STATUS_LABELS.get(status, status)}\n"
+        f"Total registrado: {currency} {Decimal(total):.2f}{extra}\n\n"
+        "El estado del pedido no implica por sí mismo que el pago haya sido recibido.\nProEshop"
+    )
+
+    if BREVO_API_KEY:
+        payload = {
+            "sender": {"email": SMTP_FROM_EMAIL, "name": "ProEshop"},
+            "to": [{"email": recipient}],
+            "subject": f"ProEshop · {subject} · {order_ref}",
+            "textContent": text_content,
+        }
+        try:
+            with httpx.Client(timeout=httpx.Timeout(20.0, connect=8.0)) as client:
+                response = client.post(
+                    "https://api.brevo.com/v3/smtp/email",
+                    headers={
+                        "api-key": BREVO_API_KEY,
+                        "accept": "application/json",
+                        "content-type": "application/json",
+                    },
+                    json=payload,
+                )
+            if response.status_code not in (200, 201, 202):
+                # Avoid logging request headers or API key; keep only a short API response.
+                raise RuntimeError(f"Brevo API HTTP {response.status_code}: {response.text[:240]}")
+            return
+        except httpx.TimeoutException as exc:
+            raise RuntimeError("Tiempo de espera agotado al conectar con la API HTTPS de Brevo") from exc
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"Error de conexión con la API HTTPS de Brevo: {type(exc).__name__}") from exc
+
+    # Legacy fallback. On Railway Free/Trial this can time out because outbound SMTP is restricted.
+    if not SMTP_HOST:
+        raise RuntimeError("Configura BREVO_API_KEY en Railway para enviar por la API HTTPS de Brevo")
     msg = EmailMessage()
     msg["Subject"] = f"ProEshop · {subject} · {order_ref}"
     msg["From"] = SMTP_FROM_EMAIL
     msg["To"] = recipient
-    extra = f"\nDetalle: {detail}" if detail else ""
-    msg.set_content(f"Hola,\n\n{message}\n\nPedido: {order_ref}\nEstado: {ORDER_STATUS_LABELS.get(status, status)}\nTotal registrado: {currency} {Decimal(total):.2f}{extra}\n\nEl estado del pedido no implica por sí mismo que el pago haya sido recibido.\nProEshop")
+    msg.set_content(text_content)
     if SMTP_USE_SSL:
         with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=15) as server:
-            if SMTP_USER: server.login(SMTP_USER, SMTP_PASSWORD)
+            if SMTP_USER:
+                server.login(SMTP_USER, SMTP_PASSWORD)
             server.send_message(msg)
     else:
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
-            server.ehlo(); server.starttls(); server.ehlo()
-            if SMTP_USER: server.login(SMTP_USER, SMTP_PASSWORD)
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            if SMTP_USER:
+                server.login(SMTP_USER, SMTP_PASSWORD)
             server.send_message(msg)
 
 def enqueue_and_send_order_email(order_ref: str, status: str, recipient: str, total: str, currency: str, detail: str = ""):
