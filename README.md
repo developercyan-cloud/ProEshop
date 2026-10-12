@@ -49,3 +49,11 @@ HUBLOT fix: `/api/search` returns local illustrative catalogue entries for HUBLO
 
 ## Catálogo Jewelers Toy Store
 Se agregó una sección `Jewelers` para los 4 productos visibles en https://www.jewelerstoystore.com/Electronic-s/1074.htm. Se usan los precios publicados observados en esa página como base y se aplica un descuento ProEshop del 50% en resultados y en el servidor al agregar al carrito. El enlace abre la categoría fuente, no una página individual del producto; revalidar precios/disponibilidad y confirmar condiciones de reventa antes de recibir pagos reales.
+
+## Catálogo Rolex (modelos destacados)
+
+Se añadió una sección Rolex con seis modelos de referencia del catálogo oficial. La página de Rolex consultada no proporciona un ranking de ventas, por lo que se presentan como **modelos destacados**, no como una lista comprobada de los más vendidos. El descuento del 40% se aplica en Datejust 41, Explorer II y Sea-Dweller como una oferta propuesta por ProEshop; no es una promoción oficial de Rolex. Las imágenes son ilustrativas y los precios son referencias que deben volver a verificarse. Antes de aceptar pedidos reales, confirma autenticidad, procedencia, disponibilidad, precio y proveedor.
+
+
+### Catálogo Rolex ampliado
+Se incluyen 22 modelos/colecciones para navegación y búsqueda local. La página oficial de Rolex no publica un ranking de ventas en la vista consultada; no se etiquetan como best sellers. Algunas imágenes son ilustrativas de relojes y no fotografías oficiales verificadas de cada referencia. Precios de referencia deben confirmarse con vendedor autorizado y disponibilidad real antes de cualquier venta. El descuento del 40% es una oferta propuesta por ProEshop, no una promoción oficial de Rolex.
