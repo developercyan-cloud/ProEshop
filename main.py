@@ -119,6 +119,23 @@ def init_db():
           payment_method TEXT NOT NULL DEFAULT 'demo_balance',
           customer_email TEXT NOT NULL DEFAULT ''
         );
+        CREATE TABLE IF NOT EXISTS store_orders(
+          store_order_ref TEXT PRIMARY KEY, order_ref TEXT NOT NULL, platform TEXT NOT NULL,
+          store_label TEXT NOT NULL, subtotal TEXT NOT NULL, tax TEXT NOT NULL,
+          shipping TEXT NOT NULL, total TEXT NOT NULL, currency TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'received', created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+          customer_email TEXT NOT NULL DEFAULT '',
+          FOREIGN KEY(order_ref) REFERENCES orders(order_ref) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_store_orders_parent ON store_orders(order_ref, platform);
+        CREATE TABLE IF NOT EXISTS store_order_notifications(
+          id INTEGER PRIMARY KEY AUTOINCREMENT, store_order_ref TEXT NOT NULL,
+          event_key TEXT NOT NULL, recipient TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+          UNIQUE(store_order_ref,event_key),
+          FOREIGN KEY(store_order_ref) REFERENCES store_orders(store_order_ref) ON DELETE CASCADE
+        );
         CREATE TABLE IF NOT EXISTS order_events(
           id INTEGER PRIMARY KEY AUTOINCREMENT, order_ref TEXT NOT NULL,
           status TEXT NOT NULL, label TEXT NOT NULL, detail TEXT NOT NULL,
@@ -154,6 +171,8 @@ def init_db():
         purchase_columns = {row["name"] for row in db.execute("PRAGMA table_info(purchases)").fetchall()}
         if "order_ref" not in purchase_columns:
             db.execute("ALTER TABLE purchases ADD COLUMN order_ref TEXT NOT NULL DEFAULT ''")
+        if "store_order_ref" not in purchase_columns:
+            db.execute("ALTER TABLE purchases ADD COLUMN store_order_ref TEXT NOT NULL DEFAULT ''")
         # Additive migrations only: preserve the existing Railway volume and all data.
         order_columns = {row["name"] for row in db.execute("PRAGMA table_info(orders)").fetchall()}
         for column, declaration in {
@@ -308,6 +327,29 @@ def enqueue_and_send_order_email(order_ref: str, status: str, recipient: str, to
             db.execute("UPDATE order_notifications SET status='failed',last_error=?,updated_at=? WHERE order_ref=? AND event_key=?", (err, now_iso(), order_ref, status))
         log.warning("Email de pedido falló order=%s event=%s: %s", order_ref, status, err)
         return {"sent": False, "reason": "No se pudo enviar el correo; quedó registrado para reintento."}
+
+def enqueue_and_send_store_order_email(store_order_ref: str, status: str, recipient: str, total: str, currency: str, detail: str = ""):
+    """Idempotent email queue for a per-store order; kept separate from legacy order notifications."""
+    if not recipient:
+        return {"sent": False, "reason": "El cliente no proporcionó correo electrónico."}
+    now = now_iso()
+    with conn() as db:
+        db.execute("INSERT OR IGNORE INTO store_order_notifications(store_order_ref,event_key,recipient,status,created_at,updated_at) VALUES(?,?,?,'pending',?,?)", (store_order_ref, status, recipient, now, now))
+        row = db.execute("SELECT * FROM store_order_notifications WHERE store_order_ref=? AND event_key=?", (store_order_ref, status)).fetchone()
+        if row and row["status"] == "sent": return {"sent": True, "duplicate": True}
+        db.execute("UPDATE store_order_notifications SET attempts=attempts+1,updated_at=? WHERE store_order_ref=? AND event_key=?", (now, store_order_ref, status))
+    try:
+        send_status_email(recipient, store_order_ref, status, total, currency, detail)
+        with conn() as db:
+            db.execute("UPDATE store_order_notifications SET status='sent',last_error='',updated_at=? WHERE store_order_ref=? AND event_key=?", (now_iso(), store_order_ref, status))
+        return {"sent": True}
+    except Exception as exc:
+        err = str(exc)[:300]
+        with conn() as db:
+            db.execute("UPDATE store_order_notifications SET status='failed',last_error=?,updated_at=? WHERE store_order_ref=? AND event_key=?", (err, now_iso(), store_order_ref, status))
+        log.warning("Email de tienda falló order=%s event=%s: %s", store_order_ref, status, err)
+        return {"sent": False, "reason": "No se pudo enviar el correo; quedó registrado para reintento."}
+
 
 def validate_init_data(init_data: str):
     """Validate Telegram Mini App initData using Telegram's documented HMAC scheme."""
@@ -855,11 +897,24 @@ async def admin_orders(request: Request, status: str = ""):
     if not hmac.compare_digest(request.headers.get("X-Admin-Key", ""), ADMIN_API_KEY):
         raise HTTPException(403, "Clave administrativa no válida.")
     with conn() as db:
+        # New checkouts are listed as independent per-store orders. Legacy orders remain visible.
+        query = """SELECT so.store_order_ref AS order_ref, so.order_ref AS parent_order_ref,
+                   o.telegram_id, so.total, so.currency, so.status, so.created_at, so.updated_at,
+                   so.customer_email, so.platform, so.store_label, so.subtotal, so.tax, so.shipping
+                   FROM store_orders so JOIN orders o ON o.order_ref=so.order_ref"""
+        params = ()
         if status:
-            rows = db.execute("SELECT order_ref,telegram_id,total,currency,status,created_at,updated_at,customer_email FROM orders WHERE status=? ORDER BY created_at DESC LIMIT 100", (status,)).fetchall()
-        else:
-            rows = db.execute("SELECT order_ref,telegram_id,total,currency,status,created_at,updated_at,customer_email FROM orders ORDER BY created_at DESC LIMIT 100").fetchall()
-    return {"orders": [dict(r) for r in rows], "statuses": ORDER_STATUS_LABELS}
+            query += " WHERE so.status=?"; params = (status,)
+        query += " ORDER BY so.created_at DESC LIMIT 100"
+        stores = [dict(r) for r in db.execute(query, params).fetchall()]
+        legacy_query = "SELECT order_ref,telegram_id,total,currency,status,created_at,updated_at,customer_email FROM orders WHERE NOT EXISTS (SELECT 1 FROM store_orders so WHERE so.order_ref=orders.order_ref)"
+        legacy_params = ()
+        if status:
+            legacy_query += " AND status=?"; legacy_params = (status,)
+        legacy_query += " ORDER BY created_at DESC LIMIT 100"
+        legacy = [dict(r) for r in db.execute(legacy_query, legacy_params).fetchall()]
+    return {"orders": stores + legacy, "statuses": ORDER_STATUS_LABELS,
+            "note": "Los pedidos nuevos se gestionan por tienda usando order_ref (referencia de tienda)."}
 
 
 class OrderStatusBody(BaseModel):
@@ -877,22 +932,42 @@ async def admin_update_order_status(order_ref: str, body: OrderStatusBody, reque
     if new_status not in ORDER_STATUS_LABELS:
         raise HTTPException(400, "Estado no reconocido.")
     with conn() as db:
-        order = db.execute("SELECT * FROM orders WHERE order_ref=?", (order_ref,)).fetchone()
-        if not order: raise HTTPException(404, "Pedido no encontrado.")
-        old_status = order["status"]
-        if old_status == new_status:
-            return {"ok": True, "unchanged": True, "status": new_status, "email_sent": False}
-        if new_status not in ORDER_TRANSITIONS.get(old_status, set()):
-            raise HTTPException(409, f"Transición no permitida: {ORDER_STATUS_LABELS.get(old_status, old_status)} → {ORDER_STATUS_LABELS[new_status]}.")
-        now = now_iso()
-        detail = body.detail.strip() or f"Estado actualizado por administrador: {ORDER_STATUS_LABELS[new_status]}"
-        db.execute("UPDATE orders SET status=?,updated_at=? WHERE order_ref=?", (new_status, now, order_ref))
-        db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
-                   (order_ref, new_status, ORDER_STATUS_LABELS[new_status], detail, now))
+        store_order = db.execute("SELECT * FROM store_orders WHERE store_order_ref=?", (order_ref,)).fetchone()
+        if store_order:
+            old_status = store_order["status"]
+            if old_status == new_status:
+                return {"ok": True, "unchanged": True, "status": new_status, "email_sent": False, "store_order_ref": order_ref}
+            if new_status not in ORDER_TRANSITIONS.get(old_status, set()):
+                raise HTTPException(409, f"Transición no permitida: {ORDER_STATUS_LABELS.get(old_status, old_status)} → {ORDER_STATUS_LABELS[new_status]}.")
+            now = now_iso()
+            detail = body.detail.strip() or f"Estado actualizado para {store_order['store_label']}: {ORDER_STATUS_LABELS[new_status]}"
+            db.execute("UPDATE store_orders SET status=?,updated_at=? WHERE store_order_ref=?", (new_status, now, order_ref))
+            db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
+                       (store_order["order_ref"], new_status, f"{store_order['store_label']}: {ORDER_STATUS_LABELS[new_status]}", detail, now))
+            email_order_ref = order_ref
+            email_total, email_currency, recipient = store_order["total"], store_order["currency"], store_order["customer_email"]
+            parent_ref, store_label = store_order["order_ref"], store_order["store_label"]
+        else:
+            # Backward compatibility for historical single-order references.
+            order = db.execute("SELECT * FROM orders WHERE order_ref=?", (order_ref,)).fetchone()
+            if not order: raise HTTPException(404, "Pedido no encontrado.")
+            old_status = order["status"]
+            if old_status == new_status:
+                return {"ok": True, "unchanged": True, "status": new_status, "email_sent": False}
+            if new_status not in ORDER_TRANSITIONS.get(old_status, set()):
+                raise HTTPException(409, f"Transición no permitida: {ORDER_STATUS_LABELS.get(old_status, old_status)} → {ORDER_STATUS_LABELS[new_status]}.")
+            now = now_iso(); detail = body.detail.strip() or f"Estado actualizado por administrador: {ORDER_STATUS_LABELS[new_status]}"
+            db.execute("UPDATE orders SET status=?,updated_at=? WHERE order_ref=?", (new_status, now, order_ref))
+            db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
+                       (order_ref, new_status, ORDER_STATUS_LABELS[new_status], detail, now))
+            email_order_ref, email_total, email_currency, recipient = order_ref, order["total"], order["currency"], order["customer_email"]
+            parent_ref, store_label = order_ref, "ProEshop"
     audit("admin", "order_status_change", f"order={order_ref}; from={old_status}; to={new_status}")
-    email_result = enqueue_and_send_order_email(order_ref, new_status, order["customer_email"], order["total"], order["currency"], detail)
-    return {"ok": True, "order_ref": order_ref, "previous_status": old_status, "status": new_status,
-            "status_label": ORDER_STATUS_LABELS[new_status], "email_sent": bool(email_result.get("sent")),
+    email_result = (enqueue_and_send_store_order_email(email_order_ref, new_status, recipient, email_total, email_currency,
+        f"Tienda: {store_label}. {detail}") if store_order else enqueue_and_send_order_email(email_order_ref, new_status, recipient, email_total, email_currency, detail))
+    return {"ok": True, "order_ref": order_ref, "parent_order_ref": parent_ref, "store": store_label,
+            "previous_status": old_status, "status": new_status, "status_label": ORDER_STATUS_LABELS[new_status],
+            "email_sent": bool(email_result.get("sent")),
             "email_status": "sent" if email_result.get("sent") else email_result.get("reason", "not_configured")}
 
 
@@ -903,13 +978,21 @@ async def admin_retry_order_email(order_ref: str, request: Request):
     if not hmac.compare_digest(request.headers.get("X-Admin-Key", ""), ADMIN_API_KEY):
         raise HTTPException(403, "Clave administrativa no válida.")
     with conn() as db:
-        order = db.execute("SELECT * FROM orders WHERE order_ref=?", (order_ref,)).fetchone()
-        if not order: raise HTTPException(404, "Pedido no encontrado.")
-        event = db.execute("SELECT * FROM order_notifications WHERE order_ref=? AND event_key=?", (order_ref, order["status"])).fetchone()
+        order = db.execute("SELECT * FROM store_orders WHERE store_order_ref=?", (order_ref,)).fetchone()
+        if order:
+            status, recipient, total, currency = order["status"], order["customer_email"], order["total"], order["currency"]
+            store_label = order["store_label"]
+        else:
+            order = db.execute("SELECT * FROM orders WHERE order_ref=?", (order_ref,)).fetchone()
+            if not order: raise HTTPException(404, "Pedido no encontrado.")
+            status, recipient, total, currency, store_label = order["status"], order["customer_email"], order["total"], order["currency"], "ProEshop"
+        notification_table = "store_order_notifications" if db.execute("SELECT 1 FROM store_orders WHERE store_order_ref=?", (order_ref,)).fetchone() else "order_notifications"
+        ref_column = "store_order_ref" if notification_table == "store_order_notifications" else "order_ref"
+        event = db.execute(f"SELECT * FROM {notification_table} WHERE {ref_column}=? AND event_key=?", (order_ref, status)).fetchone()
         if not event: raise HTTPException(404, "No hay notificación registrada para el estado actual.")
         if event["status"] == "sent": return {"ok": True, "sent": True, "message": "El correo ya fue enviado."}
-        db.execute("UPDATE order_notifications SET status='pending',last_error='',updated_at=? WHERE id=?", (now_iso(), event["id"]))
-    result = enqueue_and_send_order_email(order_ref, order["status"], order["customer_email"], order["total"], order["currency"], "Reintento de notificación del estado actual.")
+        db.execute(f"UPDATE {notification_table} SET status='pending',last_error='',updated_at=? WHERE id=?", (now_iso(), event["id"]))
+    result = (enqueue_and_send_store_order_email(order_ref, status, recipient, total, currency, f"Tienda: {store_label}. Reintento de notificación del estado actual.") if notification_table == "store_order_notifications" else enqueue_and_send_order_email(order_ref, status, recipient, total, currency, f"Reintento de notificación del estado actual."))
     return {"ok": bool(result.get("sent")), "email_sent": bool(result.get("sent")), "email_status": result.get("reason", "sent")}
 
 
@@ -963,75 +1046,96 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
     customer_email = body.customer_email.strip().lower()
     if customer_email and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", customer_email):
         raise HTTPException(400, "Introduce un correo electrónico válido.")
-    submitted_shipping = [body.shipping_name.strip(), body.shipping_city.strip(),
-                          body.shipping_country.strip(), body.shipping_address.strip()]
-    # Backward-compatible fallback for older clients that POST an empty JSON body.
-    # New UI users enter explicitly fictional delivery details in the checkout form.
+    submitted_shipping = [body.shipping_name.strip(), body.shipping_city.strip(), body.shipping_country.strip(), body.shipping_address.strip()]
     if any(submitted_shipping) and not all(submitted_shipping):
         raise HTTPException(400, "Completa todos los datos de entrega de demostración.")
     if all(submitted_shipping):
         shipping_name, shipping_city, shipping_country, shipping_address = submitted_shipping
     else:
-        shipping_name, shipping_city, shipping_country, shipping_address = (
-            "Demo Recipient", "Demo City", "Demo Region", "Demo Address"
-        )
+        shipping_name, shipping_city, shipping_country, shipping_address = ("Demo Recipient", "Demo City", "Demo Region", "Demo Address")
+    store_emails = []
     with conn() as db:
         rows = db.execute("SELECT * FROM carts WHERE telegram_id=? ORDER BY id", (tg_id,)).fetchall()
-        if not rows:
-            raise HTTPException(400, "El carrito está vacío.")
+        if not rows: raise HTTPException(400, "El carrito está vacío.")
         currencies = {r["currency"] for r in rows}
-        if len(currencies) != 1:
-            raise HTTPException(400, "No combines monedas distintas en una misma compra ficticia.")
+        if len(currencies) != 1: raise HTTPException(400, "No combines monedas distintas en una misma compra ficticia.")
+        currency = next(iter(currencies))
         subtotal = sum((Decimal(r["price"]) * r["qty"] for r in rows), Decimal("0")).quantize(Decimal("0.01"))
         tax = (subtotal * ESTIMATED_TAX_RATE).quantize(Decimal("0.01"))
         shipping = ESTIMATED_SHIPPING_FEE if subtotal > 0 else Decimal("0.00")
         total = (subtotal + tax + shipping).quantize(Decimal("0.01"))
         b = db.execute("SELECT amount FROM balances WHERE telegram_id=?", (tg_id,)).fetchone()
         balance = Decimal(b["amount"] if b else str(INITIAL_BALANCE))
-        if total > balance:
-            raise HTTPException(400, f"Saldo ficticio insuficiente. Total estimado {total:.2f}; saldo {balance:.2f}.")
-        when = now_iso()
-        order_ref = "SC-" + secrets.token_hex(5).upper()
-        currency = next(iter(currencies))
+        if total > balance: raise HTTPException(400, f"Saldo ficticio insuficiente. Total estimado {total:.2f}; saldo {balance:.2f}.")
+        when = now_iso(); order_ref = "SC-" + secrets.token_hex(5).upper()
         db.execute("""INSERT INTO orders(order_ref,telegram_id,subtotal,tax,shipping,total,currency,status,created_at,updated_at,
                       shipping_name,shipping_city,shipping_country,shipping_address,payment_method,customer_email)
                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                   (order_ref, tg_id, str(subtotal), str(tax), str(shipping), str(total),
-                    currency, "received", when, when, shipping_name,
-                    shipping_city, shipping_country, shipping_address, "demo_balance", customer_email))
-        db.execute("""INSERT INTO order_events(order_ref,status,label,detail,created_at)
-                      VALUES(?,?,?,?,?)""",
-                   (order_ref, "received", "Pedido recibido",
-                    "Pedido registrado en ProEshop; no se envió una orden al comercio ni se procesó un pago real.", when))
+                   (order_ref, tg_id, str(subtotal), str(tax), str(shipping), str(total), currency, "received", when, when,
+                    shipping_name, shipping_city, shipping_country, shipping_address, "demo_balance", customer_email))
+        db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
+                   (order_ref, "received", "Pedido recibido", "Pedido de demostración registrado; no se envió una orden al comercio ni se procesó un pago real.", when))
+        # Group items by source and create independent status/order references per store.
+        groups = {}
         for row in rows:
-            line_total = (Decimal(row["price"]) * row["qty"]).quantize(Decimal("0.01"))
-            db.execute("""INSERT INTO purchases(telegram_id,platform,title,price,currency,qty,total,url,purchased_at,order_ref)
-                          VALUES(?,?,?,?,?,?,?,?,?,?)""",
-                       (tg_id, row["platform"], row["title"], row["price"], row["currency"],
-                        row["qty"], str(line_total), row["url"], when, order_ref))
+            key = str(row["platform"] or "other").strip().lower()
+            groups.setdefault(key, []).append(row)
+        group_subtotals = {k: sum((Decimal(r["price"]) * r["qty"] for r in items), Decimal("0")).quantize(Decimal("0.01")) for k, items in groups.items()}
+        allocated_tax = {}; allocated_shipping = {}
+        keys = list(groups.keys())
+        tax_left, shipping_left = tax, Decimal(shipping).quantize(Decimal("0.01"))
+        for idx, key in enumerate(keys):
+            if idx == len(keys)-1:
+                allocated_tax[key], allocated_shipping[key] = tax_left, shipping_left
+            else:
+                allocated_tax[key] = (tax * group_subtotals[key] / subtotal).quantize(Decimal("0.01")) if subtotal else Decimal("0.00")
+                allocated_shipping[key] = (Decimal(shipping) / Decimal(len(keys))).quantize(Decimal("0.01"))
+                tax_left -= allocated_tax[key]; shipping_left -= allocated_shipping[key]
+        for platform, items in groups.items():
+            platform_cfg = PLATFORMS.get(platform, {})
+            store_label = platform_cfg.get("label", platform.replace("_", " ").title())
+            store_ref = f"{order_ref}-{re.sub(r'[^A-Z0-9]', '', platform.upper())[:10] or 'STORE'}"
+            store_subtotal = group_subtotals[platform]
+            store_tax, store_shipping = allocated_tax[platform], allocated_shipping[platform]
+            store_total = (store_subtotal + store_tax + store_shipping).quantize(Decimal("0.01"))
+            db.execute("""INSERT INTO store_orders(store_order_ref,order_ref,platform,store_label,subtotal,tax,shipping,total,currency,status,created_at,updated_at,customer_email)
+                          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                       (store_ref, order_ref, platform, store_label, str(store_subtotal), str(store_tax), str(store_shipping), str(store_total), currency, "received", when, when, customer_email))
+            lines = []
+            for row in items:
+                line_total = (Decimal(row["price"]) * row["qty"]).quantize(Decimal("0.01"))
+                db.execute("""INSERT INTO purchases(telegram_id,platform,title,price,currency,qty,total,url,purchased_at,order_ref,store_order_ref)
+                              VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                           (tg_id, row["platform"], row["title"], row["price"], row["currency"], row["qty"], str(line_total), row["url"], when, order_ref, store_ref))
+                lines.append(f"{row['qty']} × {row['title']} — {currency} {line_total:.2f}")
+            db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
+                       (order_ref, "received", f"{store_label}: Pedido recibido", f"Referencia de tienda: {store_ref}. Artículos: " + "; ".join(lines), when))
+            store_emails.append({"store_order_ref": store_ref, "store": store_label, "total": str(store_total), "items": lines})
         db.execute("UPDATE balances SET amount=? WHERE telegram_id=?", (str(balance-total), tg_id))
         db.execute("DELETE FROM carts WHERE telegram_id=?", (tg_id,))
-    audit(tg_id, "purchase_demo", f"order={order_ref}; total={total}; currency={currency}")
-    email_result = enqueue_and_send_order_email(order_ref, "received", customer_email, str(total), currency,
-        "Pedido registrado en modo sin pasarela de pago; no confirma una compra ni un cobro real.") if customer_email else {"sent": False, "reason": "Sin correo proporcionado"}
+    audit(tg_id, "purchase_demo", f"order={order_ref}; stores={len(groups)}; total={total}; currency={currency}")
+    email_results = []
+    for item in store_emails:
+        detail = (f"Tienda: {item['store']}\nArtículos de esta tienda:\n" + "\n".join(item["items"]) +
+                  f"\nSubtotal: {currency} {Decimal(next(v for k,v in group_subtotals.items() if PLATFORMS.get(k, {}).get('label', k.replace('_',' ').title()) == item['store'])):.2f}" +
+                  "\nPedido ficticio: no se realizó compra, cobro ni envío real.")
+        result = enqueue_and_send_store_order_email(item["store_order_ref"], "received", customer_email, item["total"], currency, detail) if customer_email else {"sent": False, "reason": "Sin correo proporcionado"}
+        email_results.append({"store": item["store"], "store_order_ref": item["store_order_ref"], "email_sent": bool(result.get("sent")), "email_status": "sent" if result.get("sent") else result.get("reason", "not_configured")})
     with conn() as db:
         pref = db.execute("SELECT order_updates FROM notification_preferences WHERE telegram_id=?", (tg_id,)).fetchone()
-    # Telegram confirmation is best-effort and opt-out aware. This is not a real purchase.
     if BOT_TOKEN and (pref is None or pref["order_updates"]):
         try:
             async with httpx.AsyncClient(timeout=8) as client:
                 await client.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
                     "chat_id": tg_id,
-                    "text": (f"🛍️ ShopCart — pedido de demostración\\n"
-                             f"Referencia: {order_ref}\\nTotal estimado: {currency} {total:.2f}\\n"
-                             "Estado: Confirmado (simulado). No se realizó ninguna compra real.")
-                })
+                    "text": (f"🛍️ ProEshop — pedido de demostración\nReferencia general: {order_ref}\nTotal estimado: {currency} {total:.2f}\n" +
+                             "Pedidos independientes por tienda:\n" + "\n".join(f"{x['store']}: {x['store_order_ref']} — {x['total']} {currency}" for x in store_emails) +
+                             "\nNo se realizó ninguna compra real ni se procesó un pago.")})
         except httpx.HTTPError:
             log.info("No se pudo enviar notificación de pedido %s", order_ref)
-    return {"ok": True, "order_ref": order_ref, "subtotal": str(subtotal), "tax": str(tax),
-            "shipping": str(shipping), "total": str(total), "balance": str(balance-total),
-            "currency": currency, "status": "received", "purchased_at": when,
-            "email_sent": bool(email_result.get("sent")),
-            "email_status": "sent" if email_result.get("sent") else email_result.get("reason", "not_configured"),
-            "tracking": {"available": False, "label": "No disponible hasta integrar un transportista real"},
-            "message": "Pedido registrado. Este flujo aún no procesa pagos ni envía órdenes a los comercios."}
+    return {"ok": True, "order_ref": order_ref, "store_orders": store_emails,
+            "subtotal": str(subtotal), "tax": str(tax), "shipping": str(shipping), "total": str(total),
+            "balance": str(balance-total), "currency": currency, "status": "received", "purchased_at": when,
+            "email_sent": bool(email_results) and all(x["email_sent"] for x in email_results),
+            "email_status": email_results, "message": "Pedido de demostración. Cada tienda tiene referencia, estado y correo independientes; no se realizó una compra real."}
+
