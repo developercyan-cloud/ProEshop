@@ -986,8 +986,7 @@ async def admin_update_order_status(order_ref: str, body: OrderStatusBody, reque
             old_status = store_order["status"]
             if old_status == new_status:
                 return {"ok": True, "unchanged": True, "status": new_status, "email_sent": False, "store_order_ref": order_ref}
-            if new_status not in ORDER_TRANSITIONS.get(old_status, set()):
-                raise HTTPException(409, f"Transición no permitida: {ORDER_STATUS_LABELS.get(old_status, old_status)} → {ORDER_STATUS_LABELS[new_status]}.")
+            # Administrative override: permit any recognized status and preserve the full event history.
             now = now_iso()
             detail = body.detail.strip() or f"Estado actualizado para {store_order['store_label']}: {ORDER_STATUS_LABELS[new_status]}"
             db.execute("UPDATE store_orders SET status=?,updated_at=? WHERE store_order_ref=?", (new_status, now, order_ref))
@@ -1005,8 +1004,7 @@ async def admin_update_order_status(order_ref: str, body: OrderStatusBody, reque
             old_status = order["status"]
             if old_status == new_status:
                 return {"ok": True, "unchanged": True, "status": new_status, "email_sent": False}
-            if new_status not in ORDER_TRANSITIONS.get(old_status, set()):
-                raise HTTPException(409, f"Transición no permitida: {ORDER_STATUS_LABELS.get(old_status, old_status)} → {ORDER_STATUS_LABELS[new_status]}.")
+            # Administrative override for legacy orders too; the change is still recorded in order_events.
             now = now_iso(); detail = body.detail.strip() or f"Estado actualizado por administrador: {ORDER_STATUS_LABELS[new_status]}"
             db.execute("UPDATE orders SET status=?,updated_at=? WHERE order_ref=?", (new_status, now, order_ref))
             db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
