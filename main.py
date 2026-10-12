@@ -128,6 +128,13 @@ def init_db():
           FOREIGN KEY(order_ref) REFERENCES orders(order_ref) ON DELETE CASCADE
         );
         CREATE INDEX IF NOT EXISTS idx_store_orders_parent ON store_orders(order_ref, platform);
+        CREATE TABLE IF NOT EXISTS store_order_events(
+          id INTEGER PRIMARY KEY AUTOINCREMENT, store_order_ref TEXT NOT NULL,
+          status TEXT NOT NULL, label TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL,
+          FOREIGN KEY(store_order_ref) REFERENCES store_orders(store_order_ref) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_store_order_events_ref ON store_order_events(store_order_ref, created_at, id);
         CREATE TABLE IF NOT EXISTS store_order_notifications(
           id INTEGER PRIMARY KEY AUTOINCREMENT, store_order_ref TEXT NOT NULL,
           event_key TEXT NOT NULL, recipient TEXT NOT NULL DEFAULT '',
@@ -806,6 +813,8 @@ async def state(request: Request):
         history = db.execute("SELECT * FROM purchases WHERE telegram_id=? ORDER BY id DESC LIMIT 50", (tg_id,)).fetchall()
         orders = db.execute("SELECT * FROM orders WHERE telegram_id=? ORDER BY created_at DESC LIMIT 50", (tg_id,)).fetchall()
         order_events = db.execute("SELECT e.* FROM order_events e JOIN orders o ON o.order_ref=e.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
+        store_orders = db.execute("SELECT so.*, o.created_at AS parent_created_at FROM store_orders so JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY so.created_at DESC, so.store_label ASC", (tg_id,)).fetchall()
+        store_order_events = db.execute("SELECT e.* FROM store_order_events e JOIN store_orders so ON so.store_order_ref=e.store_order_ref JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
     return {
         "balance": balance["amount"] if balance else str(INITIAL_BALANCE),
         "currency": CURRENCY,
@@ -815,6 +824,8 @@ async def state(request: Request):
         "history": [dict(x) for x in history],
         "orders": [dict(x) for x in orders],
         "order_events": [dict(x) for x in order_events],
+        "store_orders": [dict(x) for x in store_orders],
+        "store_order_events": [dict(x) for x in store_order_events],
         "platforms": [{"id": k, "label": v["label"]} for k,v in PLATFORMS.items()]
     }
 
@@ -982,6 +993,8 @@ async def admin_update_order_status(order_ref: str, body: OrderStatusBody, reque
             db.execute("UPDATE store_orders SET status=?,updated_at=? WHERE store_order_ref=?", (new_status, now, order_ref))
             db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
                        (store_order["order_ref"], new_status, f"{store_order['store_label']}: {ORDER_STATUS_LABELS[new_status]}", detail, now))
+            db.execute("INSERT INTO store_order_events(store_order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
+                       (order_ref, new_status, ORDER_STATUS_LABELS[new_status], detail, now))
             email_order_ref = order_ref
             email_total, email_currency, recipient = store_order["total"], store_order["currency"], store_order["customer_email"]
             parent_ref, store_label = store_order["order_ref"], store_order["store_label"]
@@ -1146,8 +1159,11 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
                               VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
                            (tg_id, row["platform"], row["title"], row["price"], row["currency"], row["qty"], str(line_total), row["url"], when, order_ref, store_ref))
                 lines.append(f"{row['qty']} × {row['title']} — {currency} {line_total:.2f}")
+            initial_detail = f"Pedido registrado en ProEshop para {store_label}. No implica compra ni envío real."
             db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
                        (order_ref, "received", f"{store_label}: Pedido recibido", f"Referencia de tienda: {store_ref}. Artículos: " + "; ".join(lines), when))
+            db.execute("INSERT INTO store_order_events(store_order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
+                       (store_ref, "received", "Pedido recibido", initial_detail, when))
             store_emails.append({"store_order_ref": store_ref, "store": store_label, "total": str(store_total), "items": lines})
         db.execute("UPDATE balances SET amount=? WHERE telegram_id=?", (str(balance-total), tg_id))
         db.execute("DELETE FROM carts WHERE telegram_id=?", (tg_id,))

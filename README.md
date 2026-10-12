@@ -1,23 +1,18 @@
-# ProEshop — pedidos independientes por tienda
+# ProEshop — Seguimiento premium por tienda
 
-## Archivos
-- `main.py`: backend actualizado para crear una referencia y un estado por tienda, y enviar correos independientes por tienda mediante la integración Brevo existente.
-- `requirements.txt`: dependencias del backend.
-- `Procfile`: comando de inicio de Railway.
+## Cambios
+- Seguimiento visual independiente por tienda con estados, referencias y totales propios.
+- Historial de eventos por tienda en la base persistente.
+- Historial anterior y recibos conservados como compatibilidad.
+- Diseño adaptable a móvil y escritorio, en la estética oscura premium de ProEshop.
 
-## Despliegue seguro en Railway
-1. Haz una copia de seguridad del volumen persistente antes del despliegue.
-2. Sustituye el backend por `main.py` y conserva los archivos de configuración actuales.
-3. Mantén `DATABASE_PATH=/data/shopcart.db` y no elimines ni recrees el volumen de Railway.
-4. Conserva las variables de entorno existentes, incluidas las de Telegram, administración y Brevo.
-5. Despliega y prueba un carrito con productos de dos tiendas. Cada tienda debe generar su propio correo y su propia referencia de pedido.
+## Railway: despliegue seguro
+1. Haz una copia de seguridad del volumen persistente antes de desplegar.
+2. Reemplaza los archivos de la aplicación por los de este paquete.
+3. Conserva el volumen actual y `DATABASE_PATH=/data/shopcart.db`.
+4. Conserva las variables de entorno existentes, incluidas las de Brevo, Telegram, autenticación y administración.
+5. No borres ni recrees `/data/shopcart.db`. Al arrancar se crea únicamente la tabla nueva `store_order_events` y su índice; las tablas y filas existentes no se eliminan.
+6. Comprueba `/health`, inicia sesión, abre “Mis pedidos” y prueba un pedido con dos tiendas. Cambiar el estado de una referencia de tienda debe afectar únicamente esa tienda.
 
-El backend usa migraciones SQLite aditivas (`CREATE TABLE IF NOT EXISTS` y `ALTER TABLE` cuando falta una columna); no elimina tablas ni registros existentes. Aun así, realiza una copia de seguridad antes de desplegar.
-
-Las compras de este proyecto son de demostración: el registro de pedido/correo no acredita una compra real ni un pago al comercio.
-
-## Correos HTML
-El backend envía correos HTML adaptables por estado y tienda mediante `htmlContent` de Brevo (o alternativa HTML SMTP). El remitente siempre es ProEshop; los colores por tienda son solo acentos visuales.
-
-## Base de datos Railway
-Conserva el volumen persistente y `DATABASE_PATH=/data/shopcart.db`. No elimines ni recrees el volumen.
+## Notas
+El seguimiento representa los estados registrados en ProEshop. No acredita una compra real, un pago, ni el movimiento físico de un paquete. La guía de transportista solo podrá mostrarse cuando se integre una fuente real.
