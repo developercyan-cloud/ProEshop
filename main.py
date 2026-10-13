@@ -1,5 +1,6 @@
-import os, hmac, hashlib, json, time, secrets, sqlite3, logging, re, smtplib
-from urllib.parse import parse_qsl, quote_plus, urlparse
+import os, hmac, hashlib, json, time, secrets, sqlite3, logging, re, smtplib, asyncio
+from urllib.parse import parse_qsl, quote_plus, urlparse, urljoin
+from html import unescape
 from datetime import datetime, timezone, timedelta
 from html import escape
 from email.message import EmailMessage
@@ -102,7 +103,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS carts(
           id INTEGER PRIMARY KEY AUTOINCREMENT, telegram_id TEXT NOT NULL, platform TEXT NOT NULL,
           title TEXT NOT NULL, price TEXT NOT NULL, currency TEXT NOT NULL, url TEXT NOT NULL,
-          qty INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL
+          image TEXT NOT NULL DEFAULT '', qty INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS purchases(
           id INTEGER PRIMARY KEY AUTOINCREMENT, telegram_id TEXT NOT NULL, platform TEXT NOT NULL,
@@ -180,6 +181,9 @@ def init_db():
             db.execute("ALTER TABLE purchases ADD COLUMN order_ref TEXT NOT NULL DEFAULT ''")
         if "store_order_ref" not in purchase_columns:
             db.execute("ALTER TABLE purchases ADD COLUMN store_order_ref TEXT NOT NULL DEFAULT ''")
+        cart_columns = {row["name"] for row in db.execute("PRAGMA table_info(carts)").fetchall()}
+        if "image" not in cart_columns:
+            db.execute("ALTER TABLE carts ADD COLUMN image TEXT NOT NULL DEFAULT ''")
         # Additive migrations only: preserve the existing Railway volume and all data.
         order_columns = {row["name"] for row in db.execute("PRAGMA table_info(orders)").fetchall()}
         for column, declaration in {
@@ -454,6 +458,7 @@ class AddBody(BaseModel):
     price: str
     currency: str = Field(default="USD", min_length=3, max_length=3)
     url: str = Field(min_length=8, max_length=1000)
+    image: str = Field(default="", max_length=2000)
 
 
 class QtyBody(BaseModel):
@@ -497,7 +502,7 @@ PLATFORMS = {
 
 
 # Catálogo local ilustrativo para que HUBLOT funcione aunque el cliente esté desactualizado.
-HUBLOT_CATALOG = [{'id': 'bb-original-red', 'name': 'Big Bang Original Soft Touch All Red', 'collection': 'Big Bang', 'price': 24900, 'desc': 'Rojo integral y diseño deportivo contemporáneo.', 'img': 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-original-black', 'name': 'Big Bang Original Soft Touch All Black', 'collection': 'Big Bang', 'price': 24900, 'desc': 'Acabado negro integral de carácter técnico.', 'img': 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-original-titanium', 'name': 'Big Bang Original Titanium 43 mm', 'collection': 'Big Bang', 'price': 20400, 'desc': 'Titanio ligero con estética emblemática.', 'img': 'https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-original-titanium-ceramic', 'name': 'Big Bang Original Titanium Ceramic 43 mm', 'collection': 'Big Bang', 'price': 21600, 'desc': 'Titanio y cerámica en contraste.', 'img': 'https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-original-king-gold', 'name': 'Big Bang Original King Gold Ceramic 43 mm', 'collection': 'Big Bang', 'price': 39600, 'desc': 'King Gold combinado con cerámica.', 'img': 'https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-original-black-magic', 'name': 'Big Bang Original Black Magic 43 mm', 'collection': 'Big Bang', 'price': 22800, 'desc': 'Cerámica negra con presencia discreta.', 'img': 'https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-original-coal-blue', 'name': 'Big Bang Original Titanium Coal Blue 43 mm', 'collection': 'Big Bang', 'price': 20400, 'desc': 'Esfera azul carbón y caja de titanio.', 'img': 'https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-reloaded-uefa', 'name': 'Big Bang Reloaded UEFA Champions League 44 mm', 'collection': 'Big Bang', 'price': 25200, 'desc': 'Edición temática de fútbol.', 'img': 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-sapphire-sky', 'name': 'Big Bang Sapphire Sky Blue 44 mm', 'collection': 'Big Bang', 'price': 84300, 'desc': 'Caja de zafiro azul translúcido.', 'img': 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-summer-42', 'name': 'Big Bang Summer Multi-Colored Ceramic 42 mm', 'collection': 'Big Bang', 'price': 34300, 'desc': 'Cerámica multicolor de edición llamativa.', 'img': 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-summer-44', 'name': 'Big Bang Summer Multi-Colored Ceramic 44 mm', 'collection': 'Big Bang', 'price': 119000, 'desc': 'Versión de alta complejidad multicolor.', 'img': 'https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-peach-42', 'name': 'Big Bang Titanium Peach Ceramic 42 mm', 'collection': 'Big Bang', 'price': 24000, 'desc': 'Cerámica tono melocotón y titanio.', 'img': 'https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-peach-33', 'name': 'Big Bang Peach Ceramic 33 mm', 'collection': 'Big Bang', 'price': 15500, 'desc': 'Formato compacto en cerámica melocotón.', 'img': 'https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-petrol-33', 'name': 'Big Bang Petrol Blue Ceramic 33 mm', 'collection': 'Big Bang', 'price': 15500, 'desc': 'Cerámica azul petróleo.', 'img': 'https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-mint-33', 'name': 'Big Bang Mint Green Ceramic 33 mm', 'collection': 'Big Bang', 'price': 15500, 'desc': 'Cerámica verde menta.', 'img': 'https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-unico-grey', 'name': 'Big Bang Unico Essential Grey 42 mm', 'collection': 'Big Bang', 'price': 24000, 'desc': 'Cronógrafo Unico en tonos grises.', 'img': 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-magic-gold', 'name': 'Big Bang Reloaded Magic Gold 44 mm', 'collection': 'Big Bang', 'price': 44500, 'desc': 'Aleación Magic Gold resistente a rayaduras.', 'img': 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-king-gold', 'name': 'Big Bang Original King Gold 43 mm', 'collection': 'Big Bang', 'price': 39600, 'desc': 'King Gold en silueta clásica Big Bang.', 'img': 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85'}, {'id': 'bb-unico-titanium', 'name': 'Big Bang Unico Titanium 42 mm', 'collection': 'Big Bang', 'price': 26400, 'desc': 'Cronógrafo con caja de titanio.', 'img': 'https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85'}, {'id': 'square-unico-titanium', 'name': 'Square Bang Unico Titanium 42 mm', 'collection': 'Big Bang', 'price': 26400, 'desc': 'Caja cuadrada y movimiento Unico.', 'img': 'https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85'}, {'id': 'square-unico-ceramic', 'name': 'Square Bang Unico Titanium Ceramic 42 mm', 'collection': 'Big Bang', 'price': 27600, 'desc': 'Titanio y cerámica en formato cuadrado.', 'img': 'https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85'}, {'id': 'square-king-gold', 'name': 'Square Bang Unico King Gold 42 mm', 'collection': 'Big Bang', 'price': 49300, 'desc': 'King Gold con geometría cuadrada.', 'img': 'https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85'}, {'id': 'square-black-magic', 'name': 'Square Bang Unico Black Magic 42 mm', 'collection': 'Big Bang', 'price': 30000, 'desc': 'Caja cuadrada de cerámica negra.', 'img': 'https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85'}, {'id': 'classic-original-titanium', 'name': 'Classic Fusion Original Titanium 42 mm', 'collection': 'Classic Fusion', 'price': 9400, 'desc': 'Elegancia minimalista en titanio.', 'img': 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85'}, {'id': 'classic-original-black', 'name': 'Classic Fusion Original Black Magic 42 mm', 'collection': 'Classic Fusion', 'price': 11400, 'desc': 'Diseño sobrio con acabado negro.', 'img': 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85'}, {'id': 'classic-titanium', 'name': 'Classic Fusion Titanium 42 mm', 'collection': 'Classic Fusion', 'price': 8700, 'desc': 'Perfil limpio y caja de titanio.', 'img': 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85'}, {'id': 'classic-blue', 'name': 'Classic Fusion Titanium Blue 42 mm', 'collection': 'Classic Fusion', 'price': 8700, 'desc': 'Esfera azul y estética refinada.', 'img': 'https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85'}, {'id': 'classic-king-gold', 'name': 'Classic Fusion King Gold 42 mm', 'collection': 'Classic Fusion', 'price': 25200, 'desc': 'Oro cálido con líneas depuradas.', 'img': 'https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85'}, {'id': 'classic-black-magic', 'name': 'Classic Fusion Black Magic 42 mm', 'collection': 'Classic Fusion', 'price': 10700, 'desc': 'Cerámica negra y diseño elegante.', 'img': 'https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85'}, {'id': 'classic-chrono-ti', 'name': 'Classic Fusion Chronograph Titanium 42 mm', 'collection': 'Classic Fusion', 'price': 12300, 'desc': 'Cronógrafo clásico en titanio.', 'img': 'https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85'}, {'id': 'classic-chrono-gold', 'name': 'Classic Fusion Chronograph King Gold 42 mm', 'collection': 'Classic Fusion', 'price': 32400, 'desc': 'Cronógrafo con caja King Gold.', 'img': 'https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85'}, {'id': 'classic-chrono-black', 'name': 'Classic Fusion Chronograph Black Magic 42 mm', 'collection': 'Classic Fusion', 'price': 13500, 'desc': 'Cronógrafo con acabado cerámico negro.', 'img': 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85'}, {'id': 'classic-aero-ti', 'name': 'Classic Fusion Aerofusion Titanium 45 mm', 'collection': 'Classic Fusion', 'price': 17100, 'desc': 'Esfera esqueletizada y caja de titanio.', 'img': 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85'}, {'id': 'classic-aero-black', 'name': 'Classic Fusion Aerofusion Black Magic 45 mm', 'collection': 'Classic Fusion', 'price': 18800, 'desc': 'Arquitectura esqueletizada en negro.', 'img': 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-ti', 'name': 'Spirit of Big Bang Titanium 42 mm', 'collection': 'Spirit of Big Bang', 'price': 26400, 'desc': 'Caja tonneau y titanio ligero.', 'img': 'https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-ti-ceramic', 'name': 'Spirit of Big Bang Titanium Ceramic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 27600, 'desc': 'Tonneau con combinación de materiales.', 'img': 'https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-king-gold', 'name': 'Spirit of Big Bang King Gold 42 mm', 'collection': 'Spirit of Big Bang', 'price': 49300, 'desc': 'Caja tonneau en King Gold.', 'img': 'https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-king-ceramic', 'name': 'Spirit of Big Bang King Gold Ceramic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 45700, 'desc': 'King Gold y cerámica negra.', 'img': 'https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-black-magic', 'name': 'Spirit of Big Bang Black Magic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 30000, 'desc': 'Silueta tonneau con acabado negro.', 'img': 'https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-taupe', 'name': 'Spirit of Big Bang Essential Taupe 42 mm', 'collection': 'Spirit of Big Bang', 'price': 24800, 'desc': 'Tono taupe, edición exclusiva online según fabricante.', 'img': 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-impact-black', 'name': 'Spirit of Big Bang Impact All Black 42 mm', 'collection': 'Spirit of Big Bang', 'price': 33700, 'desc': 'Diseño oscuro de alta presencia.', 'img': 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-impact-sapphire', 'name': 'Spirit of Big Bang Impact Sapphire 42 mm', 'collection': 'Spirit of Big Bang', 'price': 114500, 'desc': 'Caja de zafiro y diseño escultural.', 'img': 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-sapphire-blue', 'name': 'Spirit of Big Bang Sapphire Blue 42 mm', 'collection': 'Spirit of Big Bang', 'price': 102400, 'desc': 'Caja de zafiro azul.', 'img': 'https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-coal-blue', 'name': 'Spirit of Big Bang Titanium Coal Blue 42 mm', 'collection': 'Spirit of Big Bang', 'price': 24000, 'desc': 'Titanio y esfera azul carbón.', 'img': 'https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-white', 'name': 'Spirit of Big Bang Titanium White 42 mm', 'collection': 'Spirit of Big Bang', 'price': 26400, 'desc': 'Titanio con estética blanca.', 'img': 'https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-meca-ti', 'name': 'Spirit of Big Bang Meca-10 Titanium 45 mm', 'collection': 'Spirit of Big Bang', 'price': 27600, 'desc': 'Reserva de marcha larga y arquitectura mecánica.', 'img': 'https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-meca-gold', 'name': 'Spirit of Big Bang Meca-10 King Gold 45 mm', 'collection': 'Spirit of Big Bang', 'price': 52900, 'desc': 'Meca-10 con caja King Gold.', 'img': 'https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-tourbillon-black', 'name': 'Spirit of Big Bang Tourbillon 5-Day Power Reserve Black Magic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 109000, 'desc': 'Tourbillon y reserva de marcha de cinco días.', 'img': 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-tourbillon-red', 'name': 'Spirit of Big Bang Tourbillon 5-Day Power Reserve Red Magic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 109000, 'desc': 'Cerámica roja y tourbillon.', 'img': 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-tourbillon-blue', 'name': 'Spirit of Big Bang Tourbillon 5-Day Power Reserve Sky Blue Ceramic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 109000, 'desc': 'Cerámica azul cielo y tourbillon.', 'img': 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-tourbillon-yellow', 'name': 'Spirit of Big Bang Tourbillon 5-Day Power Reserve Yellow Magic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 109000, 'desc': 'Cerámica amarilla y tourbillon.', 'img': 'https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85'}, {'id': 'spirit-tourbillon-sapphire', 'name': 'Spirit of Big Bang Tourbillon 5-Day Power Reserve Black Sapphire 42 mm', 'collection': 'Spirit of Big Bang', 'price': 169000, 'desc': 'Caja de zafiro negro y tourbillon.', 'img': 'https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85'}]
+HUBLOT_CATALOG = [{'id': 'bb-original-red', 'name': 'Big Bang Original Soft Touch All Red', 'collection': 'Big Bang', 'price': 24900, 'desc': 'Rojo integral y diseño deportivo contemporáneo.', 'img': 'https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-08/Big-Bang-Original-Soft-Touch-All-Red-43-mm-Soldier.png?itok=evq1Szm7'}, {'id': 'bb-original-black', 'name': 'Big Bang Original Soft Touch All Black', 'collection': 'Big Bang', 'price': 24900, 'desc': 'Acabado negro integral de carácter técnico.', 'img': ''}, {'id': 'bb-original-titanium', 'name': 'Big Bang Original Titanium 43 mm', 'collection': 'Big Bang', 'price': 20400, 'desc': 'Titanio ligero con estética emblemática.', 'img': ''}, {'id': 'bb-original-titanium-ceramic', 'name': 'Big Bang Original Titanium Ceramic 43 mm', 'collection': 'Big Bang', 'price': 21600, 'desc': 'Titanio y cerámica en contraste.', 'img': ''}, {'id': 'bb-original-king-gold', 'name': 'Big Bang Original King Gold Ceramic 43 mm', 'collection': 'Big Bang', 'price': 39600, 'desc': 'King Gold combinado con cerámica.', 'img': ''}, {'id': 'bb-original-black-magic', 'name': 'Big Bang Original Black Magic 43 mm', 'collection': 'Big Bang', 'price': 22800, 'desc': 'Cerámica negra con presencia discreta.', 'img': ''}, {'id': 'bb-original-coal-blue', 'name': 'Big Bang Original Titanium Coal Blue 43 mm', 'collection': 'Big Bang', 'price': 20400, 'desc': 'Esfera azul carbón y caja de titanio.', 'img': ''}, {'id': 'bb-reloaded-uefa', 'name': 'Big Bang Reloaded UEFA Champions League 44 mm', 'collection': 'Big Bang', 'price': 25200, 'desc': 'Edición temática de fútbol.', 'img': ''}, {'id': 'bb-sapphire-sky', 'name': 'Big Bang Sapphire Sky Blue 44 mm', 'collection': 'Big Bang', 'price': 84300, 'desc': 'Caja de zafiro azul translúcido.', 'img': ''}, {'id': 'bb-summer-42', 'name': 'Big Bang Summer Multi-Colored Ceramic 42 mm', 'collection': 'Big Bang', 'price': 34300, 'desc': 'Cerámica multicolor de edición llamativa.', 'img': ''}, {'id': 'bb-summer-44', 'name': 'Big Bang Summer Multi-Colored Ceramic 44 mm', 'collection': 'Big Bang', 'price': 119000, 'desc': 'Versión de alta complejidad multicolor.', 'img': ''}, {'id': 'bb-peach-42', 'name': 'Big Bang Titanium Peach Ceramic 42 mm', 'collection': 'Big Bang', 'price': 24000, 'desc': 'Cerámica tono melocotón y titanio.', 'img': ''}, {'id': 'bb-peach-33', 'name': 'Big Bang Peach Ceramic 33 mm', 'collection': 'Big Bang', 'price': 15500, 'desc': 'Formato compacto en cerámica melocotón.', 'img': ''}, {'id': 'bb-petrol-33', 'name': 'Big Bang Petrol Blue Ceramic 33 mm', 'collection': 'Big Bang', 'price': 15500, 'desc': 'Cerámica azul petróleo.', 'img': ''}, {'id': 'bb-mint-33', 'name': 'Big Bang Mint Green Ceramic 33 mm', 'collection': 'Big Bang', 'price': 15500, 'desc': 'Cerámica verde menta.', 'img': ''}, {'id': 'bb-unico-grey', 'name': 'Big Bang Unico Essential Grey 42 mm', 'collection': 'Big Bang', 'price': 24000, 'desc': 'Cronógrafo Unico en tonos grises.', 'img': ''}, {'id': 'bb-magic-gold', 'name': 'Big Bang Reloaded Magic Gold 44 mm', 'collection': 'Big Bang', 'price': 44500, 'desc': 'Aleación Magic Gold resistente a rayaduras.', 'img': ''}, {'id': 'bb-king-gold', 'name': 'Big Bang Original King Gold 43 mm', 'collection': 'Big Bang', 'price': 39600, 'desc': 'King Gold en silueta clásica Big Bang.', 'img': ''}, {'id': 'bb-unico-titanium', 'name': 'Big Bang Unico Titanium 42 mm', 'collection': 'Big Bang', 'price': 26400, 'desc': 'Cronógrafo con caja de titanio.', 'img': ''}, {'id': 'square-unico-titanium', 'name': 'Square Bang Unico Titanium 42 mm', 'collection': 'Big Bang', 'price': 26400, 'desc': 'Caja cuadrada y movimiento Unico.', 'img': ''}, {'id': 'square-unico-ceramic', 'name': 'Square Bang Unico Titanium Ceramic 42 mm', 'collection': 'Big Bang', 'price': 27600, 'desc': 'Titanio y cerámica en formato cuadrado.', 'img': ''}, {'id': 'square-king-gold', 'name': 'Square Bang Unico King Gold 42 mm', 'collection': 'Big Bang', 'price': 49300, 'desc': 'King Gold con geometría cuadrada.', 'img': ''}, {'id': 'square-black-magic', 'name': 'Square Bang Unico Black Magic 42 mm', 'collection': 'Big Bang', 'price': 30000, 'desc': 'Caja cuadrada de cerámica negra.', 'img': ''}, {'id': 'classic-original-titanium', 'name': 'Classic Fusion Original Titanium 42 mm', 'collection': 'Classic Fusion', 'price': 9400, 'desc': 'Elegancia minimalista en titanio.', 'img': ''}, {'id': 'classic-original-black', 'name': 'Classic Fusion Original Black Magic 42 mm', 'collection': 'Classic Fusion', 'price': 11400, 'desc': 'Diseño sobrio con acabado negro.', 'img': ''}, {'id': 'classic-titanium', 'name': 'Classic Fusion Titanium 42 mm', 'collection': 'Classic Fusion', 'price': 8700, 'desc': 'Perfil limpio y caja de titanio.', 'img': ''}, {'id': 'classic-blue', 'name': 'Classic Fusion Titanium Blue 42 mm', 'collection': 'Classic Fusion', 'price': 8700, 'desc': 'Esfera azul y estética refinada.', 'img': ''}, {'id': 'classic-king-gold', 'name': 'Classic Fusion King Gold 42 mm', 'collection': 'Classic Fusion', 'price': 25200, 'desc': 'Oro cálido con líneas depuradas.', 'img': ''}, {'id': 'classic-black-magic', 'name': 'Classic Fusion Black Magic 42 mm', 'collection': 'Classic Fusion', 'price': 10700, 'desc': 'Cerámica negra y diseño elegante.', 'img': ''}, {'id': 'classic-chrono-ti', 'name': 'Classic Fusion Chronograph Titanium 42 mm', 'collection': 'Classic Fusion', 'price': 12300, 'desc': 'Cronógrafo clásico en titanio.', 'img': ''}, {'id': 'classic-chrono-gold', 'name': 'Classic Fusion Chronograph King Gold 42 mm', 'collection': 'Classic Fusion', 'price': 32400, 'desc': 'Cronógrafo con caja King Gold.', 'img': ''}, {'id': 'classic-chrono-black', 'name': 'Classic Fusion Chronograph Black Magic 42 mm', 'collection': 'Classic Fusion', 'price': 13500, 'desc': 'Cronógrafo con acabado cerámico negro.', 'img': ''}, {'id': 'classic-aero-ti', 'name': 'Classic Fusion Aerofusion Titanium 45 mm', 'collection': 'Classic Fusion', 'price': 17100, 'desc': 'Esfera esqueletizada y caja de titanio.', 'img': ''}, {'id': 'classic-aero-black', 'name': 'Classic Fusion Aerofusion Black Magic 45 mm', 'collection': 'Classic Fusion', 'price': 18800, 'desc': 'Arquitectura esqueletizada en negro.', 'img': ''}, {'id': 'spirit-ti', 'name': 'Spirit of Big Bang Titanium 42 mm', 'collection': 'Spirit of Big Bang', 'price': 26400, 'desc': 'Caja tonneau y titanio ligero.', 'img': ''}, {'id': 'spirit-ti-ceramic', 'name': 'Spirit of Big Bang Titanium Ceramic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 27600, 'desc': 'Tonneau con combinación de materiales.', 'img': ''}, {'id': 'spirit-king-gold', 'name': 'Spirit of Big Bang King Gold 42 mm', 'collection': 'Spirit of Big Bang', 'price': 49300, 'desc': 'Caja tonneau en King Gold.', 'img': ''}, {'id': 'spirit-king-ceramic', 'name': 'Spirit of Big Bang King Gold Ceramic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 45700, 'desc': 'King Gold y cerámica negra.', 'img': ''}, {'id': 'spirit-black-magic', 'name': 'Spirit of Big Bang Black Magic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 30000, 'desc': 'Silueta tonneau con acabado negro.', 'img': ''}, {'id': 'spirit-taupe', 'name': 'Spirit of Big Bang Essential Taupe 42 mm', 'collection': 'Spirit of Big Bang', 'price': 24800, 'desc': 'Tono taupe, edición exclusiva online según fabricante.', 'img': ''}, {'id': 'spirit-impact-black', 'name': 'Spirit of Big Bang Impact All Black 42 mm', 'collection': 'Spirit of Big Bang', 'price': 33700, 'desc': 'Diseño oscuro de alta presencia.', 'img': ''}, {'id': 'spirit-impact-sapphire', 'name': 'Spirit of Big Bang Impact Sapphire 42 mm', 'collection': 'Spirit of Big Bang', 'price': 114500, 'desc': 'Caja de zafiro y diseño escultural.', 'img': ''}, {'id': 'spirit-sapphire-blue', 'name': 'Spirit of Big Bang Sapphire Blue 42 mm', 'collection': 'Spirit of Big Bang', 'price': 102400, 'desc': 'Caja de zafiro azul.', 'img': ''}, {'id': 'spirit-coal-blue', 'name': 'Spirit of Big Bang Titanium Coal Blue 42 mm', 'collection': 'Spirit of Big Bang', 'price': 24000, 'desc': 'Titanio y esfera azul carbón.', 'img': ''}, {'id': 'spirit-white', 'name': 'Spirit of Big Bang Titanium White 42 mm', 'collection': 'Spirit of Big Bang', 'price': 26400, 'desc': 'Titanio con estética blanca.', 'img': ''}, {'id': 'spirit-meca-ti', 'name': 'Spirit of Big Bang Meca-10 Titanium 45 mm', 'collection': 'Spirit of Big Bang', 'price': 27600, 'desc': 'Reserva de marcha larga y arquitectura mecánica.', 'img': ''}, {'id': 'spirit-meca-gold', 'name': 'Spirit of Big Bang Meca-10 King Gold 45 mm', 'collection': 'Spirit of Big Bang', 'price': 52900, 'desc': 'Meca-10 con caja King Gold.', 'img': ''}, {'id': 'spirit-tourbillon-black', 'name': 'Spirit of Big Bang Tourbillon 5-Day Power Reserve Black Magic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 109000, 'desc': 'Tourbillon y reserva de marcha de cinco días.', 'img': ''}, {'id': 'spirit-tourbillon-red', 'name': 'Spirit of Big Bang Tourbillon 5-Day Power Reserve Red Magic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 109000, 'desc': 'Cerámica roja y tourbillon.', 'img': ''}, {'id': 'spirit-tourbillon-blue', 'name': 'Spirit of Big Bang Tourbillon 5-Day Power Reserve Sky Blue Ceramic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 109000, 'desc': 'Cerámica azul cielo y tourbillon.', 'img': ''}, {'id': 'spirit-tourbillon-yellow', 'name': 'Spirit of Big Bang Tourbillon 5-Day Power Reserve Yellow Magic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 109000, 'desc': 'Cerámica amarilla y tourbillon.', 'img': ''}, {'id': 'spirit-tourbillon-sapphire', 'name': 'Spirit of Big Bang Tourbillon 5-Day Power Reserve Black Sapphire 42 mm', 'collection': 'Spirit of Big Bang', 'price': 169000, 'desc': 'Caja de zafiro negro y tourbillon.', 'img': ''}]
 
 
 # Modelos destacados del catálogo oficial Rolex. La página oficial no publica ranking de ventas;
@@ -533,10 +538,10 @@ ROLEX_DISCOUNT_IDS = {p["id"] for p in ROLEX_CATALOG if p["discount"] == 40}
 # Catálogo basado en los cuatro productos visibles en la categoría de electrónica del proveedor.
 # Los precios son los Sale Price/Our Price publicados al consultar la página; se deben revalidar antes de vender.
 JEWELERS_CATALOG = [
-    {"id":"niton-xl2-100p", "name":"Niton XL2 100p, Niton Gold XRF Analyzer XL2100", "price":20500.00, "desc":"Analizador XRF para metales preciosos.", "url":"https://www.jewelerstoystore.com/Electronic-s/1074.htm"},
-    {"id":"niton-dxl", "name":"Niton DXL Precious Metal Analyzer", "price":21750.00, "desc":"Analizador de metales preciosos.", "url":"https://www.jewelerstoystore.com/Electronic-s/1074.htm"},
-    {"id":"niton-xl2-battery", "name":"Niton XL2 Battery: 7.4V 7800mAh Li-ion (NTL200SL)", "price":295.00, "desc":"Batería de repuesto para analizador XRF Niton XL2.", "url":"https://www.jewelerstoystore.com/Electronic-s/1074.htm"},
-    {"id":"niton-xl2-charger", "name":"Niton XL2 Battery Charger – Fast, Smart & Reliable Charging for Your XRF Analyzer", "price":395.00, "desc":"Cargador para analizador XRF Niton XL2.", "url":"https://www.jewelerstoystore.com/Electronic-s/1074.htm"},
+    {"id":"niton-xl2-100p", "name":"Niton XL2 100p, Niton Gold XRF Analyzer XL2100", "price":20500.00, "desc":"Analizador XRF para metales preciosos.", "url":"https://www.jewelerstoystore.com/Niton-XL2-100p-XL2100-Niton-Gold-XRF-Analyzer-p/xrf-xl2.htm"},
+    {"id":"niton-dxl", "name":"Niton DXL Precious Metal Analyzer", "price":21750.00, "desc":"Analizador de metales preciosos.", "url":"https://www.jewelerstoystore.com/precious-metal-analyzer-p/dxl.htm"},
+    {"id":"niton-xl2-battery", "name":"Niton XL2 Battery: 7.4V 7800mAh Li-ion (NTL200SL)", "price":295.00, "desc":"Batería de repuesto para analizador XRF Niton XL2.", "url":"https://www.jewelerstoystore.com/Niton-XL2-Battery-7-4V-p/xl-2.htm"},
+    {"id":"niton-xl2-charger", "name":"Niton XL2 Battery Charger – Fast, Smart & Reliable Charging for Your XRF Analyzer", "price":395.00, "desc":"Cargador para analizador XRF Niton XL2.", "url":"https://www.jewelerstoystore.com/Niton-XL2-Battery-Charger-p/xl-3.htm"},
 ]
 
 
@@ -628,6 +633,46 @@ async def logout(request: Request):
     return {"ok": True}
 
 
+async def official_product_image(product_url: str, allowed_domain: str) -> str:
+    """Read the primary product image from the retailer's own page only."""
+    try:
+        parsed = urlparse(product_url)
+        host = (parsed.hostname or "").lower()
+        if parsed.scheme != "https" or not (host == allowed_domain or host.endswith("." + allowed_domain)):
+            return ""
+        async with httpx.AsyncClient(timeout=httpx.Timeout(3.5), follow_redirects=True,
+                                     headers={"User-Agent": "Mozilla/5.0 ProEshopProductImage/1.0"}) as client:
+            response = await client.get(product_url)
+            final_host = (urlparse(str(response.url)).hostname or "").lower()
+            if response.status_code != 200 or not (final_host == allowed_domain or final_host.endswith("." + allowed_domain)):
+                return ""
+            source = response.text[:1_500_000]
+        patterns = [
+            r'<meta[^>]+property=[\'\"]og:image[\'\"][^>]+content=[\'\"]([^\'\"]+)',
+            r'<meta[^>]+content=[\'\"]([^\'\"]+)[\'\"][^>]+property=[\'\"]og:image[\'\"]',
+            r'<meta[^>]+name=[\'\"]twitter:image[\'\"][^>]+content=[\'\"]([^\'\"]+)',
+            r'<meta[^>]+content=[\'\"]([^\'\"]+)[\'\"][^>]+name=[\'\"]twitter:image[\'\"]',
+        ]
+        candidate = ""
+        for pattern in patterns:
+            match = re.search(pattern, source, re.I)
+            if match:
+                candidate = unescape(match.group(1).replace("\\/", "/"))
+                break
+        if not candidate:
+            match = re.search(r'<img[^>]+(?:id=[\'\"](?:product_photo|main_image)[\'\"])[^>]+(?:src|data-src)=[\'\"]([^\'\"]+)', source, re.I)
+            if match:
+                candidate = unescape(match.group(1))
+        image_url = urljoin(str(response.url), candidate) if candidate else ""
+        image_parsed = urlparse(image_url)
+        image_host = (image_parsed.hostname or "").lower()
+        if image_parsed.scheme == "https" and (image_host == allowed_domain or image_host.endswith("." + allowed_domain)):
+            return image_url
+    except Exception as exc:
+        log.info("No se pudo obtener imagen oficial desde %s: %s", product_url, type(exc).__name__)
+    return ""
+
+
 @app.post("/api/search")
 async def search(body: SearchBody, request: Request):
     tg_id = get_auth(request)
@@ -655,12 +700,21 @@ async def search(body: SearchBody, request: Request):
         # than a blank screen; the user can then filter/sort in the shared results UI.
         if not matches:
             matches = HUBLOT_CATALOG
-        results = [{
-            "title": p["name"], "price": round(float(p["price"]), 2),
-            "currency": "USD", "url": "https://www.hublot.com/en-us/watches",
-            "image": p.get("img", ""), "source": "Catálogo HUBLOT · modelo ilustrativo",
-            "collection": p.get("collection", ""), "description": p.get("desc", "")
-        } for p in matches[:52]]
+        results = []
+        for p in matches[:52]:
+            slug = re.sub(r"[^a-z0-9]+", "-", p["name"].lower()).strip("-")
+            product_url = ("https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-red-43-mm"
+                           if p.get("id") == "bb-original-red" else
+                           "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-black-43-mm"
+                           if p.get("id") == "bb-original-black" else
+                           "https://www.hublot.com/en-us/watches")
+            image_url = p.get("img", "")
+            if not image_url and product_url != "https://www.hublot.com/en-us/watches":
+                image_url = await official_product_image(product_url, "hublot.com")
+            results.append({"title": p["name"], "price": round(float(p["price"]), 2),
+                            "currency": "USD", "url": product_url, "image": image_url,
+                            "source": "HUBLOT.com · imagen oficial cuando está disponible",
+                            "collection": p.get("collection", ""), "description": p.get("desc", "")})
         return {
             "platform": "hublot", "label": "HUBLOT", "query": query,
             "search_url": search_url, "live_results": results,
@@ -672,7 +726,11 @@ async def search(body: SearchBody, request: Request):
         matches = [p for p in JEWELERS_CATALOG if q in broad_terms or any(q in str(p.get(field, "")).casefold() for field in ("name", "desc", "id"))]
         if not matches:
             matches = JEWELERS_CATALOG
-        results = [{"title": p["name"], "price": round(float(p["price"]), 2), "currency": "USD", "url": p["url"], "image": "", "source": "Jewelers Toy Store · categoría Electronic", "description": p["desc"]} for p in matches]
+        images = await asyncio.gather(*(official_product_image(p["url"], "jewelerstoystore.com") for p in matches))
+        results = [{"title": p["name"], "price": round(float(p["price"]), 2),
+                    "currency": "USD", "url": p["url"], "image": image_url,
+                    "source": "JewelersToyStore.com · imagen oficial cuando está disponible",
+                    "description": p["desc"]} for p, image_url in zip(matches, images)]
         return {"platform":"jewelers", "label":"Jewelers Toy Store", "query":query, "search_url":search_url, "live_results":results, "notice":"Catálogo leído de la categoría Electronic del proveedor. Precios base observados: $20,500, $21,750, $295 y $395 USD; el descuento ProEshop del 50% es propio de esta miniapp, no una oferta anunciada por el proveedor. Confirma precio y disponibilidad antes de comprar."}
     if platform == "rolex":
         q = query.casefold().strip()
@@ -811,18 +869,40 @@ async def state(request: Request):
     tg_id = get_auth(request)
     with conn() as db:
         balance = db.execute("SELECT amount FROM balances WHERE telegram_id=?", (tg_id,)).fetchone()
-        cart = db.execute("SELECT * FROM carts WHERE telegram_id=? ORDER BY id DESC", (tg_id,)).fetchall()
+        cart = [dict(x) for x in db.execute("SELECT * FROM carts WHERE telegram_id=? ORDER BY id DESC", (tg_id,)).fetchall()]
         history = db.execute("SELECT * FROM purchases WHERE telegram_id=? ORDER BY id DESC LIMIT 50", (tg_id,)).fetchall()
         orders = db.execute("SELECT * FROM orders WHERE telegram_id=? ORDER BY created_at DESC LIMIT 50", (tg_id,)).fetchall()
         order_events = db.execute("SELECT e.* FROM order_events e JOIN orders o ON o.order_ref=e.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
         store_orders = db.execute("SELECT so.*, o.created_at AS parent_created_at FROM store_orders so JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY so.created_at DESC, so.store_label ASC", (tg_id,)).fetchall()
         store_order_events = db.execute("SELECT e.* FROM store_order_events e JOIN store_orders so ON so.store_order_ref=e.store_order_ref JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
+    # Add official product imagery to legacy cart rows on a best-effort basis.
+    for item in cart:
+        if item.get("image") or item.get("platform") not in {"hublot", "jewelers"}:
+            continue
+        image_source = ""
+        domain = "hublot.com" if item["platform"] == "hublot" else "jewelerstoystore.com"
+        if item["platform"] == "hublot" and "all red" in item["title"].lower():
+            image_source = "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-red-43-mm"
+            known_image = "https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-08/Big-Bang-Original-Soft-Touch-All-Red-43-mm-Soldier.png?itok=evq1Szm7"
+            item["image"] = known_image
+        else:
+            catalog = HUBLOT_CATALOG if item["platform"] == "hublot" else JEWELERS_CATALOG
+            match = next((p for p in catalog if p.get("name", "").casefold() == item["title"].casefold()), None)
+            if match:
+                image_source = match.get("url", "")
+                if item["platform"] == "hublot" and match.get("id") == "bb-original-black":
+                    image_source = "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-black-43-mm"
+            if image_source:
+                item["image"] = await official_product_image(image_source, domain)
+        if item.get("image"):
+            with conn() as db:
+                db.execute("UPDATE carts SET image=? WHERE id=? AND telegram_id=? AND (image IS NULL OR image='')", (item["image"], item["id"], tg_id))
     return {
         "balance": balance["amount"] if balance else str(INITIAL_BALANCE),
         "currency": CURRENCY,
         "tax_rate": str(ESTIMATED_TAX_RATE),
         "shipping_fee": str(ESTIMATED_SHIPPING_FEE),
-        "cart": [dict(x) for x in cart],
+        "cart": cart,
         "history": [dict(x) for x in history],
         "orders": [dict(x) for x in orders],
         "order_events": [dict(x) for x in order_events],
@@ -880,11 +960,20 @@ async def add_cart(body: AddBody, request: Request):
             400,
             "El enlace debe pertenecer al dominio oficial de la tienda seleccionada.",
         )
+    image_url = ""
+    if body.image:
+        image_parsed = urlparse(body.image)
+        image_host = (image_parsed.hostname or "").lower().rstrip(".")
+        if image_parsed.scheme.lower() == "https" and any(
+            image_host == domain or image_host.endswith("." + domain)
+            for domain in allowed_domains[platform]
+        ):
+            image_url = body.image[:2000]
     with conn() as db:
-        db.execute("""INSERT INTO carts(telegram_id,platform,title,price,currency,url,qty,created_at)
-                      VALUES(?,?,?,?,?,?,1,?)""",
+        db.execute("""INSERT INTO carts(telegram_id,platform,title,price,currency,url,image,qty,created_at)
+                      VALUES(?,?,?,?,?,?,?,1,?)""",
                    (tg_id, body.platform.lower(), body.title.strip(), str(price),
-                    body.currency.upper(), body.url, now_iso()))
+                    body.currency.upper(), body.url, image_url, now_iso()))
     audit(tg_id, "cart_add", f"platform={body.platform.lower()}; price={price}")
     return {"ok": True}
 
