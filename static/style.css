@@ -76,3 +76,70 @@ img{color:#a1a7c3}a{color:#b4a8ff}a:hover{color:#d0c8ff}
 .product-price del{color:#939ab8!important}.discount-note{display:block;color:#b8aaff;font-size:10px;margin-top:3px}
 
 @media(min-width:520px){.store-row{grid-template-columns:repeat(5,minmax(0,1fr))}}
+
+/* Cart and checkout refinements: same visual system, clearer hierarchy. */
+#cartItems{display:grid;gap:12px}
+.item-card{border:1px solid #343a57!important;border-radius:18px!important;background:linear-gradient(145deg,#171c31,#121729)!important;box-shadow:0 8px 24px #0002!important;gap:13px!important}
+.item-info h3{color:#f2f3ff!important;line-height:1.35;overflow-wrap:anywhere}
+.item-info>p{color:#aab2ce!important}
+.item-price{color:#f4f3ff!important;font-weight:800}
+.item-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.qty-btn{min-width:34px;min-height:34px;border:1px solid #414866!important;border-radius:10px!important;background:#222842!important;color:#f1efff!important;font-weight:900}
+.qty-value{min-width:18px;text-align:center;color:#f4f3ff;font-weight:800}
+.item-actions .external,.item-actions .text-btn{font-size:11px}
+#cartSummary,.summary.panel{background:linear-gradient(145deg,#171c31,#121729)!important;border:1px solid #343a57!important;color:#e8eaf8!important}
+#cartSummary>div,.summary>div{color:#c5cbe1}
+#cartSummary strong,.summary strong{color:#f7f6ff!important}
+#checkoutView .checkout-form{background:linear-gradient(150deg,#171c31,#121729)!important;border-color:#343a57!important;color:#eef0ff!important}
+#checkoutView .checkout-form label{color:#d4d8ec!important}
+#checkoutView .checkout-form input:not([type=checkbox]):not([type=radio]){background:#0f1426!important;border-color:#3b4262!important;color:#f5f4ff!important}
+#checkoutView .checkout-form input::placeholder{color:#7f88a8!important}
+#checkoutView .checkout-banner{border:1px solid #343957!important;border-radius:16px}
+.checkout-store-breakdown{margin:15px 0 6px;padding:14px;border:1px solid #343957;border-radius:14px;background:#101528;color:#e8eaf8}
+.checkout-breakdown-title{font-size:11px;font-weight:900;letter-spacing:.4px;color:#c9c0ff;margin-bottom:7px}
+.checkout-store-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #2b314b}
+.checkout-store-row:last-of-type{border-bottom:0}
+.checkout-store-row>span{display:grid;gap:3px;min-width:0}
+.checkout-store-row b{font-size:12px;color:#f5f4ff}
+.checkout-store-row small{font-size:10px;color:#a8b0ce;line-height:1.45}
+.checkout-store-row>strong{font-size:12px;color:#f6f4ff;white-space:nowrap}
+.checkout-estimate-row{font-size:11px;color:#bac1dc}
+.checkout-estimate-note{font-size:10px;line-height:1.5;color:#929bb9;margin:10px 0 0}
+#placeOrderBtn:disabled{filter:saturate(.7);transform:none}
+@media(max-width:390px){.item-card{padding:13px!important}.checkout-store-breakdown{padding:11px}.checkout-store-row{gap:8px}}
+
+
+/* Visual consistency patch: remove unintended white surfaces while keeping layout unchanged. */
+:root{color-scheme:dark;--bg:#111629;--white:#171c31;--ink:#eef0ff;--muted:#a4acc8;--line:#303650}
+html,body{background:#0d1120!important;color:#e9ecfb!important;color-scheme:dark}
+.app-shell{background:linear-gradient(180deg,#14192d 0%,#111629 460px)!important;color:#e9ecfb!important}
+.view,main,.home-view,#homeView,#searchView,#cartView,#checkoutView{background:transparent!important;color:#e9ecfb!important}
+.search-row{background:#171c31!important;border-color:#343a57!important;box-shadow:0 5px 18px #0003!important}
+.search-row input{background:transparent!important;color:#f5f4ff!important;caret-color:#b9aaff!important}
+.search-row input::placeholder{color:#8f98b8!important}
+.search-symbol{color:#a5aecb!important}
+.clear-search{background:#252a43!important;color:#e7e9fa!important}
+.category-chip{background:linear-gradient(145deg,#1b2138,#14192b)!important;border-color:#343a57!important;color:#e8eaf8!important;box-shadow:0 5px 16px #0002!important}
+.category-chip span{background:#202944!important;color:#a9cfff!important}
+.quick-card{background:linear-gradient(145deg,#1b2138,#14192b)!important;border-color:#343a57!important;color:#edf0ff!important;box-shadow:0 8px 20px #0002!important}
+.quick-text strong,.quick-text b{color:#f0edff!important}.quick-text small{color:#a5aecb!important}
+.quick-icon.blue{background:#1b2b49!important}.quick-icon.yellow{background:#332b20!important}
+.item-card,.product-card,.product-result,.search-result,.results-panel,.compare-panel,.cart-item,.history-item,.order-card,.account-card,.login-card,.balance-card,.manual-details,.form-card,.panel,section,.modal-card{background:linear-gradient(145deg,#171c31,#121729)!important;color:#e9ecfb!important;border-color:#343a57!important}
+.item-card *,.product-card *,.product-result *,.search-result *,.cart-item *,.history-item *,.order-card *,.account-card *,.balance-card *,.manual-details *,.form-card *{color:inherit}
+.item-info h3,.product-card h3,.product-result h3,.search-result h3{color:#f2f3ff!important}
+.item-info>p,.product-card p,.product-result p,.search-result p{color:#aab2ce!important}
+.item-price,.product-price,.item-price strong,.product-price strong{color:#f4f3ff!important}
+.summary,.summary.panel,#cartSummary,.cart-summary{background:linear-gradient(145deg,#171c31,#121729)!important;border-color:#343a57!important;color:#e8eaf8!important}
+.summary-title,.summary-title h3,.summary>div,.summary span,#cartSummary span{color:#c5cbe1!important;border-color:#303650!important}
+.summary strong,.grand-total strong,#cartSummary strong{color:#f7f6ff!important}
+.info-banner,.checkout-banner,.notice,.hint-box{background:linear-gradient(120deg,#191d35,#201b3c)!important;border-color:#373353!important;color:#d9daf0!important}
+.info-banner p,.checkout-banner p,.notice p,.hint-box p{color:#b2b8d3!important}
+#checkoutView .checkout-form{background:linear-gradient(150deg,#171c31,#121729)!important;border-color:#343957!important;color:#eef0ff!important}
+#checkoutView .checkout-form label{color:#d4d8ec!important}
+#checkoutView .checkout-form input:not([type=checkbox]):not([type=radio]),#checkoutView .checkout-form select,#checkoutView .checkout-form textarea{background:#0f1426!important;border-color:#3b4262!important;color:#f5f4ff!important}
+#checkoutView .checkout-form input::placeholder,#checkoutView .checkout-form textarea::placeholder{color:#7f88a8!important}
+.hero-banner{color:#fff!important}
+.bottom-nav{background:#0e1222ed!important;border-top:1px solid #303650!important;box-shadow:0 -8px 28px #0003!important}
+.nav-item{color:#8189a9!important}.nav-item.active{color:#b5a8ff!important}
+input,select,textarea{color-scheme:dark}
+@media(prefers-color-scheme:light){html,body,.app-shell{color-scheme:dark!important}}
