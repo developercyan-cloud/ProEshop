@@ -52,5 +52,27 @@ img{color:#a1a7c3}a{color:#b4a8ff}a:hover{color:#d0c8ff}
 @media(max-width:520px){.premium-order-header{padding:17px;gap:8px}.premium-order-total strong{font-size:15px}.premium-order-total small{font-size:7px}.premium-order-actions{padding:10px 17px}.store-tracking-list{padding:10px;gap:10px}.store-track-top{padding:13px 12px;gap:9px}.store-avatar{height:35px;width:35px}.store-track-name h4{font-size:12px}.store-track-name small{font-size:7px}.store-track-name span{font-size:9px}.store-track-total small{font-size:7px}.store-track-total strong{font-size:12px}.store-current-status{margin:0 12px;padding:10px}.premium-timeline{padding:19px 6px 13px}.timeline-node{height:22px;width:22px;font-size:9px}.timeline-step:before{top:10px}.timeline-label{font-size:7px;max-width:48px}.tracking-truth-note{margin:0 12px 13px}.store-track-details summary{padding:12px;font-size:10px}.store-track-detail-body{padding:0 12px 12px}.store-event{grid-template-columns:8px minmax(0,1fr);gap:8px}.store-event time{grid-column:2;text-align:left}.legacy-track{padding:0 17px 17px}}
 @media(prefers-reduced-motion:reduce){.premium-timeline *{transition:none!important;animation:none!important}}
 
-/* Admin order status editor + fifth store card */
-.jewelers-logo{background:linear-gradient(135deg,#d7b56d,#7e5c22);color:#fff;font-weight:950}.admin-order-toolbar{display:flex;gap:10px;align-items:end;justify-content:space-between;margin:10px 0 13px}.admin-order-toolbar label,.admin-order-edit-controls label{display:flex;flex-direction:column;gap:5px;flex:1;font-size:10px;font-weight:800;color:var(--muted)}.admin-order-toolbar select,.admin-order-edit-controls select{width:100%;min-width:0;border:1px solid var(--line);border-radius:10px;background:#fff;padding:9px;color:var(--ink);font-size:11px}.admin-order-edit{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;margin:8px 0}.admin-order-edit-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.admin-order-edit-top>div{display:flex;flex-direction:column;gap:4px;min-width:0}.admin-order-edit-top b{font-size:11px}.admin-order-edit-top small,.admin-order-feedback{font-size:9px;color:var(--muted);overflow-wrap:anywhere}.admin-order-edit-top strong{font-size:12px;white-space:nowrap}.admin-order-edit-controls{display:flex;align-items:end;gap:9px;margin-top:11px}.admin-order-edit-controls button{white-space:nowrap}.admin-order-feedback{display:block;margin-top:9px}@media(max-width:390px){.admin-order-toolbar{align-items:stretch;flex-direction:column}.admin-order-edit-controls{align-items:stretch;flex-direction:column}.admin-order-edit-controls button{width:100%}}
+/* Recovery fixes: ensure every admin component respects the dark premium theme. */
+.admin-panel,.admin-panel *{color-scheme:dark}
+.admin-panel{background:linear-gradient(160deg,#151a30,#101425)!important;color:#eef0ff!important;border-color:#343957!important}
+.admin-panel h2,.admin-panel h3{color:#f6f4ff!important}
+.admin-audit{display:grid;gap:12px;min-width:0}
+.admin-order-card{display:grid;gap:12px;padding:16px;border-radius:17px;background:linear-gradient(150deg,#1c2138,#14192b)!important;border:1px solid #373d5d!important;color:#edf0ff!important;box-shadow:0 10px 28px #0003}
+.admin-order-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-width:0}
+.admin-order-head>div{display:grid;gap:5px;min-width:0}
+.admin-order-head b{color:#f4f2ff!important;font-size:13px;overflow-wrap:anywhere}
+.admin-order-head small{color:#a6aecb!important;font-size:10px;overflow-wrap:anywhere}
+.admin-order-head>strong{color:#f4f2ff!important;white-space:nowrap;font-size:13px}
+.admin-status-label{display:block;color:#bac1dc!important;font-weight:800;font-size:11px;margin:2px 0 -6px}
+.admin-status-select,.admin-status-detail{width:100%;min-width:0;padding:12px;border:1px solid #3b4262;border-radius:12px;background:#101528!important;color:#f4f4ff!important}
+.admin-status-select option{background:#101528;color:#f4f4ff}
+.admin-order-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.admin-current-status{margin:0;color:#a6aecb!important;font-size:10px}
+.admin-panel .audit-row{padding:12px;border:1px solid #303650;border-radius:12px;background:#111629!important;color:#e9eaf8!important;overflow-wrap:anywhere}
+.admin-panel .audit-row b,.admin-panel .audit-row span,.admin-panel .audit-row small{color:#c9cde3!important}
+.admin-metrics .metric-card{background:linear-gradient(145deg,#202541,#151a2e)!important;border:1px solid #343957!important;color:#f2f0ff!important}
+.admin-metrics .metric-card small{color:#a6aecb!important}.admin-metrics .metric-card strong{color:#fff!important}
+.jewelers-logo{background:linear-gradient(145deg,#c9a96e,#6d5730);color:#171426}
+.product-price del{color:#939ab8!important}.discount-note{display:block;color:#b8aaff;font-size:10px;margin-top:3px}
+
+@media(min-width:520px){.store-row{grid-template-columns:repeat(5,minmax(0,1fr))}}
