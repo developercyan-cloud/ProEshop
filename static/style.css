@@ -143,3 +143,27 @@ html,body{background:#0d1120!important;color:#e9ecfb!important;color-scheme:dark
 .nav-item{color:#8189a9!important}.nav-item.active{color:#b5a8ff!important}
 input,select,textarea{color-scheme:dark}
 @media(prefers-color-scheme:light){html,body,.app-shell{color-scheme:dark!important}}
+
+
+/* Official product imagery and dark checkout surfaces */
+.secure-strip{background:linear-gradient(145deg,#191e34,#13182b)!important;border:1px solid #343a57!important;color:#f2f0ff!important}
+.secure-strip b,.secure-strip strong{color:#f5f3ff!important}.secure-strip small{color:#aab2ce!important}
+.item-icon{overflow:hidden;background:#202640!important;border:1px solid #353d5b!important;color:#c4b7ff!important}
+.item-icon span{display:grid;place-items:center;width:100%;height:100%}
+.cart-product-image{width:100%;height:100%;object-fit:contain;padding:5px;background:#171c31!important}
+.item-actions .external{background:#252b45!important;border:1px solid #3b4262!important;color:#d9d3ff!important}
+.item-actions .external:visited{color:#d9d3ff!important}
+.checkout-store-group{padding:0 0 9px;margin:0 0 9px;border-bottom:1px solid #2b314b}
+.checkout-product-row{display:grid;grid-template-columns:58px minmax(0,1fr) auto;align-items:center;gap:10px;padding:9px 0}
+.checkout-product-row>img,.checkout-product-placeholder{width:58px;height:58px;border-radius:11px;object-fit:contain;background:#202640;border:1px solid #353d5b;color:#bfb4ff;display:grid;place-items:center;padding:4px}
+.checkout-product-row>img.image-failed{display:none}
+.checkout-product-info{display:grid;gap:4px;min-width:0}
+.checkout-product-info b{font-size:11px;line-height:1.4;color:#f1f2ff;overflow-wrap:anywhere}
+.checkout-product-info small{font-size:10px;color:#aab2ce}
+.checkout-product-row>strong{font-size:11px;color:#f5f4ff;white-space:nowrap}
+.product-thumb{background:#171c31!important;object-fit:contain}
+.product-placeholder{background:#202640!important;color:#bdb3ff!important}
+.product-media{background:linear-gradient(145deg,#202640,#14192b)!important}
+.product-dialog .product-dialog-media{background:#171c31!important;border:1px solid #343a57}
+.product-dialog .dialog-price{color:#f2f0ff!important}
+@media(max-width:390px){.checkout-product-row{grid-template-columns:48px minmax(0,1fr) auto;gap:8px}.checkout-product-row>img,.checkout-product-placeholder{width:48px;height:48px}.checkout-product-info b{font-size:10px}.checkout-product-row>strong{font-size:10px}}
