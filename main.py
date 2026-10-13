@@ -962,7 +962,7 @@ async def admin_orders(request: Request, status: str = ""):
             legacy_query += " AND status=?"; legacy_params = (status,)
         legacy_query += " ORDER BY created_at DESC LIMIT 100"
         legacy = [dict(r) for r in db.execute(legacy_query, legacy_params).fetchall()]
-    return {"orders": stores + legacy, "statuses": ORDER_STATUS_LABELS,
+    return {"orders": stores + legacy, "statuses": ORDER_STATUS_LABELS, "transitions": {k: sorted(v) for k, v in ORDER_TRANSITIONS.items()},
             "note": "Los pedidos nuevos se gestionan por tienda usando order_ref (referencia de tienda)."}
 
 
@@ -986,7 +986,8 @@ async def admin_update_order_status(order_ref: str, body: OrderStatusBody, reque
             old_status = store_order["status"]
             if old_status == new_status:
                 return {"ok": True, "unchanged": True, "status": new_status, "email_sent": False, "store_order_ref": order_ref}
-            # Administrative override: permit any recognized status and preserve the full event history.
+            if new_status not in ORDER_TRANSITIONS.get(old_status, set()):
+                raise HTTPException(409, f"Transición no permitida: {ORDER_STATUS_LABELS.get(old_status, old_status)} → {ORDER_STATUS_LABELS[new_status]}.")
             now = now_iso()
             detail = body.detail.strip() or f"Estado actualizado para {store_order['store_label']}: {ORDER_STATUS_LABELS[new_status]}"
             db.execute("UPDATE store_orders SET status=?,updated_at=? WHERE store_order_ref=?", (new_status, now, order_ref))
@@ -1004,7 +1005,8 @@ async def admin_update_order_status(order_ref: str, body: OrderStatusBody, reque
             old_status = order["status"]
             if old_status == new_status:
                 return {"ok": True, "unchanged": True, "status": new_status, "email_sent": False}
-            # Administrative override for legacy orders too; the change is still recorded in order_events.
+            if new_status not in ORDER_TRANSITIONS.get(old_status, set()):
+                raise HTTPException(409, f"Transición no permitida: {ORDER_STATUS_LABELS.get(old_status, old_status)} → {ORDER_STATUS_LABELS[new_status]}.")
             now = now_iso(); detail = body.detail.strip() or f"Estado actualizado por administrador: {ORDER_STATUS_LABELS[new_status]}"
             db.execute("UPDATE orders SET status=?,updated_at=? WHERE order_ref=?", (new_status, now, order_ref))
             db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
