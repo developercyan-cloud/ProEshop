@@ -20,3 +20,12 @@ La obtención de imágenes desde las páginas oficiales depende de que esas pág
 5. Probar una búsqueda de HUBLOT y Jewelers, agregar un producto, abrir el carrito y continuar al checkout.
 
 El paquete no se ha desplegado en Railway. Las comprobaciones locales validan sintaxis y migración SQLite; la carga de imágenes oficiales debe confirmarse desde Railway.
+
+
+## Corrección adicional: fotos y enlaces de producto (13 oct 2026)
+
+- Se eliminó la imagen fija de HUBLOT All Red que podía mostrar un reloj distinto. La imagen se obtiene desde la ficha oficial exacta; si no puede verificarse/cargarse, se muestra el marcador neutro en lugar de una foto incorrecta.
+- Se quitaron las fotos de stock de Rolex para no presentar relojes genéricos como si fueran el modelo listado.
+- El botón **Ver en tienda** de cada resultado usa la URL del producto que devuelve la búsqueda cuando está disponible. Para el catálogo local de HUBLOT, All Red y All Black abren su ficha oficial; los demás modelos abren la colección oficial que corresponde al modelo.
+- Los enlaces de artículos de Jewelers Toy Store siguen usando las fichas específicas de cada artículo. Los enlaces de productos guardados anteriormente en el carrito HUBLOT se actualizan a la ficha o colección oficial correspondiente cuando se reconoce el título.
+- Algunas fichas no tienen imagen validada disponible; deliberadamente se deja el marcador en blanco antes que mostrar una imagen de otro artículo.
