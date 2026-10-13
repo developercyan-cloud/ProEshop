@@ -481,6 +481,8 @@ class CheckoutBody(BaseModel):
     shipping_country: str = Field(default="", max_length=80)
     shipping_address: str = Field(default="", max_length=180)
     customer_email: str = Field(default="", max_length=254)
+    # Backward compatibility: older frontend versions sent the address as "email".
+    email: str = Field(default="", max_length=254)
     payment_method: str = Field(default="demo_balance", max_length=32)
 
 
@@ -949,7 +951,8 @@ async def admin_orders(request: Request, status: str = ""):
         # New checkouts are listed as independent per-store orders. Legacy orders remain visible.
         query = """SELECT so.store_order_ref AS order_ref, so.order_ref AS parent_order_ref,
                    o.telegram_id, so.total, so.currency, so.status, so.created_at, so.updated_at,
-                   so.customer_email, so.platform, so.store_label, so.subtotal, so.tax, so.shipping
+                   COALESCE(NULLIF(so.customer_email,''),o.customer_email,'') AS customer_email,
+                   so.platform, so.store_label, so.subtotal, so.tax, so.shipping
                    FROM store_orders so JOIN orders o ON o.order_ref=so.order_ref"""
         params = ()
         if status:
@@ -1022,6 +1025,39 @@ async def admin_update_order_status(order_ref: str, body: OrderStatusBody, reque
             "email_status": "sent" if email_result.get("sent") else email_result.get("reason", "not_configured")}
 
 
+class AdminEmailBody(BaseModel):
+    customer_email: str = Field(min_length=3, max_length=254)
+
+
+@app.post("/api/admin/orders/{order_ref}/email")
+async def admin_update_order_email(order_ref: str, body: AdminEmailBody, request: Request):
+    if not ADMIN_API_KEY:
+        raise HTTPException(503, "Configura ADMIN_API_KEY en Railway.")
+    if not hmac.compare_digest(request.headers.get("X-Admin-Key", ""), ADMIN_API_KEY):
+        raise HTTPException(403, "Clave administrativa no válida.")
+    recipient = body.customer_email.strip().lower()
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", recipient):
+        raise HTTPException(400, "Introduce un correo electrónico válido.")
+    with conn() as db:
+        store_order = db.execute("SELECT order_ref FROM store_orders WHERE store_order_ref=?", (order_ref,)).fetchone()
+        if store_order:
+            db.execute("UPDATE store_orders SET customer_email=? WHERE store_order_ref=?", (recipient, order_ref))
+            # Also retain it on the parent order for backward compatibility.
+            db.execute("UPDATE orders SET customer_email=? WHERE order_ref=? AND (customer_email='' OR customer_email IS NULL)", (recipient, store_order["order_ref"]))
+            kind = "store_order_notifications"
+            db.execute("UPDATE store_order_notifications SET recipient=?,status='pending',last_error='',updated_at=? WHERE store_order_ref=? AND status!='sent'", (recipient, now_iso(), order_ref))
+        else:
+            order = db.execute("SELECT order_ref FROM orders WHERE order_ref=?", (order_ref,)).fetchone()
+            if not order:
+                raise HTTPException(404, "Pedido no encontrado.")
+            db.execute("UPDATE orders SET customer_email=? WHERE order_ref=?", (recipient, order_ref))
+            db.execute("UPDATE store_orders SET customer_email=? WHERE order_ref=?", (recipient, order_ref))
+            db.execute("UPDATE order_notifications SET recipient=?,status='pending',last_error='',updated_at=? WHERE order_ref=? AND status!='sent'", (recipient, now_iso(), order_ref))
+            kind = "order_notifications"
+    audit("admin", "order_email_updated", f"order={order_ref}; recipient_domain={recipient.rsplit('@',1)[-1]}")
+    return {"ok": True, "order_ref": order_ref, "email_updated": True, "message": "Correo guardado. Puedes pulsar Reintentar correo."}
+
+
 @app.post("/api/admin/orders/{order_ref}/retry-email")
 async def admin_retry_order_email(order_ref: str, request: Request):
     if not ADMIN_API_KEY:
@@ -1031,18 +1067,30 @@ async def admin_retry_order_email(order_ref: str, request: Request):
     with conn() as db:
         order = db.execute("SELECT * FROM store_orders WHERE store_order_ref=?", (order_ref,)).fetchone()
         if order:
-            status, recipient, total, currency = order["status"], order["customer_email"], order["total"], order["currency"]
+            parent = db.execute("SELECT customer_email FROM orders WHERE order_ref=?", (order["order_ref"],)).fetchone()
+            status = order["status"]
+            recipient = (order["customer_email"] or (parent["customer_email"] if parent else "") or "").strip()
+            total, currency = order["total"], order["currency"]
             store_label = order["store_label"]
         else:
             order = db.execute("SELECT * FROM orders WHERE order_ref=?", (order_ref,)).fetchone()
             if not order: raise HTTPException(404, "Pedido no encontrado.")
             status, recipient, total, currency, store_label = order["status"], order["customer_email"], order["total"], order["currency"], "ProEshop"
+        if not recipient:
+            raise HTTPException(400, "Este pedido no tiene correo guardado. Introduce y guarda el correo en el panel administrativo antes de reintentar.")
         notification_table = "store_order_notifications" if db.execute("SELECT 1 FROM store_orders WHERE store_order_ref=?", (order_ref,)).fetchone() else "order_notifications"
         ref_column = "store_order_ref" if notification_table == "store_order_notifications" else "order_ref"
         event = db.execute(f"SELECT * FROM {notification_table} WHERE {ref_column}=? AND event_key=?", (order_ref, status)).fetchone()
-        if not event: raise HTTPException(404, "No hay notificación registrada para el estado actual.")
-        if event["status"] == "sent": return {"ok": True, "sent": True, "message": "El correo ya fue enviado."}
-        db.execute(f"UPDATE {notification_table} SET status='pending',last_error='',updated_at=? WHERE id=?", (now_iso(), event["id"]))
+        if event and event["status"] == "sent":
+            return {"ok": True, "sent": True, "email_sent": True, "message": "El correo ya fue aceptado por el proveedor."}
+        if not event:
+            now = now_iso()
+            if notification_table == "store_order_notifications":
+                db.execute("INSERT OR IGNORE INTO store_order_notifications(store_order_ref,event_key,recipient,status,attempts,last_error,created_at,updated_at) VALUES(?,?,?,'pending',0,'',?,?)", (order_ref, status, recipient, now, now))
+            else:
+                db.execute("INSERT OR IGNORE INTO order_notifications(order_ref,event_key,recipient,status,attempts,last_error,created_at,updated_at) VALUES(?,?,?,'pending',0,'',?,?)", (order_ref, status, recipient, now, now))
+        else:
+            db.execute(f"UPDATE {notification_table} SET recipient=?,status='pending',last_error='',updated_at=? WHERE id=?", (recipient, now_iso(), event["id"]))
     result = (enqueue_and_send_store_order_email(order_ref, status, recipient, total, currency, f"Tienda: {store_label}. Reintento de notificación del estado actual.") if notification_table == "store_order_notifications" else enqueue_and_send_order_email(order_ref, status, recipient, total, currency, f"Reintento de notificación del estado actual."))
     return {"ok": bool(result.get("sent")), "email_sent": bool(result.get("sent")), "email_status": result.get("reason", "sent")}
 
@@ -1094,7 +1142,7 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
     tg_id = get_auth(request)
     if body.payment_method != "demo_balance":
         raise HTTPException(400, "Solo está disponible el método de pago de demostración.")
-    customer_email = body.customer_email.strip().lower()
+    customer_email = (body.customer_email or body.email).strip().lower()
     if customer_email and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", customer_email):
         raise HTTPException(400, "Introduce un correo electrónico válido.")
     submitted_shipping = [body.shipping_name.strip(), body.shipping_city.strip(), body.shipping_country.strip(), body.shipping_address.strip()]
