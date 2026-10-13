@@ -1,31 +1,15 @@
-# ProEshop — Imágenes oficiales en carrito y checkout
+# Imágenes verificadas por producto — ProEshop
 
-## Cambios incluidos
-- El carrito y el checkout muestran miniaturas por producto cuando la tienda ofrece una imagen oficial disponible.
-- Las imágenes se transmiten al carrito y se guardan en la columna `carts.image`.
-- Migración aditiva: en bases existentes se añade `carts.image` si falta; no elimina ni recrea tablas, pedidos ni filas.
-- HUBLOT utiliza una imagen oficial de la ficha del Big Bang Original Soft Touch All Red y enlaza a la ficha oficial del modelo. Para otros modelos intenta leer la imagen Open Graph de la ficha oficial cuando hay una URL de producto identificada; si la página no ofrece una imagen compatible, conserva un marcador oscuro en vez de mostrar una foto ajena.
-- Jewelers Toy Store usa URLs directas de fichas oficiales para el analizador, la batería y el cargador; el backend intenta extraer la imagen Open Graph de cada ficha oficial en paralelo.
-- El checkout muestra imágenes, nombre, cantidad y subtotal de cada producto agrupado por tienda.
-- Se mejoraron los fondos de “Resumen de compra”, el botón “Ver tienda” y los marcadores para mantener el tema oscuro.
+- Se eliminaron las fotos de stock de Unsplash del catálogo local HUBLOT para que no se presenten como relojes originales.
+- La extracción de imagen ahora analiza `src`, `data-src`, `data-original`, `data-zoom-image` y `srcset` de las fichas oficiales, prioriza recursos ligados al nombre/código del producto y descarta píxeles, logos y marcadores genéricos.
+- Para HUBLOT, solo se intenta mostrar imagen en las fichas directas identificadas de All Red y All Black; los demás modelos del catálogo local no mostrarán una foto inventada hasta contar con una ficha e imagen específicas verificadas.
+- Para Jewelers Toy Store se extraen fotos vinculadas al código de cada ficha (XRF-XL2, DXL, XL-2, XL-3). Si la web del proveedor bloquea el acceso o no expone una imagen identificable, se mantiene el marcador neutral en vez de asociar una foto equivocada.
+- Los enlaces `Ver en tienda` usan las URL de producto guardadas en los resultados; para modelos HUBLOT sin ficha individual conocida, el enlace abre la colección oficial adecuada.
 
-## Límites
-La obtención de imágenes desde las páginas oficiales depende de que esas páginas estén disponibles para el servidor y publiquen metadatos de imagen compatibles. Si el proveedor bloquea la consulta, no se inventa una imagen: se muestra el marcador oscuro. Los precios y promociones internas siguen sujetos a la lógica actual de ProEshop.
+## Railway
 
-## Despliegue seguro en Railway
-1. Respaldar el volumen antes del despliegue.
-2. Conservar el volumen persistente y `DATABASE_PATH=/data/shopcart.db`.
-3. Conservar todas las variables existentes (Brevo, Telegram, administración, búsqueda, moneda, impuestos y envío).
-4. No borrar ni recrear `/data/shopcart.db`; la migración es aditiva.
-5. Probar una búsqueda de HUBLOT y Jewelers, agregar un producto, abrir el carrito y continuar al checkout.
+No se debe borrar ni recrear el volumen ni la base de datos. Mantener `DATABASE_PATH=/data/shopcart.db`. El código de migración de la columna de imagen es aditivo.
 
-El paquete no se ha desplegado en Railway. Las comprobaciones locales validan sintaxis y migración SQLite; la carga de imágenes oficiales debe confirmarse desde Railway.
+## Alcance de la verificación
 
-
-## Corrección adicional: fotos y enlaces de producto (13 oct 2026)
-
-- Se eliminó la imagen fija de HUBLOT All Red que podía mostrar un reloj distinto. La imagen se obtiene desde la ficha oficial exacta; si no puede verificarse/cargarse, se muestra el marcador neutro en lugar de una foto incorrecta.
-- Se quitaron las fotos de stock de Rolex para no presentar relojes genéricos como si fueran el modelo listado.
-- El botón **Ver en tienda** de cada resultado usa la URL del producto que devuelve la búsqueda cuando está disponible. Para el catálogo local de HUBLOT, All Red y All Black abren su ficha oficial; los demás modelos abren la colección oficial que corresponde al modelo.
-- Los enlaces de artículos de Jewelers Toy Store siguen usando las fichas específicas de cada artículo. Los enlaces de productos guardados anteriormente en el carrito HUBLOT se actualizan a la ficha o colección oficial correspondiente cuando se reconoce el título.
-- Algunas fichas no tienen imagen validada disponible; deliberadamente se deja el marcador en blanco antes que mostrar una imagen de otro artículo.
+Se validaron la sintaxis de Python/JavaScript y la integridad del ZIP. No se desplegó en Railway ni se pudo validar la carga de cada imagen desde el entorno de producción. La extracción depende de que el proveedor permita consultar sus páginas.
