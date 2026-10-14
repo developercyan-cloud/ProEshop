@@ -556,4 +556,17 @@ $('checkoutBtn').onclick=openCheckout;$('checkoutForm').addEventListener('submit
 $('notificationBtn').onclick=async()=>{await loadNotificationPreferences();$('notificationDialog').showModal()};$('saveNotificationsBtn').onclick=saveNotificationPreferences;$('adminOpenBtn').onclick=loadAdminMetrics;$('adminRefreshBtn').onclick=loadAdminMetrics;$('closeNotificationDialog').onclick=()=>$('notificationDialog').close();$('closeNotificationOk').onclick=()=>$('notificationDialog').close();$('closeProductDialog').onclick=()=>$('productDialog').close();$('logoutAccountBtn').onclick=()=>$('logoutBtn').click();
 $('logoutBtn').onclick=async()=>{try{await api('/api/logout',{method:'POST',body:'{}'});}catch(_){}token='';authAccountType='';authDisplayName='';sessionStorage.removeItem('shopcart_token');sessionStorage.removeItem('shopcart_account_type');sessionStorage.removeItem('shopcart_display_name');setLoggedIn(false);$('password').value='';$('loginError').textContent='';toast('Sesión cerrada');};
 showEmailVerifiedLogin();
-(async()=>{if(token){try{setLoggedIn(true);await refresh();}catch(_){token='';sessionStorage.removeItem('shopcart_token');sessionStorage.removeItem('shopcart_account_type');sessionStorage.removeItem('shopcart_display_name');setLoggedIn(false);showEmailVerifiedLogin();}}})();
+(async()=>{
+  // Telegram startapp payload issued after email verification. Exchange it once for a server session.
+  const startParam=String(tg?.initDataUnsafe?.start_param||'');
+  if(startParam.startsWith('verify_') && tg?.initData){
+    try{
+      const handoff=await fetch('/api/telegram-verification-handoff',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:startParam,init_data:tg.initData})});
+      const data=await handoff.json().catch(()=>({detail:'No se pudo completar el acceso.'}));
+      if(!handoff.ok) throw new Error(data.detail||'No se pudo completar el acceso.');
+      await saveAuth(data); toast('Correo verificado. Sesión iniciada.');
+      return;
+    }catch(err){ console.error('Telegram verification handoff:',err); $('loginError').textContent=err.message; }
+  }
+  if(token){try{setLoggedIn(true);await refresh();}catch(_){token='';sessionStorage.removeItem('shopcart_token');sessionStorage.removeItem('shopcart_account_type');sessionStorage.removeItem('shopcart_display_name');setLoggedIn(false);showEmailVerifiedLogin();}}
+})();
