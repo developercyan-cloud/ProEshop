@@ -180,3 +180,12 @@ input,select,textarea{color-scheme:dark}
 .crypto-address-row button{flex:0 0 auto}
 #cryptoPaymentPanel .info-banner{margin:12px 0}
 #cryptoPaymentStatus{margin:16px 0;padding:12px;border-radius:12px;background:rgba(80,190,145,.10)}
+
+
+/* ProEshop refinements: luxury watches, legible payment choices and refreshed crypto checkout */
+.luxury-hero{background:radial-gradient(circle at 88% 44%,#9a783b70 0,transparent 38%),linear-gradient(125deg,#111526,#29223a 65%,#3b2c39)!important;border:1px solid #5c4a54;box-shadow:0 12px 25px #0003!important}
+.luxury-hero .hero-tag{color:#e3c889!important}.luxury-hero .hero-copy h2{color:#fff7e6!important}.luxury-hero .hero-copy p{color:#ded7df!important}.luxury-hero .hero-cta{background:linear-gradient(120deg,#e7d09a,#b9914d)!important;color:#201a22!important}
+#checkoutView .payment-option{background:linear-gradient(135deg,#222943,#191e32)!important;border:1px solid #444c6d!important;color:#f4f2ff!important;box-shadow:inset 0 1px #ffffff08}
+#checkoutView .payment-option:has(input:checked){border-color:#a99aff!important;box-shadow:0 0 0 2px #8d7bff2b,inset 0 1px #ffffff0a!important;background:linear-gradient(135deg,#2b2948,#1d2239)!important}
+#checkoutView .payment-option b{color:#fff!important}#checkoutView .payment-option small{color:#b8bfd9!important}#checkoutView .payment-option .payment-icon{background:#303653!important;color:#d9d0ff!important}#checkoutView .payment-option input[type=radio]{accent-color:#b4a6ff!important;flex:0 0 auto}#checkoutView .payment-option>i{color:#c5baff!important}
+#cryptoPaymentPanel .crypto-edit-cart{margin-top:9px;background:#252b45!important;border-color:#454d70!important;color:#e4e0ff!important}
