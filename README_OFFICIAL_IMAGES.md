@@ -1,15 +1,18 @@
-# Imágenes verificadas por producto — ProEshop
+# ProEshop — imágenes oficiales, carrito y checkout
 
-- Se eliminaron las fotos de stock de Unsplash del catálogo local HUBLOT para que no se presenten como relojes originales.
-- La extracción de imagen ahora analiza `src`, `data-src`, `data-original`, `data-zoom-image` y `srcset` de las fichas oficiales, prioriza recursos ligados al nombre/código del producto y descarta píxeles, logos y marcadores genéricos.
-- Para HUBLOT, solo se intenta mostrar imagen en las fichas directas identificadas de All Red y All Black; los demás modelos del catálogo local no mostrarán una foto inventada hasta contar con una ficha e imagen específicas verificadas.
-- Para Jewelers Toy Store se extraen fotos vinculadas al código de cada ficha (XRF-XL2, DXL, XL-2, XL-3). Si la web del proveedor bloquea el acceso o no expone una imagen identificable, se mantiene el marcador neutral en vez de asociar una foto equivocada.
-- Los enlaces `Ver en tienda` usan las URL de producto guardadas en los resultados; para modelos HUBLOT sin ficha individual conocida, el enlace abre la colección oficial adecuada.
+## Correcciones
+- El carrito y el checkout renderizan la imagen guardada para cada producto, junto con título, cantidad y subtotal.
+- Las imágenes se guardan en `carts.image`; la migración añade esa columna sin borrar ni recrear tablas o pedidos.
+- Las fichas de Jewelers Toy Store se consultan en el dominio oficial. Se amplió la extracción de metadatos e imágenes de producto para admitir CDN HTTPS usados por la tienda (por ejemplo, BigCommerce), ya que limitar la imagen al dominio de la página impedía mostrar varias fotos.
+- El guardado en carrito admite los dominios HTTPS permitidos de imágenes oficiales/CDN.
+- HUBLOT All Red y All Black enlazan a las fichas oficiales verificadas. Los demás modelos conservan enlaces de su colección oficial y no muestran una foto de otro reloj como si fuera la del modelo.
+- El checkout utiliza `item.image` de la misma fila del carrito, de modo que cuando la ficha proporciona una imagen oficial, se usa esa misma imagen también en el checkout.
 
-## Railway
+## Limitación importante
+El catálogo local incluye modelos que no todos tienen una ficha individual oficial enlazada en el código. Para esos modelos no se debe afirmar que la foto está verificada ni inventar una correspondencia. La carga dinámica de imágenes oficiales depende de que Railway pueda acceder a la página del proveedor y de que la ficha publique sus metadatos. El paquete no ha sido desplegado ni probado contra la web en producción desde este entorno.
 
-No se debe borrar ni recrear el volumen ni la base de datos. Mantener `DATABASE_PATH=/data/shopcart.db`. El código de migración de la columna de imagen es aditivo.
-
-## Alcance de la verificación
-
-Se validaron la sintaxis de Python/JavaScript y la integridad del ZIP. No se desplegó en Railway ni se pudo validar la carga de cada imagen desde el entorno de producción. La extracción depende de que el proveedor permita consultar sus páginas.
+## Railway: conservar datos
+- Mantén el volumen persistente existente y `DATABASE_PATH=/data/shopcart.db`.
+- Conserva las variables de entorno actuales.
+- No borres ni recrees la base de datos.
+- Después del despliegue, prueba búsqueda, imagen, agregar al carrito y checkout para HUBLOT y Jewelers.

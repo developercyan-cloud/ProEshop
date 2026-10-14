@@ -633,76 +633,61 @@ async def logout(request: Request):
     return {"ok": True}
 
 
-async def official_product_image(product_url: str, allowed_domain: str, expected_name: str = "") -> str:
-    """Extract a product-specific image from the retailer page; reject generic/stock assets."""
+async def official_product_image(product_url: str, allowed_domain: str) -> str:
+    """Read the primary product image from the retailer's own page only."""
     try:
         parsed = urlparse(product_url)
         host = (parsed.hostname or "").lower()
         if parsed.scheme != "https" or not (host == allowed_domain or host.endswith("." + allowed_domain)):
             return ""
-        async with httpx.AsyncClient(timeout=httpx.Timeout(7.0), follow_redirects=True,
-                                     headers={"User-Agent": "Mozilla/5.0 (compatible; ProEshopCatalog/1.0)"}) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(3.5), follow_redirects=True,
+                                     headers={"User-Agent": "Mozilla/5.0 ProEshopProductImage/1.0"}) as client:
             response = await client.get(product_url)
             final_host = (urlparse(str(response.url)).hostname or "").lower()
             if response.status_code != 200 or not (final_host == allowed_domain or final_host.endswith("." + allowed_domain)):
                 return ""
-            source = response.text[:2_000_000]
-        def safe_image(candidate: str) -> str:
-            candidate = unescape(candidate.replace("\\/", "/").strip())
-            candidate = urljoin(str(response.url), candidate)
-            u = urlparse(candidate)
-            image_host = (u.hostname or "").lower()
-            if u.scheme != "https" or not (image_host == allowed_domain or image_host.endswith("." + allowed_domain)):
-                return ""
-            low = u.path.casefold()
-            if any(x in low for x in ("clear1x1", "pixel.gif", "logo", "placeholder", "no-image", "spacer.gif", "transparent")):
-                return ""
-            if not re.search(r"\.(?:png|jpe?g|webp)(?:$|\?)", candidate, re.I):
-                return ""
-            return candidate
-        # Product-name/code-specific images first; Volusion pages commonly expose
-        # product photos in data-src/src attributes rather than OpenGraph metadata.
-        tokens = [x.casefold() for x in re.findall(r"[a-z0-9]+", expected_name) if len(x) >= 3]
-        if allowed_domain == "jewelerstoystore.com":
-            # Product code tokens are more reliable than long display names.
-            code = re.search(r"/p/([^./?]+)", parsed.path, re.I)
-            if code:
-                tokens = [code.group(1).casefold().replace("-", "")]
-        imgs = re.findall(r"<img\b[^>]*>", source, re.I | re.S)
-        candidates = []
-        for tag in imgs:
-            attrs = {k.casefold(): unescape(v) for k, v in re.findall(r"([\w:-]+)\s*=\s*['\"]([^'\"]*)['\"]", tag, re.I)}
-            alt = " ".join((attrs.get("alt", ""), attrs.get("title", ""), attrs.get("id", ""), attrs.get("class", ""))).casefold()
-            srcs = [attrs.get(k, "") for k in ("data-src", "data-original", "data-zoom-image", "src")]
-            srcset = attrs.get("srcset", "")
-            if srcset:
-                srcs.extend(part.strip().split(" ")[0] for part in srcset.split(","))
-            for candidate in srcs:
-                url = safe_image(candidate)
-                if not url:
-                    continue
-                path = urlparse(url).path.casefold()
-                identity = (alt + " " + path).replace("-", "").replace("_", "")
-                score = sum(1 for token in tokens if token.replace("-", "") in identity)
-                # Reject any image that cannot be tied to this exact product.
-                if score:
-                    candidates.append((score, len(path), url))
-        if candidates:
-            candidates.sort(reverse=True)
-            return candidates[0][2]
-        # OpenGraph is accepted only when its URL itself contains product identity.
-        for pattern in (
+            source = response.text[:1_500_000]
+        patterns = [
             r'<meta[^>]+property=[\'\"]og:image[\'\"][^>]+content=[\'\"]([^\'\"]+)',
             r'<meta[^>]+content=[\'\"]([^\'\"]+)[\'\"][^>]+property=[\'\"]og:image[\'\"]',
             r'<meta[^>]+name=[\'\"]twitter:image[\'\"][^>]+content=[\'\"]([^\'\"]+)',
             r'<meta[^>]+content=[\'\"]([^\'\"]+)[\'\"][^>]+name=[\'\"]twitter:image[\'\"]',
-        ):
+        ]
+        candidate = ""
+        for pattern in patterns:
             match = re.search(pattern, source, re.I)
             if match:
-                url = safe_image(match.group(1))
-                identity = urlparse(url).path.casefold().replace("-", "").replace("_", "") if url else ""
-                if url and tokens and any(t.replace("-", "") in identity for t in tokens):
-                    return url
+                candidate = unescape(match.group(1).replace("\\/", "/"))
+                break
+        if not candidate:
+            patterns_img = [
+                r'<img[^>]+(?:id=[\'\"](?:product_photo|main_image)[\'\"])[^>]+(?:src|data-src)=[\'\"]([^\'\"]+)',
+                r'<img[^>]+(?:data-src|data-image-src|src)=[\'\"]([^\'\"]+)[\'\"][^>]+(?:class|id)=[\'\"][^\'\"]*(?:product|primary|main)[^\'\"]*[\'\"]',
+                r'<img[^>]+(?:src|data-src|data-lazyload)=[\'\"]([^\'\"]+)[\'\"][^>]+alt=[\'\"][^\'\"]*[\'\"]',
+            ]
+            for pattern in patterns_img:
+                match = re.search(pattern, source, re.I)
+                if match:
+                    candidate = unescape(match.group(1))
+                    if candidate and not candidate.startswith("data:"):
+                        break
+                    candidate = ""
+        image_url = urljoin(str(response.url), candidate) if candidate else ""
+        image_parsed = urlparse(image_url)
+        image_host = (image_parsed.hostname or "").lower().rstrip(".")
+        # Product pages frequently serve their official product photos from a CDN.
+        # Accept HTTPS image hosts referenced by the official product page; the page
+        # itself is still required to be on the retailer's official domain.
+        allowed_image_hosts = {
+            allowed_domain, "cdn11.bigcommerce.com", "cdn.shopify.com",
+            "images.squarespace-cdn.com", "images.ctfassets.net",
+            "media.hublot.com", "assets.hublot.com"
+        }
+        if image_parsed.scheme == "https" and any(
+            image_host == domain or image_host.endswith("." + domain)
+            for domain in allowed_image_hosts
+        ):
+            return image_url
     except Exception as exc:
         log.info("No se pudo obtener imagen oficial desde %s: %s", product_url, type(exc).__name__)
     return ""
@@ -749,14 +734,15 @@ async def search(body: SearchBody, request: Request):
             elif str(p.get("collection", "")).casefold() == "spirit of big bang":
                 product_url = "https://www.hublot.com/en-us/find-your-hublot/spirit-of-big-bang"
             elif pid.startswith("square-"):
-                product_url = "https://www.hublot.com/en-us/find-your-hublot"
+                product_url = "https://www.hublot.com/en-us/find-your-hublot/square-bang"
             elif str(p.get("collection", "")).casefold() == "big bang":
                 product_url = "https://www.hublot.com/en-us/find-your-hublot/big-bang"
             else:
                 product_url = "https://www.hublot.com/en-us/find-your-hublot"
-            # Never show a generic/stock image as if it were the exact watch.
-            # Only fetch a photo for verified direct product pages.
-            image_url = await official_product_image(product_url, "hublot.com", p["name"]) if pid in {"bb-original-red", "bb-original-black"} else ""
+            # Exact-model image URLs are fetched only from known official product pages.
+            # For the other models the official collection page is used and the image
+            # stays blank unless a product-specific image can be verified.
+            image_url = await official_product_image(product_url, "hublot.com") if pid in {"bb-original-red", "bb-original-black"} else ""
             results.append({"title": p["name"], "price": round(float(p["price"]), 2),
                             "currency": "USD", "url": product_url, "image": image_url,
                             "source": "HUBLOT.com · imagen solo cuando se verifica la ficha exacta",
@@ -772,7 +758,7 @@ async def search(body: SearchBody, request: Request):
         matches = [p for p in JEWELERS_CATALOG if q in broad_terms or any(q in str(p.get(field, "")).casefold() for field in ("name", "desc", "id"))]
         if not matches:
             matches = JEWELERS_CATALOG
-        images = await asyncio.gather(*(official_product_image(p["url"], "jewelerstoystore.com", p["id"]) for p in matches))
+        images = await asyncio.gather(*(official_product_image(p["url"], "jewelerstoystore.com") for p in matches))
         results = [{"title": p["name"], "price": round(float(p["price"]), 2),
                     "currency": "USD", "url": p["url"], "image": image_url,
                     "source": "JewelersToyStore.com · imagen oficial cuando está disponible",
@@ -1060,9 +1046,10 @@ async def add_cart(body: AddBody, request: Request):
     if body.image:
         image_parsed = urlparse(body.image)
         image_host = (image_parsed.hostname or "").lower().rstrip(".")
+        image_domains = set(allowed_domains[platform]) | {"cdn11.bigcommerce.com", "cdn.shopify.com", "images.squarespace-cdn.com", "images.ctfassets.net", "media.hublot.com", "assets.hublot.com"}
         if image_parsed.scheme.lower() == "https" and any(
             image_host == domain or image_host.endswith("." + domain)
-            for domain in allowed_domains[platform]
+            for domain in image_domains
         ):
             image_url = body.image[:2000]
     with conn() as db:
