@@ -631,15 +631,30 @@ showEmailVerifiedLogin();
   await attach(eth,'MetaMask');
  }
  async function connectWC(name){
-  const host=location.host;
-  const dapp=location.href.split('#')[0];
-  const isTrust=/trust/i.test(name);
-  const deepLink=isTrust
-   ? 'https://link.trustwallet.com/open_url?coin_id=60&url='+encodeURIComponent(dapp)
-   : 'https://metamask.app.link/dapp/'+host+location.pathname+location.search;
-  status('No se detectó una billetera en este navegador. Abriendo '+(isTrust?'Trust Wallet':'MetaMask')+'…');
-  location.href=deepLink;
-  throw new Error('Si la billetera se abre, vuelve a abrir ProEshop dentro de su navegador DApp y pulsa Conectar nuevamente.');
+  if(!PROJECT_ID)throw new Error('Falta configurar el WalletConnect Project ID.');
+  status('Preparando WalletConnect seguro…');
+  let EthereumProvider;
+  try {
+   const mod = await import('https://esm.sh/@walletconnect/ethereum-provider@2.21.1?bundle');
+   EthereumProvider = mod.default || mod.EthereumProvider || mod;
+  } catch (err) {
+   throw new Error('No se pudo cargar WalletConnect. Comprueba la conexión y vuelve a intentarlo.');
+  }
+  const wc = await EthereumProvider.init({
+   projectId: PROJECT_ID,
+   chains: [1, 56, 137],
+   showQrModal: true,
+   metadata: {
+    name: 'ProEshop',
+    description: 'Consulta de saldo USDT',
+    url: location.origin,
+    icons: []
+   }
+  });
+  state.ethereumProvider = wc;
+  status('Selecciona la billetera en la ventana de WalletConnect.');
+  if (!wc.session) await wc.connect();
+  await attach(wc, name + ' · WalletConnect');
  }
  function findInjectedProvider(which){
   const providers=[];
@@ -671,7 +686,7 @@ showEmailVerifiedLogin();
   }catch(e){
    console.warn('Wallet connect:',e);
    if(e&&e.code===4001)status('Conexión cancelada en la billetera.');
-   else status((e&&e.message)||'No se pudo conectar. Abre ProEshop desde el navegador DApp de la billetera e inténtalo de nuevo.');
+   else status((e&&e.message)||'No se pudo conectar. Comprueba WalletConnect e inténtalo de nuevo.');
   }finally{setBusy(false);}
  }
  document.addEventListener('DOMContentLoaded',()=>{
