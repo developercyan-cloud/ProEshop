@@ -167,5 +167,3 @@ input,select,textarea{color-scheme:dark}
 .product-dialog .product-dialog-media{background:#171c31!important;border:1px solid #343a57}
 .product-dialog .dialog-price{color:#f2f0ff!important}
 @media(max-width:390px){.checkout-product-row{grid-template-columns:48px minmax(0,1fr) auto;gap:8px}.checkout-product-row>img,.checkout-product-placeholder{width:48px;height:48px}.checkout-product-info b{font-size:10px}.checkout-product-row>strong{font-size:10px}}
-
-.store[data-store="amazon"],.store[data-store="target"],.store[data-store="walmart"]{display:none!important}
