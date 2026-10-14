@@ -56,7 +56,7 @@ _SEARCH_CACHE = {}
 @app.middleware("http")
 async def security_and_rate_limit(request: Request, call_next):
     path = request.url.path
-    if path in ("/api/login", "/api/search"):
+    if path in ("/api/login", "/api/register", "/api/email-login", "/api/telegram-login", "/api/search"):
         ip = request.client.host if request.client else "unknown"
         key = (ip, path)
         now = time.time()
@@ -106,6 +106,11 @@ def init_db():
         );
         CREATE TABLE IF NOT EXISTS sessions(
           token TEXT PRIMARY KEY, telegram_id TEXT NOT NULL, created_at REAL NOT NULL, active INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE TABLE IF NOT EXISTS email_accounts(
+          account_id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE, password_hash TEXT NOT NULL,
+          verified INTEGER NOT NULL DEFAULT 0, verify_hash TEXT NOT NULL DEFAULT '', verify_expires REAL NOT NULL DEFAULT 0,
+          telegram_id TEXT UNIQUE, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS carts(
           id INTEGER PRIMARY KEY AUTOINCREMENT, telegram_id TEXT NOT NULL, platform TEXT NOT NULL,
@@ -466,9 +471,20 @@ def get_auth(request: Request):
 
 
 class AuthBody(BaseModel):
-    init_data: str
-    username: str = Field(min_length=1, max_length=80)
+    init_data: str = ""
+    username: str = Field(default="", max_length=80)
     password: str = Field(min_length=1, max_length=200)
+
+class RegisterBody(BaseModel):
+    email: str = Field(min_length=5, max_length=254)
+    password: str = Field(min_length=10, max_length=200)
+
+class EmailLoginBody(BaseModel):
+    email: str = Field(min_length=5, max_length=254)
+    password: str = Field(min_length=1, max_length=200)
+
+class TelegramBody(BaseModel):
+    init_data: str = Field(min_length=1, max_length=10000)
 
 
 class SearchBody(BaseModel):
@@ -693,36 +709,144 @@ async def telegram_webhook(secret: str, request: Request):
     return {"ok": True}
 
 
+def _password_hash(password: str, salt: bytes | None = None) -> str:
+    salt = salt or secrets.token_bytes(16)
+    digest = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2**14, r=8, p=1, dklen=32)
+    return "scrypt$" + salt.hex() + "$" + digest.hex()
+
+def _password_matches(password: str, stored: str) -> bool:
+    try:
+        algorithm, salt_hex, digest_hex = stored.split("$", 2)
+        if algorithm != "scrypt": return False
+        actual = hashlib.scrypt(password.encode("utf-8"), salt=bytes.fromhex(salt_hex), n=2**14, r=8, p=1, dklen=32)
+        return hmac.compare_digest(actual.hex(), digest_hex)
+    except Exception:
+        return False
+
+def _new_session(identity: str) -> str:
+    token = secrets.token_urlsafe(40)
+    with conn() as db:
+        db.execute("INSERT OR IGNORE INTO users(telegram_id,username,demo_login,created_at) VALUES(?,?,?,?)", (identity, identity[:80], '', now_iso()))
+        db.execute("INSERT OR IGNORE INTO balances(telegram_id,amount) VALUES(?,?)", (identity, str(INITIAL_BALANCE)))
+        db.execute("INSERT INTO sessions(token,telegram_id,created_at,active) VALUES(?,?,?,1)", (token, identity, time.time()))
+    return token
+
+def _send_verification_email(email: str, verify_url: str):
+    if not SMTP_FROM_EMAIL:
+        raise RuntimeError("Configura SMTP_FROM_EMAIL para verificar las cuentas por correo.")
+    subject = "Verifica tu correo · ProEshop"
+    text_body = f"Hola. Para verificar tu correo en ProEshop, abre este enlace (válido durante 30 minutos):\n\n{verify_url}\n\nSi no solicitaste esta cuenta, ignora este mensaje."
+    html_body = f"""<!doctype html><html lang='es'><meta charset='utf-8'><body style='font-family:Arial;background:#101429;color:#eef0ff;padding:28px'><div style='max-width:560px;margin:auto;background:#191d38;padding:28px;border-radius:18px'><h1>ProEshop</h1><h2>Verifica tu correo</h2><p>Confirma que tienes acceso a esta dirección para activar tu cuenta.</p><p><a style='display:inline-block;background:#8970f5;color:#fff;padding:14px 22px;border-radius:10px;text-decoration:none;font-weight:bold' href='{escape(verify_url, quote=True)}'>Verificar correo</a></p><p>El enlace vence en 30 minutos. Si no solicitaste esta cuenta, ignora este mensaje.</p></div></body></html>"""
+    if BREVO_API_KEY:
+        with httpx.Client(timeout=12) as client:
+            response = client.post("https://api.brevo.com/v3/smtp/email", headers={"api-key": BREVO_API_KEY, "accept":"application/json", "content-type":"application/json"}, json={"sender":{"email":SMTP_FROM_EMAIL,"name":"ProEshop"},"to":[{"email":email}],"subject":subject,"textContent":text_body,"htmlContent":html_body})
+            if response.status_code >= 300: raise RuntimeError("No se pudo enviar el correo de verificación.")
+        return
+    if not SMTP_HOST: raise RuntimeError("Configura BREVO_API_KEY o SMTP_HOST para enviar verificaciones.")
+    msg=EmailMessage(); msg["Subject"]=subject; msg["From"]=f"ProEshop <{SMTP_FROM_EMAIL}>"; msg["To"]=email; msg.set_content(text_body); msg.add_alternative(html_body,subtype="html")
+    if SMTP_USE_SSL:
+        with smtplib.SMTP_SSL(SMTP_HOST,SMTP_PORT,timeout=15) as server:
+            if SMTP_USER: server.login(SMTP_USER,SMTP_PASSWORD)
+            server.send_message(msg)
+    else:
+        with smtplib.SMTP(SMTP_HOST,SMTP_PORT,timeout=15) as server:
+            server.starttls()
+            if SMTP_USER: server.login(SMTP_USER,SMTP_PASSWORD)
+            server.send_message(msg)
+
+@app.post("/api/register")
+async def register_account(body: RegisterBody, request: Request):
+    email=body.email.strip().lower()
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email): raise HTTPException(422,"Introduce un correo válido.")
+    if len(body.password)<10 or not re.search(r"[A-Za-z]",body.password) or not re.search(r"\d",body.password): raise HTTPException(422,"La contraseña debe tener al menos 10 caracteres e incluir letras y números.")
+    account_id="email:"+secrets.token_urlsafe(18)
+    raw=secrets.token_urlsafe(32); token_hash=hashlib.sha256(raw.encode()).hexdigest(); expires=time.time()+1800
+    try:
+        with conn() as db:
+            db.execute("INSERT INTO email_accounts(account_id,email,password_hash,verified,verify_hash,verify_expires,created_at,updated_at) VALUES(?,?,?,0,?,?,?,?)",(account_id,email,_password_hash(body.password),token_hash,expires,now_iso(),now_iso()))
+    except sqlite3.IntegrityError:
+        raise HTTPException(409,"Ya existe una cuenta con ese correo. Inicia sesión o recupera tu acceso.")
+    verify_url=f"{PUBLIC_BASE_URL or str(request.base_url).rstrip('/')}/api/verify-email?token={quote_plus(raw)}"
+    try: _send_verification_email(email,verify_url)
+    except Exception as exc:
+        with conn() as db: db.execute("DELETE FROM email_accounts WHERE account_id=? AND verified=0",(account_id,))
+        log.warning("No se pudo enviar verificación: %s",str(exc)[:180])
+        raise HTTPException(503,"No pudimos enviar el correo. Revisa la configuración de correo en Railway e inténtalo de nuevo.")
+    audit(account_id,"register","Cuenta creada; verificación pendiente")
+    return {"ok":True,"message":"Te enviamos un enlace de verificación. Revisa tu correo; el enlace vence en 30 minutos."}
+
+@app.get("/api/verify-email", response_class=HTMLResponse)
+async def verify_email(token: str):
+    token_hash=hashlib.sha256(token.encode()).hexdigest()
+    with conn() as db:
+        row=db.execute("SELECT account_id FROM email_accounts WHERE verify_hash=? AND verified=0 AND verify_expires>?",(token_hash,time.time())).fetchone()
+        if not row: return HTMLResponse("<h2>Enlace inválido o vencido</h2><p>Solicita una nueva verificación desde ProEshop.</p>",status_code=400)
+        db.execute("UPDATE email_accounts SET verified=1,verify_hash='',verify_expires=0,updated_at=? WHERE account_id=?",(now_iso(),row['account_id']))
+    audit(row['account_id'],"email_verified","Correo verificado")
+    return HTMLResponse("<!doctype html><html lang='es'><meta charset='utf-8'><meta name='viewport' content='width=device-width'><body style='font-family:Arial;background:#101429;color:#eef0ff;padding:32px'><h1>Correo verificado</h1><p>Tu cuenta ProEshop está activa. Vuelve a la aplicación e inicia sesión.</p></body></html>")
+
+@app.post("/api/email-login")
+async def email_login(body: EmailLoginBody):
+    email=body.email.strip().lower()
+    with conn() as db: row=db.execute("SELECT * FROM email_accounts WHERE email=? COLLATE NOCASE",(email,)).fetchone()
+    if not row or not _password_matches(body.password,row['password_hash']): raise HTTPException(401,"Correo o contraseña incorrectos.")
+    if not row['verified']: raise HTTPException(403,"Primero verifica tu correo desde el enlace que te enviamos.")
+    token=_new_session(row['account_id']); audit(row['account_id'],"email_login","Inicio de sesión por correo")
+    return {"token":token,"username":email.split('@')[0],"email":email,"account_type":"email"}
+
+@app.post("/api/guest-session")
+async def guest_session():
+    identity="guest:"+secrets.token_urlsafe(20); token=_new_session(identity); audit(identity,"guest_session","Sesión de invitado creada")
+    return {"token":token,"username":"Invitado","account_type":"guest"}
+
+@app.post("/api/telegram-login")
+async def telegram_login(body: TelegramBody):
+    tg_id,tg_user=validate_init_data(body.init_data)
+    with conn() as db:
+        linked=db.execute("SELECT account_id,email FROM email_accounts WHERE telegram_id=? AND verified=1",(tg_id,)).fetchone()
+    if linked:
+        identity=linked['account_id']
+    else:
+        with conn() as db:
+            legacy=db.execute("SELECT telegram_id FROM users WHERE telegram_id IN (?,?) ORDER BY CASE WHEN telegram_id=? THEN 0 ELSE 1 END LIMIT 1",(tg_id,"tg:"+tg_id,tg_id)).fetchone()
+        identity=legacy['telegram_id'] if legacy else "tg:"+tg_id
+    token=_new_session(identity)
+    with conn() as db:
+        db.execute("INSERT OR IGNORE INTO users(telegram_id,username,demo_login,created_at) VALUES(?,?,?,?)",(identity,tg_user.get('username',''),'',now_iso()))
+    audit(identity,"telegram_login","Inicio de sesión con Telegram")
+    return {"token":token,"username":tg_user.get('first_name') or tg_user.get('username') or 'Telegram',"account_type":"email+telegram" if linked else "telegram"}
+
+@app.post("/api/link-telegram")
+async def link_telegram(body: TelegramBody, request: Request):
+    identity=get_auth(request)
+    with conn() as db: account=db.execute("SELECT * FROM email_accounts WHERE account_id=? AND verified=1",(identity,)).fetchone()
+    if not account: raise HTTPException(403,"Inicia sesión con una cuenta de correo verificada para vincular Telegram.")
+    tg_id,_=validate_init_data(body.init_data)
+    with conn() as db:
+        conflict=db.execute("SELECT account_id FROM email_accounts WHERE telegram_id=? AND account_id<>?",(tg_id,identity)).fetchone()
+        if conflict: raise HTTPException(409,"Este Telegram ya está vinculado a otra cuenta.")
+        db.execute("UPDATE email_accounts SET telegram_id=?,updated_at=? WHERE account_id=?",(tg_id,now_iso(),identity))
+        # Merge both legacy raw Telegram IDs and the newer namespaced IDs into the verified account.
+        for old_identity in {tg_id, "tg:"+tg_id}:
+            for table in ('carts','purchases','orders','balances','notification_preferences'):
+                old=db.execute(f"SELECT 1 FROM {table} WHERE telegram_id=? LIMIT 1",(old_identity,)).fetchone()
+                if old and table=='balances':
+                    oldbal=db.execute("SELECT amount FROM balances WHERE telegram_id=?",(old_identity,)).fetchone()
+                    db.execute("INSERT OR IGNORE INTO balances(telegram_id,amount) VALUES(?,?)",(identity,oldbal['amount']))
+                    db.execute("DELETE FROM balances WHERE telegram_id=?",(old_identity,))
+                elif old and table=='notification_preferences':
+                    db.execute("INSERT OR IGNORE INTO notification_preferences(telegram_id,order_updates,security_alerts,updated_at) SELECT ?,order_updates,security_alerts,updated_at FROM notification_preferences WHERE telegram_id=?",(identity,old_identity))
+                    db.execute("DELETE FROM notification_preferences WHERE telegram_id=?",(old_identity,))
+                elif old:
+                    db.execute(f"UPDATE {table} SET telegram_id=? WHERE telegram_id=?",(identity,old_identity))
+            db.execute("UPDATE sessions SET active=0 WHERE telegram_id=?",(old_identity,))
+    audit(identity,"telegram_linked","Telegram vinculado tras verificación de correo")
+    return {"ok":True,"message":"Telegram quedó vinculado a tu cuenta."}
+
 @app.post("/api/login")
 async def login(body: AuthBody):
-    tg_id, tg_user = validate_init_data(body.init_data)
-    # Demo/local app account gate. Never use retailer credentials here.
-    if not (hmac.compare_digest(body.username, DEMO_USERNAME) and
-            hmac.compare_digest(body.password, DEMO_PASSWORD)):
-        raise HTTPException(401, "Usuario o contraseña incorrectos.")
-    token = secrets.token_urlsafe(32)
-    with conn() as db:
-        db.execute("INSERT OR IGNORE INTO users(telegram_id,username,demo_login,created_at) VALUES(?,?,?,?)",
-                   (tg_id, tg_user.get("username", ""), body.username, now_iso()))
-        db.execute("INSERT OR IGNORE INTO balances(telegram_id,amount) VALUES(?,?)",
-                   (tg_id, str(INITIAL_BALANCE)))
-        db.execute("UPDATE sessions SET active=0 WHERE telegram_id=?", (tg_id,))
-        db.execute("INSERT INTO sessions(token,telegram_id,created_at,active) VALUES(?,?,?,1)",
-                   (token, tg_id, time.time()))
-        balance = db.execute("SELECT amount FROM balances WHERE telegram_id=?", (tg_id,)).fetchone()["amount"]
-    audit(tg_id, "login", "Sesión de demostración iniciada")
-    with conn() as db:
-        pref = db.execute("SELECT security_alerts FROM notification_preferences WHERE telegram_id=?", (tg_id,)).fetchone()
-    if BOT_TOKEN and (pref is None or pref["security_alerts"]):
-        try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                await client.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
-                    "chat_id": tg_id, "text": "🔐 ProEshop: se inició una nueva sesión de demostración en tu cuenta. Si no fuiste tú, cierra la sesión y revisa el acceso al bot."
-                })
-        except httpx.HTTPError:
-            log.info("No se pudo enviar alerta de inicio de sesión")
-    return {"token": token, "username": body.username, "balance": balance, "currency": CURRENCY}
-
+    # Backward-compatible route: email login is preferred; old demo credentials are not used for customer accounts.
+    raise HTTPException(410,"El acceso antiguo fue sustituido. Usa correo verificado, Telegram o continuar como invitado.")
 
 @app.post("/api/logout")
 async def logout(request: Request):
