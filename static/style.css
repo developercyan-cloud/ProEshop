@@ -198,3 +198,5 @@ input,select,textarea{color-scheme:dark}
 .crypto-countdown-card small{font-size:.7rem;font-weight:800;letter-spacing:.12em;color:#fbbf24}.crypto-countdown-card strong{font-size:2rem;line-height:1.15;font-variant-numeric:tabular-nums;color:#fbbf24}.crypto-countdown-card span{font-size:.82rem;color:var(--muted,#b7bfd0)}
 .status-pill{max-width:100%;white-space:normal}
 @media(max-width:560px){.crypto-pending-resume{align-items:stretch;flex-direction:column}.crypto-pending-resume .resume-usdt-btn{width:100%}}
+
+.order-filters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 16px}.order-filters label{display:flex;flex-direction:column;gap:5px;font-size:10px;font-weight:800;color:var(--muted)}.order-filters select{width:100%;min-width:0;padding:10px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--ink)}
