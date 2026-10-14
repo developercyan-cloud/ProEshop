@@ -634,60 +634,67 @@ async def logout(request: Request):
 
 
 async def official_product_image(product_url: str, allowed_domain: str) -> str:
-    """Read the primary product image from the retailer's own page only."""
+    """Extract the main image referenced by an exact official product page.
+
+    The page host must be the retailer's official domain. Its own HTML may point
+    at a retailer-selected CDN, so the image host is not incorrectly restricted
+    to a short hard-coded CDN list.
+    """
     try:
         parsed = urlparse(product_url)
-        host = (parsed.hostname or "").lower()
+        host = (parsed.hostname or "").lower().rstrip(".")
         if parsed.scheme != "https" or not (host == allowed_domain or host.endswith("." + allowed_domain)):
             return ""
-        async with httpx.AsyncClient(timeout=httpx.Timeout(3.5), follow_redirects=True,
-                                     headers={"User-Agent": "Mozilla/5.0 ProEshopProductImage/1.0"}) as client:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        async with httpx.AsyncClient(timeout=httpx.Timeout(8.0), follow_redirects=True, headers=headers) as client:
             response = await client.get(product_url)
-            final_host = (urlparse(str(response.url)).hostname or "").lower()
+            final_host = (urlparse(str(response.url)).hostname or "").lower().rstrip(".")
             if response.status_code != 200 or not (final_host == allowed_domain or final_host.endswith("." + allowed_domain)):
                 return ""
-            source = response.text[:1_500_000]
-        patterns = [
-            r'<meta[^>]+property=[\'\"]og:image[\'\"][^>]+content=[\'\"]([^\'\"]+)',
-            r'<meta[^>]+content=[\'\"]([^\'\"]+)[\'\"][^>]+property=[\'\"]og:image[\'\"]',
-            r'<meta[^>]+name=[\'\"]twitter:image[\'\"][^>]+content=[\'\"]([^\'\"]+)',
-            r'<meta[^>]+content=[\'\"]([^\'\"]+)[\'\"][^>]+name=[\'\"]twitter:image[\'\"]',
-        ]
-        candidate = ""
-        for pattern in patterns:
-            match = re.search(pattern, source, re.I)
-            if match:
-                candidate = unescape(match.group(1).replace("\\/", "/"))
-                break
-        if not candidate:
-            patterns_img = [
-                r'<img[^>]+(?:id=[\'\"](?:product_photo|main_image)[\'\"])[^>]+(?:src|data-src)=[\'\"]([^\'\"]+)',
-                r'<img[^>]+(?:data-src|data-image-src|src)=[\'\"]([^\'\"]+)[\'\"][^>]+(?:class|id)=[\'\"][^\'\"]*(?:product|primary|main)[^\'\"]*[\'\"]',
-                r'<img[^>]+(?:src|data-src|data-lazyload)=[\'\"]([^\'\"]+)[\'\"][^>]+alt=[\'\"][^\'\"]*[\'\"]',
-            ]
-            for pattern in patterns_img:
-                match = re.search(pattern, source, re.I)
-                if match:
-                    candidate = unescape(match.group(1))
-                    if candidate and not candidate.startswith("data:"):
-                        break
-                    candidate = ""
-        image_url = urljoin(str(response.url), candidate) if candidate else ""
-        image_parsed = urlparse(image_url)
-        image_host = (image_parsed.hostname or "").lower().rstrip(".")
-        # Product pages frequently serve their official product photos from a CDN.
-        # Accept HTTPS image hosts referenced by the official product page; the page
-        # itself is still required to be on the retailer's official domain.
-        allowed_image_hosts = {
-            allowed_domain, "cdn11.bigcommerce.com", "cdn.shopify.com",
-            "images.squarespace-cdn.com", "images.ctfassets.net",
-            "media.hublot.com", "assets.hublot.com"
-        }
-        if image_parsed.scheme == "https" and any(
-            image_host == domain or image_host.endswith("." + domain)
-            for domain in allowed_image_hosts
-        ):
-            return image_url
+            source = response.text[:3_000_000]
+        source = unescape(source).replace('\\/', '/')
+        candidates = []
+        # Parse metadata tags without assuming attribute order.
+        for tag in re.findall(r'<meta\b[^>]*>', source, re.I):
+            prop = re.search(r'\b(?:property|name)=["\']([^"\']+)', tag, re.I)
+            content = re.search(r'\bcontent=["\']([^"\']+)', tag, re.I)
+            if prop and content and prop.group(1).lower() in {
+                'og:image', 'og:image:url', 'twitter:image', 'twitter:image:src',
+            }:
+                candidates.append(content.group(1).strip())
+        # Structured product data is often more reliable than a theme-specific img selector.
+        for match in re.finditer(r'["\']image["\']\s*:\s*(\[[^\]]{1,5000}\]|["\'][^"\']+["\'])', source, re.I):
+            raw = match.group(1)
+            candidates.extend(re.findall(r'["\'](https?:[^"\']+)["\']', raw))
+            if raw.startswith(('"', "'")):
+                candidates.append(raw[1:-1])
+        # Product image markup; support lazy loading and srcset.
+        for tag in re.findall(r'<img\b[^>]*>', source, re.I):
+            alt = re.search(r'\balt=["\']([^"\']*)', tag, re.I)
+            src = re.search(r'\b(?:data-zoom-image|data-image-src|data-src|data-lazyload|src)=["\']([^"\']+)', tag, re.I)
+            if src:
+                value = src.group(1).strip()
+                if not value.startswith('data:') and not any(x in value.lower() for x in ('logo', 'sprite', 'icon', 'placeholder')):
+                    # Prioritize product images rather than footer/recommendation images.
+                    candidates.append(value)
+            srcset = re.search(r'\bsrcset=["\']([^"\']+)', tag, re.I)
+            if srcset:
+                options = [part.strip().split()[0] for part in srcset.group(1).split(',') if part.strip()]
+                if options:
+                    candidates.append(options[-1])
+        for candidate in candidates:
+            candidate = unescape(candidate.strip()).replace('\\/', '/')
+            if candidate.startswith('//'):
+                candidate = 'https:' + candidate
+            image_url = urljoin(str(response.url), candidate)
+            image_parsed = urlparse(image_url)
+            # Accept a CDN only when its URL was explicitly referenced by the verified official page.
+            if image_parsed.scheme == 'https' and image_parsed.hostname and image_parsed.path and not image_parsed.path.lower().endswith(('.svg', '.ico')):
+                return image_url
     except Exception as exc:
         log.info("No se pudo obtener imagen oficial desde %s: %s", product_url, type(exc).__name__)
     return ""
@@ -725,10 +732,17 @@ async def search(body: SearchBody, request: Request):
             # Use a verified product page when known; otherwise open the official
             # Hublot collection matching the model instead of sending every item to /watches.
             pid = p.get("id", "")
-            if pid == "bb-original-red":
-                product_url = "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-red-43-mm"
-            elif pid == "bb-original-black":
-                product_url = "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-black-43-mm"
+            exact_hublot_pages = {
+                "bb-original-red": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-red-43-mm",
+                "bb-original-black": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-black-43-mm",
+                "bb-original-titanium": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-unico-titanium-43-mm",
+                "bb-original-titanium-ceramic": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-unico-titanium-ceramic-43-mm",
+                "bb-original-king-gold": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-unico-king-gold-ceramic-43-mm",
+                "bb-original-black-magic": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-unico-black-magic-43-mm",
+                "bb-original-coal-blue": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-unico-titanium-coal-blue-43-mm",
+            }
+            if pid in exact_hublot_pages:
+                product_url = exact_hublot_pages[pid]
             elif str(p.get("collection", "")).casefold() == "classic fusion":
                 product_url = "https://www.hublot.com/en-us/find-your-hublot/classic-fusion"
             elif str(p.get("collection", "")).casefold() == "spirit of big bang":
@@ -736,13 +750,11 @@ async def search(body: SearchBody, request: Request):
             elif pid.startswith("square-"):
                 product_url = "https://www.hublot.com/en-us/find-your-hublot/square-bang"
             elif str(p.get("collection", "")).casefold() == "big bang":
-                product_url = "https://www.hublot.com/en-us/find-your-hublot/big-bang"
+                product_url = "https://www.hublot.com/en-us/find-your-hublot/big-bang/big-bang-original"
             else:
                 product_url = "https://www.hublot.com/en-us/find-your-hublot"
-            # Exact-model image URLs are fetched only from known official product pages.
-            # For the other models the official collection page is used and the image
-            # stays blank unless a product-specific image can be verified.
-            image_url = await official_product_image(product_url, "hublot.com") if pid in {"bb-original-red", "bb-original-black"} else ""
+            # Only assign a photo from an exact model page; never borrow a different model's image.
+            image_url = await official_product_image(product_url, "hublot.com") if pid in exact_hublot_pages else ""
             results.append({"title": p["name"], "price": round(float(p["price"]), 2),
                             "currency": "USD", "url": product_url, "image": image_url,
                             "source": "HUBLOT.com · imagen solo cuando se verifica la ficha exacta",

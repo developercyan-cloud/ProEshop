@@ -16,3 +16,10 @@ El catálogo local incluye modelos que no todos tienen una ficha individual ofic
 - Conserva las variables de entorno actuales.
 - No borres ni recrees la base de datos.
 - Después del despliegue, prueba búsqueda, imagen, agregar al carrito y checkout para HUBLOT y Jewelers.
+
+
+## Ajuste adicional de imágenes (v3)
+- Se mejoró la lectura de metadatos Open Graph, Twitter Cards, JSON-LD, `src`, `data-src` y `srcset`, independientemente del orden de atributos.
+- La imagen puede servirse desde el CDN HTTPS referenciado por la propia ficha oficial; antes se rechazaban varios CDN legítimos.
+- Se agregaron URLs de ficha exacta para siete modelos Big Bang Original del catálogo. Para el resto no se asigna una foto de otro modelo: hace falta confirmar la ficha individual.
+- El checkout reutiliza la imagen persistida del artículo del carrito. Si una ficha oficial bloquea el acceso automatizado o no expone su imagen en el HTML, la extracción puede seguir fallando y debe comprobarse en Railway.
