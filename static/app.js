@@ -634,15 +634,12 @@ showEmailVerifiedLogin();
   await attach(eth,'MetaMask');
  }
  async function connectWC(name){
-  const host=location.host;
-  const dapp=location.href.split('#')[0];
-  const isTrust=/trust/i.test(name);
-  const deepLink=isTrust
-   ? 'https://link.trustwallet.com/open_url?coin_id=60&url='+encodeURIComponent(dapp)
-   : 'https://metamask.app.link/dapp/'+host+location.pathname+location.search;
-  status('No se detectó una billetera en este navegador. Abriendo '+(isTrust?'Trust Wallet':'MetaMask')+'…');
-  location.href=deepLink;
-  throw new Error('Si la billetera se abre, vuelve a abrir ProEshop dentro de su navegador DApp y pulsa Conectar nuevamente.');
+  // Do not navigate to app/deep-link schemes from Telegram WebView.
+  // This prevents net::ERR_UNKNOWN_URL_SCHEME and keeps the shop loaded.
+  if(!PROJECT_ID || PROJECT_ID.length < 20){
+    throw new Error('WalletConnect no está configurado. El Project ID se conserva en la configuración de ProEshop.');
+  }
+  throw new Error('Telegram no ofrece una conexión directa a esta billetera en este navegador. Abre ProEshop manualmente en el navegador DApp de MetaMask o Trust Wallet y vuelve a pulsar Conectar. La tienda seguirá abierta.');
  }
  function findInjectedProvider(which){
   const providers=[];
