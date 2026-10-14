@@ -229,6 +229,7 @@ def audit(actor_id: str, action: str, detail: str = ""):
 
 ORDER_STATUS_LABELS = {
     "confirmed_simulated": "Confirmado (simulado, legado)",
+    "pending_payment": "Pendiente de pago",
     "received": "Pedido recibido",
     "reviewing": "En revisión",
     "payment_review": "En revisión de pago",
@@ -243,6 +244,7 @@ ORDER_STATUS_LABELS = {
 }
 ORDER_TRANSITIONS = {
     "confirmed_simulated": {"reviewing", "cancelled", "unavailable"},
+    "pending_payment": {"payment_review", "cancelled"},
     "received": {"reviewing", "payment_review", "action_required", "cancelled", "unavailable"},
     "payment_review": {"reviewing", "confirmed", "action_required", "cancelled", "unavailable"},
     "reviewing": {"confirmed", "action_required", "cancelled", "unavailable"},
@@ -256,6 +258,7 @@ ORDER_TRANSITIONS = {
     "returned": set(),
 }
 ORDER_EMAIL_COPY = {
+    "pending_payment": ("Tu pedido está pendiente de pago", "Tu pedido se creó y estará reservado durante cinco minutos mientras completas el pago USDT por TRON (TRC-20). Si no se detecta el pago en ese plazo, se cancelará automáticamente."),
     "received": ("Recibimos tu pedido", "Tu pedido fue registrado en ProEshop. Esto confirma el registro, no un pago ni una compra con un proveedor."),
     "reviewing": ("Estamos revisando tu pedido", "Estamos verificando los detalles y la disponibilidad del pedido."),
     "payment_review": ("Pago detectado: en revisión", "Detectamos la transferencia USDT en TRON. El equipo está revisando el pago antes de confirmar el pedido."),
@@ -265,7 +268,7 @@ ORDER_EMAIL_COPY = {
     "shipped": ("Tu pedido fue enviado", "Tu pedido figura como enviado. Consulta el número de guía en los detalles del pedido si se ha registrado."),
     "delivered": ("Tu pedido figura como entregado", "Se registró la entrega del pedido."),
     "unavailable": ("Actualización sobre disponibilidad", "El producto no está disponible actualmente. El equipo de ProEshop te informará sobre las opciones."),
-    "cancelled": ("Tu pedido fue cancelado", "El pedido fue marcado como cancelado en ProEshop."),
+    "cancelled": ("Pedido cancelado por falta de pago", "Tu pedido con pago USDT fue cancelado automáticamente porque no se detectó el pago confirmado dentro del plazo de cinco minutos. La cotización expiró y ya no debes enviar fondos usando esos datos. Si deseas comprar, crea un nuevo pedido."),
     "returned": ("Actualización de devolución", "El pedido fue marcado como devuelto. El estado de cualquier reembolso se gestiona por separado."),
 }
 
@@ -1124,11 +1127,16 @@ async def search(body: SearchBody, request: Request):
 @app.get("/api/state")
 async def state(request: Request):
     tg_id = get_auth(request)
+    expire_stale_crypto_payments()
     with conn() as db:
         balance = db.execute("SELECT amount FROM balances WHERE telegram_id=?", (tg_id,)).fetchone()
         cart = [dict(x) for x in db.execute("SELECT * FROM carts WHERE telegram_id=? ORDER BY id DESC", (tg_id,)).fetchall()]
         history = db.execute("SELECT * FROM purchases WHERE telegram_id=? ORDER BY id DESC LIMIT 50", (tg_id,)).fetchall()
-        orders = db.execute("SELECT * FROM orders WHERE telegram_id=? ORDER BY created_at DESC LIMIT 50", (tg_id,)).fetchall()
+        orders = db.execute("""SELECT o.*, cp.status AS crypto_status, cp.requested_amount AS crypto_amount,
+                    cp.created_at AS crypto_created_at, cp.receiving_address AS crypto_address,
+                    cp.network AS crypto_network, cp.token_symbol AS crypto_token
+                    FROM orders o LEFT JOIN crypto_payments cp ON cp.order_ref=o.order_ref
+                    WHERE o.telegram_id=? ORDER BY o.created_at DESC LIMIT 50""", (tg_id,)).fetchall()
         order_events = db.execute("SELECT e.* FROM order_events e JOIN orders o ON o.order_ref=e.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
         store_orders = db.execute("SELECT so.*, o.created_at AS parent_created_at FROM store_orders so JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY so.created_at DESC, so.store_label ASC", (tg_id,)).fetchall()
         store_order_events = db.execute("SELECT e.* FROM store_order_events e JOIN store_orders so ON so.store_order_ref=e.store_order_ref JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
@@ -1491,8 +1499,53 @@ async def admin_metrics(request: Request):
     return metrics
 
 
+def _payment_deadline_seconds(created_at: str) -> float:
+    try:
+        dt = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.timestamp() + 300
+    except Exception:
+        return time.time() + 300
+
+
+def expire_stale_crypto_payments(order_ref: str | None = None):
+    """Cancel unpaid USDT orders after five minutes and email the customer once."""
+    expired_notifications = []
+    with conn() as db:
+        query = "SELECT cp.order_ref,cp.created_at,o.telegram_id,o.customer_email,o.total,o.currency FROM crypto_payments cp JOIN orders o ON o.order_ref=cp.order_ref WHERE cp.status='pending'"
+        args = ()
+        if order_ref:
+            query += " AND cp.order_ref=?"
+            args = (order_ref,)
+        rows = db.execute(query, args).fetchall()
+        now_epoch = time.time()
+        for row in rows:
+            if now_epoch < _payment_deadline_seconds(row["created_at"]):
+                continue
+            ref = row["order_ref"]
+            now = now_iso()
+            changed = db.execute("UPDATE crypto_payments SET status='expired',updated_at=? WHERE order_ref=? AND status='pending'", (now, ref)).rowcount
+            if not changed:
+                continue
+            db.execute("UPDATE orders SET status='cancelled',updated_at=? WHERE order_ref=? AND status='pending_payment'", (now, ref))
+            cancel_detail = "El pedido se canceló automáticamente porque no se detectó el pago USDT confirmado dentro de los cinco minutos. La cotización expiró; crea un nuevo pedido si deseas intentarlo otra vez."
+            db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)", (ref, "cancelled", "Pedido cancelado", cancel_detail, now))
+            stores = db.execute("SELECT store_order_ref FROM store_orders WHERE order_ref=? AND status='pending_payment'", (ref,)).fetchall()
+            for store in stores:
+                db.execute("UPDATE store_orders SET status='cancelled',updated_at=? WHERE store_order_ref=? AND status='pending_payment'", (now, store["store_order_ref"]))
+                db.execute("INSERT INTO store_order_events(store_order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)", (store["store_order_ref"], "cancelled", "Pedido cancelado", "Pago USDT no detectado dentro del plazo de cinco minutos.", now))
+            expired_notifications.append((ref, row["customer_email"], row["total"], row["currency"], cancel_detail))
+            log.info("USDT payment expired order=%s", ref)
+    # Send email outside the transaction. The notification queue makes retries idempotent.
+    for ref, recipient, total, currency, detail in expired_notifications:
+        if recipient:
+            enqueue_and_send_order_email(ref, "cancelled", recipient, total, currency, detail)
+
+
 async def verify_pending_tron_payments():
     """Match confirmed incoming TRC-20 USDT transfers against unique order amounts."""
+    expire_stale_crypto_payments()
     with conn() as db:
         pending = db.execute("SELECT cp.*,o.telegram_id,o.customer_email,o.total,o.currency FROM crypto_payments cp JOIN orders o ON o.order_ref=cp.order_ref WHERE cp.status='pending' ORDER BY cp.created_at LIMIT 100").fetchall()
     if not pending:
@@ -1543,11 +1596,11 @@ async def verify_pending_tron_payments():
                 continue
             now = now_iso(); ref = payment["order_ref"]
             db.execute("UPDATE crypto_payments SET status='detected',txid=?,paid_amount=?,updated_at=? WHERE order_ref=? AND status='pending'", (txid, str(amount), now, ref))
-            db.execute("UPDATE orders SET status='payment_review',updated_at=? WHERE order_ref=? AND status='received'", (now, ref))
+            db.execute("UPDATE orders SET status='payment_review',updated_at=? WHERE order_ref=? AND status='pending_payment'", (now, ref))
             db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)", (ref, "payment_review", "En revisión de pago", f"Transferencia USDT TRC-20 detectada y confirmada. TXID: {txid}. Importe: {amount} USDT. Pendiente de revisión administrativa.", now))
-            stores = db.execute("SELECT * FROM store_orders WHERE order_ref=? AND status='received'", (ref,)).fetchall()
+            stores = db.execute("SELECT * FROM store_orders WHERE order_ref=? AND status='pending_payment'", (ref,)).fetchall()
             for store in stores:
-                db.execute("UPDATE store_orders SET status='payment_review',updated_at=? WHERE store_order_ref=? AND status='received'", (now, store["store_order_ref"]))
+                db.execute("UPDATE store_orders SET status='payment_review',updated_at=? WHERE store_order_ref=? AND status='pending_payment'", (now, store["store_order_ref"]))
                 detail = f"Pago USDT detectado para el pedido principal. TXID: {txid}. Pendiente de revisión administrativa."
                 db.execute("INSERT INTO store_order_events(store_order_ref,status,label,detail,created_at) VALUES(?,?,?, ?,?)", (store["store_order_ref"], "payment_review", "En revisión de pago", detail, now))
         log.info("USDT payment detected order=%s txid=%s amount=%s", payment["order_ref"], txid, amount)
@@ -1559,6 +1612,7 @@ async def verify_pending_tron_payments():
 @app.get("/api/payment/{order_ref}")
 async def get_crypto_payment(order_ref: str, request: Request):
     tg_id = get_auth(request)
+    expire_stale_crypto_payments(order_ref)
     with conn() as db:
         row = db.execute("SELECT cp.*,o.status AS order_status,o.total,o.currency FROM crypto_payments cp JOIN orders o ON o.order_ref=cp.order_ref WHERE cp.order_ref=? AND o.telegram_id=?", (order_ref, tg_id)).fetchone()
     if not row:
@@ -1567,7 +1621,8 @@ async def get_crypto_payment(order_ref: str, request: Request):
         await verify_pending_tron_payments()
         with conn() as db:
             row = db.execute("SELECT cp.*,o.status AS order_status,o.total,o.currency FROM crypto_payments cp JOIN orders o ON o.order_ref=cp.order_ref WHERE cp.order_ref=? AND o.telegram_id=?", (order_ref, tg_id)).fetchone()
-    return {"order_ref": order_ref, "network": row["network"], "token": row["token_symbol"], "address": row["receiving_address"], "amount": row["requested_amount"], "status": row["status"], "order_status": row["order_status"], "txid": row["txid"] or None, "paid_amount": row["paid_amount"] or None, "last_checked_at": row["last_checked_at"] or None, "explorer_url": ("https://tronscan.org/#/transaction/" + row["txid"]) if row["txid"] else None}
+    deadline = _payment_deadline_seconds(row["created_at"])
+    return {"order_ref": order_ref, "network": row["network"], "token": row["token_symbol"], "address": row["receiving_address"], "amount": row["requested_amount"], "status": row["status"], "order_status": row["order_status"], "created_at": row["created_at"], "deadline_at": datetime.fromtimestamp(deadline, timezone.utc).isoformat(), "remaining_seconds": max(0, int(deadline-time.time())) if row["status"] == "pending" else 0, "txid": row["txid"] or None, "paid_amount": row["paid_amount"] or None, "last_checked_at": row["last_checked_at"] or None, "explorer_url": ("https://tronscan.org/#/transaction/" + row["txid"]) if row["txid"] else None}
 
 
 async def tron_payment_monitor():
@@ -1588,6 +1643,8 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
         raise HTTPException(400, "Método de pago no compatible.")
     is_crypto = body.payment_method == "usdt_trc20"
     customer_email = (body.customer_email or body.email).strip().lower()
+    if is_crypto and not customer_email:
+        raise HTTPException(400, "Introduce tu correo electrónico para recibir las notificaciones de pago pendiente y cancelación.")
     if customer_email and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", customer_email):
         raise HTTPException(400, "Introduce un correo electrónico válido.")
     submitted_shipping = [body.shipping_name.strip(), body.shipping_city.strip(), body.shipping_country.strip(), body.shipping_address.strip()]
@@ -1628,11 +1685,13 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
         db.execute("""INSERT INTO orders(order_ref,telegram_id,subtotal,tax,shipping,total,currency,status,created_at,updated_at,
                       shipping_name,shipping_city,shipping_country,shipping_address,payment_method,customer_email)
                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                   (order_ref, tg_id, str(subtotal), str(tax), str(shipping), str(total), currency, "received", when, when,
+                   (order_ref, tg_id, str(subtotal), str(tax), str(shipping), str(total), currency, "pending_payment" if is_crypto else "received", when, when,
                     shipping_name, shipping_city, shipping_country, shipping_address, body.payment_method, customer_email))
-        initial_detail = (f"Pedido recibido; pendiente de pago por USDT TRC-20 por {requested_usdt} USDT." if is_crypto else "Pedido de demostración registrado; no se envió una orden al comercio ni se procesó un pago real.")
+        initial_status = "pending_payment" if is_crypto else "received"
+        initial_label = "Pendiente de pago" if is_crypto else "Pedido recibido"
+        initial_detail = (f"Pedido creado. Pago pendiente durante 5 minutos: enviar {requested_usdt} USDT por TRON (TRC-20). Si no se detecta el pago en ese plazo, se cancelará automáticamente." if is_crypto else "Pedido de demostración registrado; no se envió una orden al comercio ni se procesó un pago real.")
         db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
-                   (order_ref, "received", "Pedido recibido", initial_detail, when))
+                   (order_ref, initial_status, initial_label, initial_detail, when))
         if is_crypto:
             db.execute("INSERT INTO crypto_payments(order_ref,network,token_symbol,token_contract,receiving_address,requested_amount,status,created_at,updated_at) VALUES(?,?,?,?,?,?, 'pending', ?, ?)",
                        (order_ref, "TRON (TRC-20)", "USDT", TRON_USDT_CONTRACT, TRON_USDT_ADDRESS, str(requested_usdt), when, when))
@@ -1661,7 +1720,7 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
             store_total = (store_subtotal + store_tax + store_shipping).quantize(Decimal("0.01"))
             db.execute("""INSERT INTO store_orders(store_order_ref,order_ref,platform,store_label,subtotal,tax,shipping,total,currency,status,created_at,updated_at,customer_email)
                           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                       (store_ref, order_ref, platform, store_label, str(store_subtotal), str(store_tax), str(store_shipping), str(store_total), currency, "received", when, when, customer_email))
+                       (store_ref, order_ref, platform, store_label, str(store_subtotal), str(store_tax), str(store_shipping), str(store_total), currency, "pending_payment" if is_crypto else "received", when, when, customer_email))
             lines = []
             for row in items:
                 line_total = (Decimal(row["price"]) * row["qty"]).quantize(Decimal("0.01"))
@@ -1673,13 +1732,22 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
             db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
                        (order_ref, "received", f"{store_label}: Pedido recibido", f"Referencia de tienda: {store_ref}. Artículos: " + "; ".join(lines), when))
             db.execute("INSERT INTO store_order_events(store_order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
-                       (store_ref, "received", "Pedido recibido", initial_detail, when))
+                       (store_ref, initial_status, initial_label, initial_detail, when))
             store_emails.append({"store_order_ref": store_ref, "store": store_label, "total": str(store_total), "items": lines})
         if not is_crypto:
             db.execute("UPDATE balances SET amount=? WHERE telegram_id=?", (str(balance-total), tg_id))
         db.execute("DELETE FROM carts WHERE telegram_id=?", (tg_id,))
     audit(tg_id, "purchase_usdt" if is_crypto else "purchase_demo", f"order={order_ref}; stores={len(groups)}; total={total}; currency={currency}")
     email_results = []
+    # USDT orders get a dedicated pending-payment email immediately after creation.
+    if is_crypto and customer_email:
+        pending_email = enqueue_and_send_order_email(
+            order_ref, "pending_payment", customer_email, str(total), currency,
+            f"Pedido: {order_ref}\nImporte exacto: {requested_usdt} USDT\nRed: TRON (TRC-20)\nDirección de recepción: {TRON_USDT_ADDRESS}\nPlazo: 5 minutos desde la creación del pedido. Si no se detecta el pago confirmado antes del vencimiento, el pedido se cancelará automáticamente."
+        )
+        email_results.append({"store": "ProEshop", "store_order_ref": order_ref,
+                              "email_sent": bool(pending_email.get("sent")),
+                              "email_status": "sent" if pending_email.get("sent") else pending_email.get("reason", "not_configured")})
     for item in store_emails:
         detail = (f"Tienda: {item['store']}\nArtículos de esta tienda:\n" + "\n".join(item["items"]) +
                   f"\nSubtotal: {currency} {Decimal(next(v for k,v in group_subtotals.items() if PLATFORMS.get(k, {}).get('label', k.replace('_',' ').title()) == item['store'])):.2f}" +
@@ -1699,8 +1767,8 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
             log.info("No se pudo enviar notificación de pedido %s", order_ref)
     return {"ok": True, "order_ref": order_ref, "store_orders": store_emails,
             "subtotal": str(subtotal), "tax": str(tax), "shipping": str(shipping), "total": str(total),
-            "balance": str(balance-total) if not is_crypto else str(balance), "currency": currency, "status": "received", "purchased_at": when,
-            "payment": ({"method": "usdt_trc20", "network": "TRON (TRC-20)", "token": "USDT", "address": TRON_USDT_ADDRESS, "amount": str(requested_usdt), "status": "pending"} if is_crypto else None),
-            "email_sent": bool(email_results) and all(x["email_sent"] for x in email_results),
-            "email_status": email_results, "message": ("Pedido registrado. Envía el importe exacto en USDT por TRC-20; el pedido pasará a revisión cuando la transferencia confirmada sea detectada." if is_crypto else "Pedido de demostración registrado; no se realizó una compra real.")}
+            "balance": str(balance-total) if not is_crypto else str(balance), "currency": currency, "status": "pending_payment" if is_crypto else "received", "purchased_at": when,
+            "payment": ({"method": "usdt_trc20", "network": "TRON (TRC-20)", "token": "USDT", "address": TRON_USDT_ADDRESS, "amount": str(requested_usdt), "status": "pending", "deadline_at": datetime.fromtimestamp(_payment_deadline_seconds(when), timezone.utc).isoformat(), "remaining_seconds": 300} if is_crypto else None),
+            "email_sent": (bool(email_results[0]["email_sent"]) if is_crypto and email_results else (bool(email_results) and all(x["email_sent"] for x in email_results))),
+            "email_status": email_results, "message": ("Pedido pendiente de pago. Tienes 5 minutos para enviar el importe exacto en USDT por TRC-20; si no se detecta el pago, se cancelará automáticamente." if is_crypto else "Pedido de demostración registrado; no se realizó una compra real.")}
 
