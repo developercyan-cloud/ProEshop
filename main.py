@@ -492,12 +492,9 @@ class CheckoutBody(BaseModel):
 
 
 PLATFORMS = {
-    "amazon": {"label": "Amazon", "url": "https://www.amazon.com/s?k={q}"},
-    "target": {"label": "Target", "url": "https://www.target.com/s?searchTerm={q}"},
-    "walmart": {"label": "Walmart", "url": "https://www.walmart.com/search?q={q}"},
-    "hublot": {"label": "HUBLOT", "url": "https://www.hublot.com/en-us/watches"},
-    "jewelers": {"label": "Jewelers Toy Store", "url": "https://www.jewelerstoystore.com/Electronic-s/1074.htm"},
     "rolex": {"label": "Rolex", "url": "https://www.rolex.com/es/watches/find-rolex?group=0"},
+    "hublot": {"label": "HUBLOT", "url": "https://www.hublot.com/en-us/watches"},
+    "jewelers": {"label": "Joyería", "url": "https://www.jewelerstoystore.com/Electronic-s/1074.htm"},
 }
 
 
@@ -558,6 +555,16 @@ ROLEX_CATALOG = [
     {"id":"sky-dweller-white-gold", "name":"Rolex Sky-Dweller · oro blanco", "price":53450.00, "discount":50, "desc":"Sky-Dweller de oro blanco con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m336239-0002", "reference":"m336239-0002"},
     {"id":"yacht-master-ii-yellow-gold", "name":"Rolex Yacht-Master II 44 · oro amarillo", "price":60700.00, "discount":50, "desc":"Yacht-Master II de oro amarillo con esfera blanca.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126688-0001", "reference":"m126688-0001"},
     {"id":"datejust-41-steel-blue", "name":"Rolex Datejust 41 · acero, esfera azul", "price":8950.00, "discount":50, "desc":"Datejust 41 de acero Oystersteel con esfera azul vivo.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126300-0029", "reference":"m126300-0029"}
+]
+
+
+# Catálogo basado en los cuatro productos visibles en la categoría de electrónica del proveedor.
+# Los precios son los Sale Price/Our Price publicados al consultar la página; se deben revalidar antes de vender.
+JEWELERS_CATALOG = [
+    {"id":"niton-xl2-100p", "name":"Niton XL2 100p, Niton Gold XRF Analyzer XL2100", "price":20500.00, "desc":"Analizador XRF para metales preciosos.", "url":"https://www.jewelerstoystore.com/Niton-XL2-100p-XL2100-Niton-Gold-XRF-Analyzer-p/xrf-xl2.htm"},
+    {"id":"niton-dxl", "name":"Niton DXL Precious Metal Analyzer", "price":21750.00, "desc":"Analizador de metales preciosos.", "url":"https://www.jewelerstoystore.com/precious-metal-analyzer-p/dxl.htm"},
+    {"id":"niton-xl2-battery", "name":"Niton XL2 Battery: 7.4V 7800mAh Li-ion (NTL200SL)", "price":295.00, "desc":"Batería de repuesto para analizador XRF Niton XL2.", "url":"https://www.jewelerstoystore.com/Niton-XL2-Battery-7-4V-p/xl-2.htm"},
+    {"id":"niton-xl2-charger", "name":"Niton XL2 Battery Charger – Fast, Smart & Reliable Charging for Your XRF Analyzer", "price":395.00, "desc":"Cargador para analizador XRF Niton XL2.", "url":"https://www.jewelerstoystore.com/Niton-XL2-Battery-Charger-p/xl-3.htm"},
 ]
 
 
@@ -798,8 +805,6 @@ async def search(body: SearchBody, request: Request):
     platform = body.platform.lower().strip()
     query = body.query.strip()
 
-    if platform in {"amazon", "target", "walmart"}:
-        raise HTTPException(403, "Esta tienda está temporalmente deshabilitada.")
     if platform not in PLATFORMS:
         raise HTTPException(400, "Tienda no admitida.")
     if not query:
@@ -1035,29 +1040,6 @@ async def search(body: SearchBody, request: Request):
     except (httpx.HTTPError, ValueError) as exc:
         log.warning("SEARCH ERROR platform=%s type=%s", platform, type(exc).__name__)
         raise HTTPException(502, "No se pudo procesar la búsqueda. Intenta nuevamente.")
-
-
-@app.get("/api/category/{category}")
-async def category_products(category: str, request: Request):
-    tg_id = get_auth(request)
-    key = category.strip().lower()
-    catalogs = {"rolex": ROLEX_CATALOG, "hublot": HUBLOT_CATALOG, "joyeria": JEWELERS_CATALOG, "jewelry": JEWELERS_CATALOG, "jewelers": JEWELERS_CATALOG}
-    if key not in catalogs:
-        raise HTTPException(404, "Categoría no disponible.")
-    products = list(catalogs[key])
-    import random
-    random.SystemRandom().shuffle(products)
-    products = products[:min(8, len(products))]
-    platform = "jewelers" if key in {"joyeria", "jewelry", "jewelers"} else key
-    for p in products:
-        p.setdefault("url", PLATFORMS[platform]["url"].replace("{q}", ""))
-    results = []
-    for p in products:
-        price = float(p.get("price", 0))
-        discount = 0.5 if platform in {"rolex", "hublot", "jewelers"} else 0
-        results.append({"title": p.get("name", "Producto"), "price": round(price*(1-discount),2), "list_price": price, "currency":"USD", "url":p.get("url") or PLATFORMS[platform]["url"], "image":p.get("img", ""), "source":"Catálogo ProEshop", "description":p.get("desc", "")})
-    audit(tg_id, "category", f"category={platform}; count={len(results)}")
-    return {"platform":platform,"label":PLATFORMS[platform]["label"],"query":platform,"search_url":PLATFORMS[platform]["url"].replace("{q}", ""),"live_results":results,"notice":"Selección aleatoria del catálogo de ProEshop. El descuento del 50% es interno y no una promoción oficial de la marca."}
 
 
 @app.get("/api/state")

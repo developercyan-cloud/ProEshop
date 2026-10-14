@@ -23,13 +23,3 @@
 
 ## Alcance
 Los pedidos, descuentos y estados de seguimiento son registros internos de ProEshop. No implican compra, pago ni envío real en las tiendas proveedoras.
-
-
-## Corrección adicional de navegación y errores API
-- La navegación cambia de pestaña antes de intentar actualizar datos, de modo que un fallo de red no impide abrir la vista.
-- Las respuestas no JSON del backend ahora muestran el código HTTP y una indicación para revisar los logs de Railway, en vez del mensaje genérico “Respuesta inválida del servidor”.
-- Los atajos de categorías llaman directamente a `/api/category/{category}` y ya no dependen de la tienda seleccionada arriba.
-- El selector visible conserva únicamente Rolex, HUBLOT y Joyería.
-- Validaciones realizadas en el paquete: compilación sintáctica de `main.py` y comprobación `node --check` de `static/app.js`.
-
-Para aplicar: reemplaza los archivos del proyecto con los del ZIP y despliega una nueva versión. No borres el volumen persistente; conserva `DATABASE_PATH=/data/shopcart.db`. Si el servidor sigue devolviendo HTTP 500, comparte los logs del despliegue para identificar la excepción de backend concreta.
