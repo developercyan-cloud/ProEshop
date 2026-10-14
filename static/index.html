@@ -4,30 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#11152b"><meta name="color-scheme" content="dark">
   <title>ProEshop | Luxury Shopping</title>
-  <link rel="stylesheet" href="/static/style.css?v=proeshop-email-code-auto-login-20261014">
+  <link rel="stylesheet" href="/static/style.css?v=proeshop-register-modal-redirect-20261014-wallet1">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-  .auth-panel [data-auth-tab="register"]{position:relative}
-  .verification-sent-dialog{width:min(92vw,430px);padding:28px;border:1px solid rgba(151,139,255,.35);border-radius:26px;background:radial-gradient(ellipse at top right,rgba(111,88,255,.20),transparent 48%),#151a32;color:#f4f5ff;box-shadow:0 28px 90px rgba(0,0,0,.62);max-height:88vh;overflow:auto}
-  .verification-sent-dialog::backdrop{background:rgba(4,7,20,.82);backdrop-filter:blur(8px)}
-  .verification-modal-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
-  .verification-sent-dialog .dialog-emblem{width:54px;height:54px;display:grid;place-items:center;border-radius:17px;background:linear-gradient(135deg,#8b78ff,#5a49cb);color:white;font-size:26px;box-shadow:0 10px 28px rgba(105,83,255,.3)}
-  .verification-secure-label{font-size:10px;letter-spacing:1.1px;color:#c7c4ff;background:rgba(137,112,245,.12);border:1px solid rgba(137,112,245,.22);border-radius:999px;padding:8px 10px;white-space:nowrap}
-  .verification-secure-label span{color:#77e7b0;margin-right:5px}
-  .verification-sent-dialog h2{font-size:25px;line-height:1.2;margin:0 0 10px;color:#fff}
-  .verification-sent-dialog #verificationSentText{color:#c5c9df;line-height:1.55;margin:0 0 20px;overflow-wrap:anywhere}
-  .verification-sent-dialog #verificationCodeLabel{display:block;color:#e4e6f7;font-size:13px;font-weight:600}
-  .verification-sent-dialog #verificationCode{display:block;width:100%;box-sizing:border-box;margin-top:9px;background:#0e1328;border:1px solid #41496e;border-radius:15px;color:#fff;text-align:center;font-size:27px;font-weight:750;letter-spacing:9px;padding:15px 10px;outline:none}
-  .verification-sent-dialog #verificationCode:focus{border-color:#9583ff;box-shadow:0 0 0 3px rgba(137,112,245,.18)}
-  .verification-sent-dialog #verificationCode::placeholder{color:#5b6282;letter-spacing:9px}
-  .verification-sent-dialog #verifyCodeSubmit{margin-top:9px;min-height:48px}
-  .verification-sent-dialog .verification-modal-footnote{font-size:11px;line-height:1.5;color:#858eaf;margin:16px 0}
-  .verification-sent-dialog #verificationSentOk{border:1px solid #424a6b;background:rgba(255,255,255,.035);color:#d8dbed;min-height:44px}
-  .verification-sent-dialog #verificationCodeError{min-height:18px;margin:7px 0;color:#ff9da9;font-size:12px}
-  .verification-sent-dialog .notification-status{margin:14px 0}
-  @media(max-width:420px){.verification-sent-dialog{padding:22px;border-radius:22px}.verification-sent-dialog h2{font-size:22px}.verification-secure-label{font-size:9px;letter-spacing:.5px}}
-  </style>
-
 </head>
 <body>
 <div class="app-shell">
@@ -42,7 +20,7 @@
     </section>
     <section id="shopView" class="view hidden">
       <div class="greeting-row"><div><div class="eyebrow dark-eyebrow">TU MERCADO, EN UN SOLO LUGAR</div><h1>Hola, <span id="greetingName">bienvenido</span> 👋</h1><p>¿Qué te gustaría encontrar hoy?</p></div><div class="user-chip">✦</div></div>
-      <div class="balance-card"><div class="balance-glow"></div><div class="balance-copy"><span>Saldo de cuenta</span><strong id="balanceValue">USD 1,000.00</strong><small><i></i> Saldo interno · No se realizan cargos</small></div><div class="wallet-icon">◈</div><div class="balance-foot"><span>PROESHOP WALLET</span><span>•••• 2026</span></div></div>
+      <div class="balance-card"><div class="balance-glow"></div><div class="balance-copy"><span>Saldo USDT · Red TRON</span><strong id="balanceValue">Conecta tu wallet</strong><small id="walletBalanceStatus"><i></i> Balance real de USDT TRC-20 · Solo lectura</small></div><div class="wallet-icon">◈</div><div class="balance-foot"><span>PROESHOP WALLET</span><span id="walletAddressShort">SIN CONECTAR</span></div><div class="wallet-connect-area"><div class="wallet-connect-buttons"><button type="button" id="connectTrustWallet" class="wallet-connect-btn">Conectar Trust Wallet</button><button type="button" id="connectMetaMask" class="wallet-connect-btn">Conectar MetaMask</button></div><div class="wallet-connected-actions hidden" id="walletConnectedActions"><button type="button" id="refreshWalletBalance" class="wallet-connect-btn">↻ Actualizar saldo</button><button type="button" id="disconnectWallet" class="wallet-disconnect-btn">Desconectar</button></div><p id="walletConnectMessage" class="wallet-connect-message" role="status" aria-live="polite">Conecta una billetera compatible con TRON para consultar tu saldo real.</p></div></div>
       <div class="search-wrap"><div class="search-label"><label for="query">Busca en tus tiendas</label><span>RESULTADOS USD</span></div><div class="search-row"><span class="search-symbol">⌕</span><input id="query" placeholder="Ej. PlayStation 5, audífonos…" maxlength="180"><button id="clearSearch" class="clear-search hidden" type="button" aria-label="Limpiar búsqueda">×</button><button id="searchBtn" class="primary search-button">Buscar</button></div></div>
       <div class="store-row" id="storeRow"><button class="store active" data-store="rolex"><span class="store-logo rolex-logo">R</span><span><b>Rolex</b><small>Watches · USD</small></span></button><button class="store" data-store="hublot"><span class="store-logo hublot-logo">H</span><span><b>HUBLOT</b><small>Watches · USD</small></span></button><button class="store" data-store="jewelers"><span class="store-logo jewelers-logo">◇</span><span><b>Joyería</b><small>Jewelers · USD</small></span></button></div>
       <div class="hero-banner luxury-hero"><div class="hero-copy"><span class="hero-tag">SMART FINDS · 2026</span><h2>Alta relojería.<br>Estilo que perdura.</h2><p>Descubre referencias de Rolex y HUBLOT, desde clásicos atemporales hasta piezas de alto rendimiento.</p><button type="button" class="hero-cta" data-luxury-category="rolex">Explorar relojes de lujo <span>↗</span></button></div><div class="hero-art"><div class="hero-ring ring-one"></div><div class="hero-ring ring-two"></div><div class="hero-cube">P<span>✦</span></div><div class="hero-spark spark-one">✦</div><div class="hero-spark spark-two">✧</div></div></div>
@@ -60,8 +38,115 @@
   </main>
   <nav id="bottomNav" class="bottom-nav hidden"><button data-tab="home" class="nav-item active"><span>⌂</span><small>Inicio</small></button><button data-tab="search" class="nav-item"><span>⌕</span><small>Buscar</small></button><button data-tab="cart" class="nav-item"><span>🛒</span><small>Carrito</small><i id="navCartCount" class="nav-badge hidden">0</i></button><button data-tab="history" class="nav-item"><span>▤</span><small>Pedidos</small></button><button data-tab="account" class="nav-item"><span>♙</span><small>Cuenta</small></button></nav>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <dialog id="verificationSentDialog" class="notification-dialog verification-sent-dialog"><div class="verification-modal-top"><div class="dialog-emblem" id="verificationDialogEmblem">✉</div><span class="verification-secure-label"><span>●</span> VERIFICACIÓN SEGURA</span></div><h2 id="verificationDialogTitle">Confirma tu correo</h2><p id="verificationSentText">Te enviamos un código de 6 dígitos. Introdúcelo aquí para verificar tu correo y crear la cuenta.</p><form id="verifyCodeForm"><label id="verifyCodeLabel">Código de verificación<input id="verificationCode" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" placeholder="000000" required></label><p id="verificationCodeError" class="error" role="alert"></p><button id="verifyCodeSubmit" class="primary full" type="submit">Verificar y crear cuenta <span>→</span></button></form><div id="verificationSuccessStatus" class="notification-status hidden"><span>✓</span><span>Registro exitoso. Iniciando sesión…</span></div><p class="verification-modal-footnote">El código vence en 10 minutos. Si no lo introduces correctamente, la cuenta no se creará.</p><button id="verificationSentOk" class="secondary full" type="button">Cancelar</button></dialog>
+  <dialog id="verificationSentDialog" class="notification-dialog verification-sent-dialog"><button id="closeVerificationSent" class="dialog-close" aria-label="Cerrar">×</button><div class="dialog-emblem">✉</div><h2>Revisa tu correo</h2><p id="verificationSentText">Enviamos un enlace de verificación al correo que registraste. Abre el mensaje y confirma tu dirección para activar tu cuenta.</p><div class="notification-status"><span class="pulse"></span><span>El enlace es válido durante 30 minutos.</span></div><button id="verificationSentOk" class="primary full" type="button">Entendido</button></dialog>
   <dialog id="productDialog" class="product-dialog"><button id="closeProductDialog" class="dialog-close" aria-label="Cerrar">×</button><div id="productDialogContent"></div></dialog>
   <dialog id="notificationDialog" class="notification-dialog"><button id="closeNotificationDialog" class="dialog-close" aria-label="Cerrar">×</button><div class="dialog-emblem">♧</div><h2>Notificaciones</h2><p>Cuando confirmes un pedido, ProEshop intentará enviarte una notificación por Telegram si el bot está configurado.</p><div class="notification-status"><span class="pulse"></span><span id="notificationStatusText">Notificaciones de pedido disponibles</span></div><label class="notification-option"><input id="notifyOrders" type="checkbox" checked><span><b>Confirmaciones de pedido</b><small>Avisos de pedidos registrados</small></span></label><label class="notification-option"><input id="notifySecurity" type="checkbox" checked><span><b>Alertas de seguridad</b><small>Preferencia guardada en tu cuenta</small></span></label><button id="saveNotificationsBtn" class="primary full">Guardar preferencias</button><button id="closeNotificationOk" class="secondary full">Cerrar</button></dialog>
-</div><script src="/static/app.js?v=logout-view-cleanup-20261014"></script>
+</div><script src="/static/app.js?v=proeshop-register-modal-redirect-20261014-wallet1"></script>
+<style>
+.wallet-connect-area{position:relative;z-index:2;width:100%;padding-top:14px}.wallet-connect-buttons,.wallet-connected-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.wallet-connect-btn,.wallet-disconnect-btn{min-height:42px;border:1px solid rgba(155,145,255,.35);border-radius:12px;padding:10px 12px;background:linear-gradient(135deg,rgba(102,83,190,.26),rgba(42,51,89,.7));color:#f5f6ff;font-weight:700;font-size:12px;cursor:pointer}.wallet-connect-btn:disabled,.wallet-disconnect-btn:disabled{opacity:.55;cursor:wait}.wallet-disconnect-btn{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.12);color:#bfc7df}.wallet-connect-message{margin:9px 0 0;color:#aab4d1;font-size:11px;line-height:1.5;overflow-wrap:anywhere}.wallet-connect-message.error{color:#ff9cae}.wallet-connect-message.success{color:#65e8b0}.balance-copy #balanceValue{overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+@media(max-width:440px){.wallet-connect-buttons,.wallet-connected-actions{grid-template-columns:1fr}.wallet-connect-btn,.wallet-disconnect-btn{width:100%}}
+</style>
+<script>
+/* ProEshop wallet balance — read-only TRON mainnet USDT (TRC-20). */
+(function(){
+  'use strict';
+  const USDT_CONTRACT='TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj';
+  const TRONGRID='https://api.trongrid.io';
+  const state={address:'',provider:null,providerName:'',balance:null,busy:false};
+  const $=id=>document.getElementById(id);
+  const balance=$('balanceValue'), status=$('walletBalanceStatus'), shortAddress=$('walletAddressShort');
+  const message=$('walletConnectMessage'), buttons=$('walletConnectedActions'), connectButtons=[$('connectTrustWallet'),$('connectMetaMask')];
+  if(!balance||!message)return;
+  function say(text,kind=''){message.textContent=text;message.className='wallet-connect-message'+(kind?' '+kind:'');}
+  function short(addr){return addr?addr.slice(0,5)+'…'+addr.slice(-5):'SIN CONECTAR';}
+  function setBusy(v){state.busy=v;connectButtons.forEach(b=>b.disabled=v);$('refreshWalletBalance').disabled=v;$('disconnectWallet').disabled=v;}
+  function showConnected(){buttons.classList.remove('hidden');connectButtons.forEach(b=>b.classList.add('hidden'));shortAddress.textContent=short(state.address);status.innerHTML='<i></i> '+state.providerName+' conectada · solo lectura';}
+  function showDisconnected(){buttons.classList.add('hidden');connectButtons.forEach(b=>b.classList.remove('hidden'));shortAddress.textContent='SIN CONECTAR';balance.textContent='Conecta tu wallet';status.innerHTML='<i></i> Balance real de USDT TRC-20 · Solo lectura';}
+  function getInjected(){
+    // TronLink and compatible TRON DApp browsers expose tronLink/tronWeb.
+    if(window.tronLink && typeof window.tronLink.request==='function')return {kind:'tronlink',provider:window.tronLink,name:'Wallet TRON'};
+    if(window.tronWeb && window.tronWeb.defaultAddress && window.tronWeb.defaultAddress.base58)return {kind:'tronweb',provider:window.tronWeb,name:'Wallet TRON'};
+    // Some wallets expose a TRON provider under an EIP-1193 provider collection.
+    const eth=window.ethereum;
+    const candidates=eth&&Array.isArray(eth.providers)?eth.providers:(eth?[eth]:[]);
+    for(const p of candidates){if(p&& (p.isTronLink||p.tronLink||p.tronWeb))return {kind:'tron-ethereum',provider:p,name:p.isTrust?'Trust Wallet':'Wallet TRON'};}
+    return null;
+  }
+  async function requestAddress(found){
+    let addr='';
+    if(found.kind==='tronlink'){
+      const result=await found.provider.request({method:'tron_requestAccounts'});
+      if(Array.isArray(result))addr=result[0]||'';
+      if(!addr&&window.tronWeb?.defaultAddress)addr=window.tronWeb.defaultAddress.base58||'';
+    }else if(found.kind==='tronweb'){
+      addr=found.provider.defaultAddress.base58||'';
+      if(!addr&&window.tronLink?.request){const result=await window.tronLink.request({method:'tron_requestAccounts'});addr=Array.isArray(result)?result[0]:'';}
+    }else{
+      const result=await found.provider.request({method:'tron_requestAccounts'});
+      addr=Array.isArray(result)?result[0]:'';
+    }
+    if(!addr&&window.tronWeb?.defaultAddress)addr=window.tronWeb.defaultAddress.base58||'';
+    if(!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(addr))throw new Error('La billetera no devolvió una dirección TRON válida. Abre ProEshop dentro de una wallet compatible con TRON.');
+    return addr;
+  }
+  async function fetchBalance(addr){
+    const response=await fetch(TRONGRID+'/v1/accounts/'+encodeURIComponent(addr),{headers:{'Accept':'application/json'},cache:'no-store'});
+    if(!response.ok)throw new Error('No se pudo consultar la blockchain TRON (HTTP '+response.status+'). Intenta de nuevo.');
+    const data=await response.json();
+    const account=(data.data||[])[0];
+    if(!account){return 0;}
+    const tokenBalances=account.trc20||{};
+    let raw='0';
+    for(const [contract,amount] of Object.entries(tokenBalances)){
+      if(contract.toLowerCase()===USDT_CONTRACT.toLowerCase()){
+        const val=Array.isArray(amount)?amount[0]:amount;
+        raw=String(val??'0');break;
+      }
+    }
+    // USDT TRC-20 has 6 decimal places.
+    const n=Number(raw)/1e6;
+    if(!Number.isFinite(n)||n<0)throw new Error('La respuesta de balance no es válida.');
+    return n;
+  }
+  async function updateBalance(){
+    if(!state.address)return;
+    setBusy(true);say('Consultando saldo en la blockchain TRON…');
+    try{
+      const amount=await fetchBalance(state.address);state.balance=amount;
+      balance.textContent=amount.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:6})+' USDT';
+      say('Saldo actualizado desde TRON mainnet. Esta consulta no mueve fondos.','success');
+    }catch(e){say(e.message||'No se pudo actualizar el saldo.','error');}
+    finally{setBusy(false);}
+  }
+  async function connect(which){
+    if(state.busy)return;setBusy(true);
+    try{
+      let found=getInjected();
+      if(!found){
+        if(which==='trust'){
+          const target=location.href.split('#')[0];
+          say('Abre esta Mini App desde el navegador DApp de Trust Wallet y vuelve a pulsar “Conectar Trust Wallet”. Si estás dentro de Telegram, abre el enlace en Trust Wallet.');
+          // Open Trust Wallet's universal link; actual connection is completed after reopening in its DApp browser.
+          const deep='https://link.trustwallet.com/open_url?coin_id=195&url='+encodeURIComponent(target);
+          window.open(deep,'_blank','noopener,noreferrer');
+        }else{
+          say('MetaMask debe exponer un proveedor compatible con TRON en esta sesión. Si no aparece, abre ProEshop desde el navegador de una wallet compatible con TRON.');
+        }
+        return;
+      }
+      const addr=await requestAddress(found);state.address=addr;state.provider=found.provider;state.providerName=which==='trust'?'Trust Wallet':(which==='metamask'?'MetaMask':found.name);
+      showConnected();await updateBalance();
+    }catch(e){say(e.message||'No se pudo conectar la billetera.','error');}
+    finally{setBusy(false);}
+  }
+  $('connectTrustWallet').addEventListener('click',()=>connect('trust'));
+  $('connectMetaMask').addEventListener('click',()=>connect('metamask'));
+  $('refreshWalletBalance').addEventListener('click',updateBalance);
+  $('disconnectWallet').addEventListener('click',()=>{state.address='';state.provider=null;state.providerName='';state.balance=null;showDisconnected();say('Billetera desconectada de la interfaz de ProEshop. No se revocan permisos dentro de la aplicación wallet.');});
+  // If a supported provider is already present in a wallet's DApp browser, offer explicit connection.
+  window.addEventListener('pageshow',()=>{if(!state.address&&getInjected())say('Se detectó un proveedor compatible. Pulsa Conectar para autorizar la consulta de tu dirección pública.');});
+  showDisconnected();
+})();
+</script>
+
 </body></html>
