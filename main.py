@@ -57,11 +57,11 @@ _SEARCH_CACHE = {}
 @app.middleware("http")
 async def security_and_rate_limit(request: Request, call_next):
     path = request.url.path
-    if path in ("/api/login", "/api/register", "/api/email-login", "/api/telegram-login", "/api/search"):
+    if path in ("/api/login", "/api/register", "/api/verify-email-code", "/api/email-login", "/api/telegram-login", "/api/search"):
         ip = request.client.host if request.client else "unknown"
         key = (ip, path)
         now = time.time()
-        window, limit = (60, 12 if path == "/api/login" else 30)
+        window, limit = (60, 12 if path in ("/api/login", "/api/verify-email-code") else 30)
         hits = [t for t in _RATE_BUCKETS.get(key, []) if now - t < window]
         if len(hits) >= limit:
             return JSONResponse({"detail": "Demasiadas solicitudes. Espera un minuto e inténtalo otra vez."}, status_code=429)
@@ -116,11 +116,6 @@ def init_db():
         CREATE TABLE IF NOT EXISTS telegram_verification_handoffs(
           code_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL, expires_at REAL NOT NULL,
           used INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS pending_email_registrations(
-          email TEXT PRIMARY KEY COLLATE NOCASE, password_hash TEXT NOT NULL,
-          code_hash TEXT NOT NULL, expires_at REAL NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
-          created_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS carts(
           id INTEGER PRIMARY KEY AUTOINCREMENT, telegram_id TEXT NOT NULL, platform TEXT NOT NULL,
@@ -741,22 +736,19 @@ def _new_session(identity: str) -> str:
         db.execute("INSERT INTO sessions(token,telegram_id,created_at,active) VALUES(?,?,?,1)", (token, identity, time.time()))
     return token
 
-def _send_verification_email(email: str, verify_url: str):
-    """Legacy link-based verifier retained for existing emails."""
+def _send_verification_code(email: str, code: str):
+    """Send a short-lived numeric verification code using Brevo API or configured SMTP."""
     if not SMTP_FROM_EMAIL:
         raise RuntimeError("Configura SMTP_FROM_EMAIL para verificar las cuentas por correo.")
-    subject = "Verifica tu correo · ProEshop"
-    text_body = f"Hola. Para verificar tu correo en ProEshop, abre este enlace (válido durante 30 minutos):\n\n{verify_url}\n\nSi no solicitaste esta cuenta, ignora este mensaje."
-    html_body = f"""<!doctype html><html lang='es'><meta charset='utf-8'><body style='font-family:Arial;background:#101429;color:#eef0ff;padding:28px'><div style='max-width:560px;margin:auto;background:#191d38;padding:28px;border-radius:18px'><h1>ProEshop</h1><h2>Verifica tu correo</h2><p>Confirma que tienes acceso a esta dirección para activar tu cuenta.</p><p><a style='display:inline-block;background:#8970f5;color:#fff;padding:14px 22px;border-radius:10px;text-decoration:none;font-weight:bold' href='{escape(verify_url, quote=True)}'>Verificar correo</a></p><p>El enlace vence en 30 minutos. Si no solicitaste esta cuenta, ignora este mensaje.</p></div></body></html>"""
-    _deliver_email(email, subject, text_body, html_body)
-
-def _deliver_email(email: str, subject: str, text_body: str, html_body: str):
-    if not SMTP_FROM_EMAIL:
-        raise RuntimeError("Configura SMTP_FROM_EMAIL para enviar códigos de verificación.")
+    subject = "Tu código de verificación · ProEshop"
+    text_body = (f"Hola. Tu código para verificar tu correo en ProEshop es: {code}\n\n"
+                 "El código vence en 10 minutos y solo puede utilizarse una vez. "
+                 "Si no solicitaste esta cuenta, ignora este mensaje.")
+    html_body = f"""<!doctype html><html lang='es'><meta charset='utf-8'><body style='font-family:Arial;background:#101429;color:#eef0ff;padding:28px'><div style='max-width:560px;margin:auto;background:#191d38;padding:28px;border-radius:18px'><h1>ProEshop</h1><h2>Tu código de verificación</h2><p>Regresa a ProEshop en Telegram e introduce este código para activar tu cuenta:</p><div style='font-size:34px;letter-spacing:9px;font-weight:bold;background:#101429;color:#fff;text-align:center;padding:18px;border-radius:12px'>{code}</div><p>El código vence en 10 minutos y solo puede utilizarse una vez.</p><p style='color:#b9bdd3'>Si no solicitaste esta cuenta, ignora este mensaje.</p></div></body></html>"""
     if BREVO_API_KEY:
         with httpx.Client(timeout=12) as client:
-            response = client.post("https://api.brevo.com/v3/smtp/email", headers={"api-key":BREVO_API_KEY,"accept":"application/json","content-type":"application/json"}, json={"sender":{"email":SMTP_FROM_EMAIL,"name":"ProEshop"},"to":[{"email":email}],"subject":subject,"textContent":text_body,"htmlContent":html_body})
-            if response.status_code >= 300: raise RuntimeError("No se pudo enviar el correo de verificación.")
+            response = client.post("https://api.brevo.com/v3/smtp/email", headers={"api-key": BREVO_API_KEY, "accept":"application/json", "content-type":"application/json"}, json={"sender":{"email":SMTP_FROM_EMAIL,"name":"ProEshop"},"to":[{"email":email}],"subject":subject,"textContent":text_body,"htmlContent":html_body})
+            if response.status_code >= 300: raise RuntimeError("No se pudo enviar el código de verificación.")
         return
     if not SMTP_HOST: raise RuntimeError("Configura BREVO_API_KEY o SMTP_HOST para enviar verificaciones.")
     msg=EmailMessage(); msg["Subject"]=subject; msg["From"]=f"ProEshop <{SMTP_FROM_EMAIL}>"; msg["To"]=email; msg.set_content(text_body); msg.add_alternative(html_body,subtype="html")
@@ -771,66 +763,48 @@ def _deliver_email(email: str, subject: str, text_body: str, html_body: str):
             server.send_message(msg)
 
 @app.post("/api/register")
-async def register_account(body: RegisterBody):
+async def register_account(body: RegisterBody, request: Request):
     email=body.email.strip().lower()
     if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email): raise HTTPException(422,"Introduce un correo válido.")
     if len(body.password)<10 or not re.search(r"[A-Za-z]",body.password) or not re.search(r"\d",body.password): raise HTTPException(422,"La contraseña debe tener al menos 10 caracteres e incluir letras y números.")
-    with conn() as db:
-        existing=db.execute("SELECT verified FROM email_accounts WHERE email=? COLLATE NOCASE",(email,)).fetchone()
-        if existing and existing["verified"]: raise HTTPException(409,"Ya existe una cuenta con ese correo. Inicia sesión o recupera tu acceso.")
-        if existing and not existing["verified"]:
-            # Clean up an unverified legacy registration; the new flow creates accounts only after code confirmation.
-            db.execute("DELETE FROM email_accounts WHERE email=? COLLATE NOCASE AND verified=0",(email,))
-    code=f"{secrets.randbelow(1000000):06d}"
+    account_id="email:"+secrets.token_urlsafe(18)
+    code=f"{secrets.randbelow(1_000_000):06d}"
+    code_hash=hashlib.sha256(code.encode()).hexdigest()
     expires=time.time()+600
-    code_hash=hashlib.sha256((email+":"+code).encode()).hexdigest()
-    with conn() as db:
-        db.execute("INSERT INTO pending_email_registrations(email,password_hash,code_hash,expires_at,attempts,created_at) VALUES(?,?,?,?,0,?) ON CONFLICT(email) DO UPDATE SET password_hash=excluded.password_hash,code_hash=excluded.code_hash,expires_at=excluded.expires_at,attempts=0,created_at=excluded.created_at",(email,_password_hash(body.password),code_hash,expires,now_iso()))
-    subject="Tu código de registro · ProEshop"
-    text_body=f"Tu código de verificación de ProEshop es: {code}\n\nCaduca en 10 minutos. Si no solicitaste este registro, ignora este mensaje."
-    html_body=f"""<!doctype html><html lang='es'><meta charset='utf-8'><body style='font-family:Arial;background:#101429;color:#eef0ff;padding:28px'><div style='max-width:560px;margin:auto;background:#191d38;padding:28px;border-radius:18px'><h1 style='color:#fff'>ProEshop</h1><h2>Confirma tu correo</h2><p>Introduce este código en el formulario para crear tu cuenta:</p><div style='font-size:32px;letter-spacing:8px;font-weight:bold;background:#101429;text-align:center;padding:18px;border-radius:12px;color:#b8a8ff'>{code}</div><p>El código vence en 10 minutos y solo puede utilizarse una vez.</p><p style='color:#b9bdd3'>Si no solicitaste este registro, ignora este mensaje.</p></div></body></html>"""
-    try: _deliver_email(email,subject,text_body,html_body)
+    try:
+        with conn() as db:
+            db.execute("INSERT INTO email_accounts(account_id,email,password_hash,verified,verify_hash,verify_expires,created_at,updated_at) VALUES(?,?,?,0,?,?,?,?)",(account_id,email,_password_hash(body.password),code_hash,expires,now_iso(),now_iso()))
+    except sqlite3.IntegrityError:
+        raise HTTPException(409,"Ya existe una cuenta con ese correo. Inicia sesión o recupera tu acceso.")
+    try: _send_verification_code(email,code)
     except Exception as exc:
-        with conn() as db: db.execute("DELETE FROM pending_email_registrations WHERE email=?",(email,))
-        log.warning("No se pudo enviar código de registro: %s",str(exc)[:180])
+        with conn() as db: db.execute("DELETE FROM email_accounts WHERE account_id=? AND verified=0",(account_id,))
+        log.warning("No se pudo enviar código de verificación: %s",str(exc)[:180])
         raise HTTPException(503,"No pudimos enviar el código. Revisa la configuración de correo en Railway e inténtalo de nuevo.")
-    audit("pending:"+hashlib.sha256(email.encode()).hexdigest()[:12],"registration_code_sent","Código de registro enviado")
-    return {"ok":True,"message":"Te enviamos un código de 6 dígitos. Introdúcelo para crear tu cuenta.","email":email}
+    audit(account_id,"register","Cuenta creada; código de verificación enviado")
+    return {"ok":True,"message":"Te enviamos un código de verificación de 6 dígitos. Regresa a ProEshop e introdúcelo en la ventana de verificación.","email":email}
 
-class VerifyRegistrationBody(BaseModel):
-    email: str = Field(min_length=5,max_length=254)
-    code: str = Field(min_length=6,max_length=6)
 
-@app.post("/api/register/verify-code")
-async def verify_registration_code(body: VerifyRegistrationBody):
-    email=body.email.strip().lower(); code=body.code.strip()
-    if not code.isdigit() or len(code)!=6: raise HTTPException(422,"Introduce el código de 6 dígitos recibido por correo.")
+@app.post("/api/verify-email-code")
+async def verify_email_code(body: dict):
+    email=str(body.get("email", "")).strip().lower()
+    code=str(body.get("code", "")).strip()
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email) or not re.fullmatch(r"\d{6}", code):
+        raise HTTPException(400,"Introduce el correo y el código de 6 dígitos.")
+    code_hash=hashlib.sha256(code.encode()).hexdigest()
     with conn() as db:
-        pending=db.execute("SELECT * FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,)).fetchone()
-        if not pending: raise HTTPException(400,"No hay un registro pendiente para ese correo. Vuelve a iniciar el registro.")
-        if pending["expires_at"]<=time.time():
-            db.execute("DELETE FROM pending_email_registrations WHERE email=?",(email,))
-            db.commit()
-            raise HTTPException(400,"El código venció. Vuelve a solicitar uno nuevo.")
-        if pending["attempts"]>=5:
-            db.execute("DELETE FROM pending_email_registrations WHERE email=?",(email,))
-            db.commit()
-            raise HTTPException(429,"Se agotaron los intentos. Inicia el registro nuevamente para recibir otro código.")
-        expected=hashlib.sha256((email+":"+code).encode()).hexdigest()
-        if not hmac.compare_digest(expected,pending["code_hash"]):
-            db.execute("UPDATE pending_email_registrations SET attempts=attempts+1 WHERE email=?",(email,))
-            db.commit()
-            raise HTTPException(400,"El código es incorrecto. Revisa el correo e inténtalo de nuevo.")
-        account_id="email:"+secrets.token_urlsafe(18)
-        try:
-            db.execute("INSERT INTO email_accounts(account_id,email,password_hash,verified,verify_hash,verify_expires,created_at,updated_at) VALUES(?,?,?,1,'',0,?,?)",(account_id,email,pending["password_hash"],now_iso(),now_iso()))
-        except sqlite3.IntegrityError:
-            db.execute("DELETE FROM pending_email_registrations WHERE email=?",(email,))
-            raise HTTPException(409,"Ya existe una cuenta con ese correo. Inicia sesión.")
-        db.execute("DELETE FROM pending_email_registrations WHERE email=?",(email,))
-    session_token=_new_session(account_id)
-    audit(account_id,"register_verified","Cuenta creada tras validar el código de correo; sesión iniciada")
-    return {"ok":True,"message":"¡Cuenta creada correctamente! Tu correo fue verificado y tu sesión está iniciada.","token":session_token,"username":email.split("@")[0],"email":email,"account_type":"email"}
+        row=db.execute("SELECT * FROM email_accounts WHERE email=? COLLATE NOCASE AND verified=0",(email,)).fetchone()
+        if not row:
+            raise HTTPException(400,"No hay una cuenta pendiente de verificación para ese correo. Vuelve a registrarte o inicia sesión.")
+        if float(row["verify_expires"] or 0) <= time.time():
+            raise HTTPException(400,"El código venció. Vuelve a registrarte para recibir uno nuevo.")
+        if not hmac.compare_digest(str(row["verify_hash"] or ""),code_hash):
+            raise HTTPException(400,"El código no es correcto. Revisa el correo e inténtalo de nuevo.")
+        db.execute("UPDATE email_accounts SET verified=1,verify_hash='',verify_expires=0,updated_at=? WHERE account_id=? AND verified=0",(now_iso(),row["account_id"]))
+    identity=row["account_id"]
+    token=_new_session(identity)
+    audit(identity,"email_verified","Correo verificado con código; sesión iniciada automáticamente")
+    return {"ok":True,"token":token,"username":email.split('@')[0],"email":email,"account_type":"email","message":"Registro exitoso. Tu correo fue verificado y tu sesión está iniciada."}
 
 @app.get("/api/verify-email", response_class=HTMLResponse)
 async def verify_email(token: str):
