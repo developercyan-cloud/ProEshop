@@ -204,20 +204,6 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_purchases_user_date ON purchases(telegram_id, purchased_at);
         CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
         """)
-        # Additive migration: CREATE TABLE IF NOT EXISTS does not add columns to
-        # an existing pending_email_registrations table from older deployments.
-        pending_columns = {row["name"] for row in db.execute("PRAGMA table_info(pending_email_registrations)").fetchall()}
-        pending_migrations = {
-            "email": "TEXT",
-            "password_hash": "TEXT NOT NULL DEFAULT ''",
-            "verify_hash": "TEXT NOT NULL DEFAULT ''",
-            "verify_expires": "REAL NOT NULL DEFAULT 0",
-            "attempts": "INTEGER NOT NULL DEFAULT 0",
-            "created_at": "TEXT NOT NULL DEFAULT ''",
-        }
-        for column_name, column_definition in pending_migrations.items():
-            if column_name not in pending_columns:
-                db.execute(f'ALTER TABLE pending_email_registrations ADD COLUMN "{column_name}" {column_definition}')
         db.execute("PRAGMA journal_mode=WAL")
         # Safe migration for databases created by earlier ShopCart versions.
         purchase_columns = {row["name"] for row in db.execute("PRAGMA table_info(purchases)").fetchall()}
@@ -228,6 +214,14 @@ def init_db():
         cart_columns = {row["name"] for row in db.execute("PRAGMA table_info(carts)").fetchall()}
         if "image" not in cart_columns:
             db.execute("ALTER TABLE carts ADD COLUMN image TEXT NOT NULL DEFAULT ''")
+        # Additive migration for email-code registration; preserve pending rows.
+        pending_columns = {row["name"] for row in db.execute(
+            "PRAGMA table_info(pending_email_registrations)"
+        ).fetchall()}
+        if "verify_hash" not in pending_columns:
+            db.execute("ALTER TABLE pending_email_registrations ADD COLUMN verify_hash TEXT NOT NULL DEFAULT ''")
+            if "code_hash" in pending_columns:
+                db.execute("UPDATE pending_email_registrations SET verify_hash=code_hash WHERE verify_hash=''")
         # Additive migrations only: preserve the existing Railway volume and all data.
         order_columns = {row["name"] for row in db.execute("PRAGMA table_info(orders)").fetchall()}
         for column, declaration in {
@@ -795,8 +789,36 @@ async def register_account(body: RegisterBody, request: Request):
             raise HTTPException(409,"Ya existe una cuenta con ese correo. Inicia sesión o recupera tu acceso.")
         # Replacing a pending attempt is safe: pending registrations are not user accounts.
         db.execute("DELETE FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,))
-        db.execute("INSERT INTO pending_email_registrations(email,password_hash,verify_hash,verify_expires,attempts,created_at) VALUES(?,?,?,?,0,?)",
-                   (email,_password_hash(body.password),code_hash,expires,now_iso()))
+        # Backward-compatible insert: older Railway databases may still have a
+        # required code_hash column, while newer schema versions use verify_hash.
+        pending_columns = {row["name"] for row in db.execute(
+            "PRAGMA table_info(pending_email_registrations)"
+        ).fetchall()}
+        pending_values = {
+            "email": email,
+            "password_hash": _password_hash(body.password),
+            "code_hash": code_hash,
+            "verify_hash": code_hash,
+            "verify_expires": expires,
+            "attempts": 0,
+            "created_at": now_iso(),
+        }
+        insert_columns = [name for name in pending_values if name in pending_columns]
+        required_missing = [
+            row["name"] for row in db.execute(
+                "PRAGMA table_info(pending_email_registrations)"
+            ).fetchall()
+            if row["notnull"] and row["dflt_value"] is None
+            and row["name"] not in insert_columns and not row["pk"]
+        ]
+        if required_missing:
+            raise HTTPException(500, "La tabla de registros pendientes tiene un esquema incompatible. Contacta al administrador.")
+        sql_columns = ",".join(f'"{name}"' for name in insert_columns)
+        placeholders = ",".join("?" for _ in insert_columns)
+        db.execute(
+            f"INSERT INTO pending_email_registrations({sql_columns}) VALUES({placeholders})",
+            [pending_values[name] for name in insert_columns],
+        )
     try:
         _send_verification_code(email,code)
     except Exception as exc:
