@@ -23,3 +23,7 @@
 
 ## Alcance
 Los pedidos, descuentos y estados de seguimiento son registros internos de ProEshop. No implican compra, pago ni envío real en las tiendas proveedoras.
+
+
+## Tiendas habilitadas temporalmente
+La interfaz y la API solo aceptan Rolex, HUBLOT y Jewelers Toy Store (etiquetada como Joyería). Amazon, Target y Walmart están deshabilitadas temporalmente. No se elimina ni reinicializa la base de datos; conserva el volumen persistente y `DATABASE_PATH=/data/shopcart.db`.
