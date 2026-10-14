@@ -14,7 +14,21 @@ const storeLabel = s => ({amazon:'Amazon',walmart:'Walmart',target:'Target',hubl
 function toast(msg){ const el=$('toast'); if(!el)return; el.textContent=msg;el.classList.remove('hidden');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.add('hidden'),3000); }
 async function api(path,opts={}){const headers={'Content-Type':'application/json',...(token?{'Authorization':`Bearer ${token}`}:{})};const r=await fetch(path,{...opts,headers:{...headers,...opts.headers}});const data=await r.json().catch(()=>({detail:'Respuesta inválida del servidor.'}));if(!r.ok){if(r.status===401&&token){token='';sessionStorage.removeItem('shopcart_token');setLoggedIn(false)}throw new Error(data.detail||data.error||'Ocurrió un error. Intenta nuevamente.')}return data;}
 function showView(view){if(view==='search'){showView('home');setTimeout(()=>$('query')?.focus(),100);return;}const ids={home:'shopView',cart:'cartView',checkout:'checkoutView',history:'historyView',account:'accountView'};document.querySelectorAll('main .view').forEach(v=>v.classList.add('hidden'));const target=$(ids[view]||`${view}View`);if(!target){console.error('Vista no encontrada:',view);return;}target.classList.remove('hidden');document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===(view==='checkout'?'cart':view)));window.scrollTo({top:0,behavior:'smooth'});}
-function setLoggedIn(on){$('loginView').classList.toggle('hidden',on);$('shopView').classList.toggle('hidden',!on);$('bottomNav').classList.toggle('hidden',!on);$('logoutBtn').classList.toggle('hidden',!on);if(on)showView('home');}
+function setLoggedIn(on){
+  $('bottomNav').classList.toggle('hidden',!on);
+  $('logoutBtn').classList.toggle('hidden',!on);
+  if(on){
+    $('loginView').classList.add('hidden');
+    showView('home');
+  }else{
+    // On logout, hide every authenticated view (including Mi cuenta) before
+    // showing only the login/register screen.
+    document.querySelectorAll('main .view').forEach(v=>v.classList.add('hidden'));
+    $('loginView').classList.remove('hidden');
+    $('shopView').classList.add('hidden');
+    window.scrollTo({top:0,behavior:'auto'});
+  }
+}
 async function refresh(){state=await api('/api/state');$('balanceValue').textContent=money(state.balance,state.currency);$('accountBalance').textContent=money(state.balance,state.currency);$('cartCount').textContent=`${state.cart.length} artículo${state.cart.length===1?'':'s'}`;$('historyCount').textContent=`${(state.orders||[]).length} pedido${(state.orders||[]).length===1?'':'s'}`;$('orderCountLabel').textContent=`${(state.orders||[]).length} pedido${(state.orders||[]).length===1?'':'s'}`;$('navCartCount').textContent=state.cart.length;$('navCartCount').classList.toggle('hidden',!state.cart.length);$('greetingName').textContent=authDisplayName||'bienvenido';$('accountName').textContent=authDisplayName||'Sesión activa';renderCart();renderHistory();}
 function estimateCart(){const subtotal=state.cart.reduce((sum,x)=>sum+Number(x.price)*Number(x.qty||1),0);const tax=subtotal*Number(state.tax_rate||0);const shipping=subtotal>0?Number(state.shipping_fee||0):0;return {subtotal,tax,shipping,total:subtotal+tax+shipping};}
 function cartSignature(){return JSON.stringify((state.cart||[]).map(x=>({id:String(x.id),platform:String(x.platform||''),price:Number(x.price)||0,qty:Number(x.qty)||1,title:String(x.title||'')})).sort((a,b)=>a.id.localeCompare(b.id)));}
