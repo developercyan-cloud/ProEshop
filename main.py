@@ -113,6 +113,11 @@ def init_db():
           verified INTEGER NOT NULL DEFAULT 0, verify_hash TEXT NOT NULL DEFAULT '', verify_expires REAL NOT NULL DEFAULT 0,
           telegram_id TEXT UNIQUE, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS pending_email_registrations(
+          email TEXT PRIMARY KEY COLLATE NOCASE, password_hash TEXT NOT NULL,
+          verify_hash TEXT NOT NULL, verify_expires REAL NOT NULL,
+          attempts INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS telegram_verification_handoffs(
           code_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL, expires_at REAL NOT NULL,
           used INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
@@ -767,22 +772,25 @@ async def register_account(body: RegisterBody, request: Request):
     email=body.email.strip().lower()
     if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email): raise HTTPException(422,"Introduce un correo válido.")
     if len(body.password)<10 or not re.search(r"[A-Za-z]",body.password) or not re.search(r"\d",body.password): raise HTTPException(422,"La contraseña debe tener al menos 10 caracteres e incluir letras y números.")
-    account_id="email:"+secrets.token_urlsafe(18)
     code=f"{secrets.randbelow(1_000_000):06d}"
     code_hash=hashlib.sha256(code.encode()).hexdigest()
     expires=time.time()+600
+    with conn() as db:
+        exists=db.execute("SELECT 1 FROM email_accounts WHERE email=? COLLATE NOCASE",(email,)).fetchone()
+        if exists:
+            raise HTTPException(409,"Ya existe una cuenta con ese correo. Inicia sesión o recupera tu acceso.")
+        # Replacing a pending attempt is safe: pending registrations are not user accounts.
+        db.execute("DELETE FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,))
+        db.execute("INSERT INTO pending_email_registrations(email,password_hash,verify_hash,verify_expires,attempts,created_at) VALUES(?,?,?,?,0,?)",
+                   (email,_password_hash(body.password),code_hash,expires,now_iso()))
     try:
-        with conn() as db:
-            db.execute("INSERT INTO email_accounts(account_id,email,password_hash,verified,verify_hash,verify_expires,created_at,updated_at) VALUES(?,?,?,0,?,?,?,?)",(account_id,email,_password_hash(body.password),code_hash,expires,now_iso(),now_iso()))
-    except sqlite3.IntegrityError:
-        raise HTTPException(409,"Ya existe una cuenta con ese correo. Inicia sesión o recupera tu acceso.")
-    try: _send_verification_code(email,code)
+        _send_verification_code(email,code)
     except Exception as exc:
-        with conn() as db: db.execute("DELETE FROM email_accounts WHERE account_id=? AND verified=0",(account_id,))
+        with conn() as db: db.execute("DELETE FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,))
         log.warning("No se pudo enviar código de verificación: %s",str(exc)[:180])
         raise HTTPException(503,"No pudimos enviar el código. Revisa la configuración de correo en Railway e inténtalo de nuevo.")
-    audit(account_id,"register","Cuenta creada; código de verificación enviado")
-    return {"ok":True,"message":"Te enviamos un código de verificación de 6 dígitos. Regresa a ProEshop e introdúcelo en la ventana de verificación.","email":email}
+    audit("pending:"+hashlib.sha256(email.encode()).hexdigest()[:16],"register_pending","Código de verificación enviado; la cuenta aún no ha sido creada")
+    return {"ok":True,"message":"Te enviamos un código de verificación de 6 dígitos. La cuenta se creará únicamente si el código es correcto.","email":email}
 
 
 @app.post("/api/verify-email-code")
@@ -792,19 +800,40 @@ async def verify_email_code(body: dict):
     if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email) or not re.fullmatch(r"\d{6}", code):
         raise HTTPException(400,"Introduce el correo y el código de 6 dígitos.")
     code_hash=hashlib.sha256(code.encode()).hexdigest()
+    pending_error=None
+    account_id=None
     with conn() as db:
-        row=db.execute("SELECT * FROM email_accounts WHERE email=? COLLATE NOCASE AND verified=0",(email,)).fetchone()
+        row=db.execute("SELECT * FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,)).fetchone()
         if not row:
-            raise HTTPException(400,"No hay una cuenta pendiente de verificación para ese correo. Vuelve a registrarte o inicia sesión.")
-        if float(row["verify_expires"] or 0) <= time.time():
-            raise HTTPException(400,"El código venció. Vuelve a registrarte para recibir uno nuevo.")
-        if not hmac.compare_digest(str(row["verify_hash"] or ""),code_hash):
-            raise HTTPException(400,"El código no es correcto. Revisa el correo e inténtalo de nuevo.")
-        db.execute("UPDATE email_accounts SET verified=1,verify_hash='',verify_expires=0,updated_at=? WHERE account_id=? AND verified=0",(now_iso(),row["account_id"]))
-    identity=row["account_id"]
+            pending_error=(400,"No hay un registro pendiente para ese correo. Vuelve a registrarte.")
+        elif float(row["verify_expires"] or 0) <= time.time():
+            db.execute("DELETE FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,))
+            pending_error=(400,"El código venció. Vuelve a registrarte para recibir uno nuevo.")
+        elif int(row["attempts"] or 0) >= 5:
+            db.execute("DELETE FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,))
+            pending_error=(429,"Se agotaron los intentos. Vuelve a registrarte para recibir un nuevo código.")
+        elif not hmac.compare_digest(str(row["verify_hash"] or ""),code_hash):
+            attempts=int(row["attempts"] or 0)+1
+            if attempts >= 5:
+                db.execute("DELETE FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,))
+                pending_error=(429,"El código no es correcto y se agotaron los intentos. Vuelve a registrarte.")
+            else:
+                db.execute("UPDATE pending_email_registrations SET attempts=? WHERE email=? COLLATE NOCASE",(attempts,email))
+                pending_error=(400,f"El código no es correcto. Te quedan {5-attempts} intentos.")
+        else:
+            account_id="email:"+secrets.token_urlsafe(18)
+            timestamp=now_iso()
+            # Only now, after a valid code, create the actual email account.
+            db.execute("INSERT INTO email_accounts(account_id,email,password_hash,verified,verify_hash,verify_expires,created_at,updated_at) VALUES(?,?,?,1,'',0,?,?)",
+                       (account_id,email,row["password_hash"],timestamp,timestamp))
+            db.execute("DELETE FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,))
+    # Raise only after leaving the transaction so attempt counters / expiry cleanup commit.
+    if pending_error:
+        raise HTTPException(pending_error[0],pending_error[1])
+    identity=account_id
     token=_new_session(identity)
-    audit(identity,"email_verified","Correo verificado con código; sesión iniciada automáticamente")
-    return {"ok":True,"token":token,"username":email.split('@')[0],"email":email,"account_type":"email","message":"Registro exitoso. Tu correo fue verificado y tu sesión está iniciada."}
+    audit(identity,"email_verified","Cuenta creada tras verificar el código; sesión iniciada automáticamente")
+    return {"ok":True,"token":token,"username":email.split('@')[0],"email":email,"account_type":"email","message":"Registro exitoso. Tu cuenta fue creada y tu sesión está iniciada."}
 
 @app.get("/api/verify-email", response_class=HTMLResponse)
 async def verify_email(token: str):
