@@ -783,7 +783,10 @@ async def verify_email(token: str):
         if not row: return HTMLResponse("<h2>Enlace inválido o vencido</h2><p>Solicita una nueva verificación desde ProEshop.</p>",status_code=400)
         db.execute("UPDATE email_accounts SET verified=1,verify_hash='',verify_expires=0,updated_at=? WHERE account_id=?",(now_iso(),row['account_id']))
     audit(row['account_id'],"email_verified","Correo verificado")
-    return HTMLResponse("<!doctype html><html lang='es'><meta charset='utf-8'><meta name='viewport' content='width=device-width'><body style='font-family:Arial;background:#101429;color:#eef0ff;padding:32px'><h1>Correo verificado</h1><p>Tu cuenta ProEshop está activa. Vuelve a la aplicación e inicia sesión.</p></body></html>")
+    # Tras verificar, redirigir automáticamente a la vista de inicio de sesión de la Mini App.
+    base = (PUBLIC_BASE_URL or "").rstrip("/")
+    redirect_url = f"{base}/?email_verified=1#login" if base else "/?email_verified=1#login"
+    return HTMLResponse(f"<!doctype html><html lang='es'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width'><meta http-equiv='refresh' content='2;url={escape(redirect_url, quote=True)}'><title>Correo verificado · ProEshop</title></head><body style='font-family:Arial;background:#101429;color:#eef0ff;padding:32px'><main style='max-width:520px;margin:8vh auto;background:#191d38;padding:28px;border-radius:18px'><h1>¡Correo verificado!</h1><p>Tu cuenta ProEshop está activa. Te llevaremos al inicio de sesión automáticamente…</p><p><a style='color:#b8a9ff' href='{escape(redirect_url, quote=True)}'>Continuar ahora</a></p></main><script>setTimeout(()=>location.replace({redirect_url!r}),1200)</script></body></html>")
 
 @app.post("/api/email-login")
 async def email_login(body: EmailLoginBody):
