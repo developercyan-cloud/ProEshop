@@ -501,7 +501,7 @@ PLATFORMS = {
 }
 
 
-ACTIVE_PLATFORMS = {"rolex", "hublot", "jewelers"}
+DISABLED_STORES = {"amazon", "target", "walmart"}
 
 
 # Catálogo local ilustrativo para que HUBLOT funcione aunque el cliente esté desactualizado.
@@ -511,77 +511,102 @@ HUBLOT_CATALOG = [{'id': 'bb-original-red', 'name': 'Big Bang Original Soft Touc
 # Modelos destacados del catálogo oficial Rolex. La página oficial no publica ranking de ventas;
 # se presentan como modelos destacados, no como una lista verificada de los más vendidos.
 # Precios base en USD observados en la página oficial; confirmar antes de publicar ofertas de venta.
+# Catálogo Rolex: 47 referencias/modelos destacados con fotografías servidas por media.rolex.com.
+# Los precios son referencias en USD; el descuento del 50% es una promoción interna de ProEshop, no oficial de Rolex.
 ROLEX_CATALOG = [
-    {"id":'land-dweller-40', "name":'Rolex Land-Dweller 40 · acero y oro blanco', "price":16450.00, "discount":0, "desc":'Land-Dweller 40, esfera blanco intenso con motivo nido de abeja.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'datejust-41', "name":'Rolex Datejust 41 · acero y oro blanco, esfera verde', "price":11650.00, "discount":50, "desc":'Datejust 41, esfera verde sombreado.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'datejust-41-steel', "name":'Rolex Datejust 41 · acero Oystersteel', "price":8950.00, "discount":0, "desc":'Datejust 41, versión Oystersteel.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'datejust-36', "name":'Rolex Datejust 36 · acero y oro blanco', "price":10400.00, "discount":0, "desc":'Datejust 36, diseño clásico.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'lady-datejust', "name":'Rolex Lady-Datejust · 28 mm', "price":15100.00, "discount":0, "desc":'Lady-Datejust, acero y oro amarillo.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'oyster-perpetual-41', "name":'Rolex Oyster Perpetual 41 · acero y oro amarillo', "price":9650.00, "discount":50, "desc":'Oyster Perpetual 41, esfera pizarra.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'cosmograph-daytona', "name":'Rolex Cosmograph Daytona · platino', "price":84600.00, "discount":0, "desc":'Cosmograph Daytona, esfera azul glaciar.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'submariner-date', "name":'Rolex Submariner Date · acero Oystersteel', "price":11900.00, "discount":0, "desc":'Submariner Date, esfera negra.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'submariner-date-gold', "name":'Rolex Submariner Date · acero y oro amarillo', "price":17200.00, "discount":0, "desc":'Submariner Date, esfera azul.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'gmt-master-ii', "name":'Rolex GMT-Master II · Oystersteel', "price":12500.00, "discount":0, "desc":'GMT-Master II, reloj de doble huso horario.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'explorer-40', "name":'Rolex Explorer 40 · acero Oystersteel', "price":8350.00, "discount":50, "desc":'Explorer 40, esfera negra.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'explorer-ii', "name":'Rolex Explorer II · 42 mm', "price":10600.00, "discount":50, "desc":'Explorer II, esfera blanca.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'air-king', "name":'Rolex Air-King · 40 mm', "price":8150.00, "discount":0, "desc":'Air-King, esfera negra.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'sea-dweller', "name":'Rolex Sea-Dweller · 43 mm', "price":22450.00, "discount":50, "desc":'Sea-Dweller, reloj de submarinismo.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'deepsea', "name":'Rolex Deepsea · 44 mm', "price":15880.00, "discount":0, "desc":'Deepsea, esfera D-blue.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'sky-dweller', "name":'Rolex Sky-Dweller · oro Everose', "price":64900.00, "discount":0, "desc":'Sky-Dweller, esfera pizarra.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'yacht-master-42', "name":'Rolex Yacht-Master 42 · oro amarillo', "price":38100.00, "discount":0, "desc":'Yacht-Master 42, esfera negra.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'yacht-master-40', "name":'Rolex Yacht-Master 40 · acero y platino', "price":13200.00, "discount":0, "desc":'Yacht-Master 40, bisel de platino.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'yacht-master-ii', "name":'Rolex Yacht-Master II · 44 mm', "price":20300.00, "discount":0, "desc":'Yacht-Master II, esfera blanca.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'day-date-40', "name":'Rolex Day-Date 40 · platino', "price":68800.00, "discount":0, "desc":'Day-Date 40, esfera azul glaciar.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'day-date-36', "name":'Rolex Day-Date 36 · platino', "price":59000.00, "discount":0, "desc":'Day-Date 36, acabados clásicos.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'1908', "name":'Rolex 1908 · oro amarillo, 39 mm', "price":27000.00, "discount":0, "desc":'1908, esfera blanco intenso.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""}
-]
-ROLEX_CATALOG.extend([
-    {"id":"oyster-perpetual-41-steel", "name":"Rolex Oyster Perpetual 41 · acero Oystersteel", "price":7050.00, "discount":50, "desc":"Oyster Perpetual 41, esfera clásica.", "url":"https://www.rolex.com/watches/oyster-perpetual", "img":""},
-    {"id":"oyster-perpetual-36-multicolor", "name":"Rolex Oyster Perpetual 36 · esfera multicolor", "price":6750.00, "discount":50, "desc":"Oyster Perpetual 36, esfera multicolor motivo Jubilee.", "url":"https://www.rolex.com/watches/oyster-perpetual", "img":""},
-    {"id":"oyster-perpetual-28-green-stone", "name":"Rolex Oyster Perpetual 28 · oro amarillo, piedra verde", "price":31600.00, "discount":50, "desc":"Oyster Perpetual 28 en oro amarillo.", "url":"https://www.rolex.com/watches/oyster-perpetual", "img":""},
-    {"id":"oyster-perpetual-34-blue-stone", "name":"Rolex Oyster Perpetual 34 · oro Everose, piedra azul", "price":40100.00, "discount":50, "desc":"Oyster Perpetual 34 en oro Everose.", "url":"https://www.rolex.com/watches/oyster-perpetual", "img":""},
-    {"id":"datejust-41-steel-white", "name":"Rolex Datejust 41 · acero Oystersteel, esfera blanca", "price":9150.00, "discount":50, "desc":"Datejust 41 con esfera blanca.", "url":"https://www.rolex.com/watches/datejust", "img":""},
-    {"id":"datejust-36-steel-white", "name":"Rolex Datejust 36 · acero Oystersteel, esfera blanca", "price":8350.00, "discount":50, "desc":"Datejust 36 con esfera blanca.", "url":"https://www.rolex.com/watches/datejust", "img":""},
-    {"id":"datejust-36-green-ombre", "name":"Rolex Datejust 36 · acero y oro blanco, verde sombreado", "price":9900.00, "discount":50, "desc":"Datejust 36 con esfera verde sombreado.", "url":"https://www.rolex.com/watches/datejust", "img":""},
-    {"id":"datejust-36-olive", "name":"Rolex Datejust 36 · acero y oro amarillo, verde oliva", "price":15050.00, "discount":50, "desc":"Datejust 36 Rolesor con esfera verde oliva.", "url":"https://www.rolex.com/watches/datejust", "img":""},
-    {"id":"datejust-36-everose-white", "name":"Rolex Datejust 36 · acero y oro Everose, esfera blanca", "price":15350.00, "discount":50, "desc":"Datejust 36 Rolesor Everose.", "url":"https://www.rolex.com/watches/datejust", "img":""},
-    {"id":"datejust-36-dark-diamond", "name":"Rolex Datejust 36 · acero y oro blanco, gris con diamantes", "price":12550.00, "discount":50, "desc":"Datejust 36 con esfera gris engastada.", "url":"https://www.rolex.com/watches/datejust", "img":""},
-    {"id":"datejust-36-yellow-silver-diamond", "name":"Rolex Datejust 36 · acero y oro amarillo, plata con diamantes", "price":17700.00, "discount":50, "desc":"Datejust 36 con esfera plateada engastada.", "url":"https://www.rolex.com/watches/datejust", "img":""},
-    {"id":"datejust-41-everose-black", "name":"Rolex Datejust 41 · acero y oro Everose, esfera negra", "price":18200.00, "discount":50, "desc":"Datejust 41 Rolesor Everose.", "url":"https://www.rolex.com/watches/datejust", "img":""},
-    {"id":"yacht-master-ii-yellow-gold", "name":"Rolex Yacht-Master II · oro amarillo, 44 mm", "price":60700.00, "discount":50, "desc":"Yacht-Master II en oro amarillo.", "url":"https://www.rolex.com/watches/yacht-master", "img":""},
-    {"id":"oyster-perpetual-34-yellow-black", "name":"Rolex Oyster Perpetual 34 · oro amarillo, esfera negra", "price":37100.00, "discount":50, "desc":"Oyster Perpetual 34 en oro amarillo.", "url":"https://www.rolex.com/watches/oyster-perpetual", "img":""},
-    {"id":"datejust-36-everose-pink-diamond", "name":"Rolex Datejust 36 · oro Everose y diamantes, esfera rosé", "price":26550.00, "discount":50, "desc":"Datejust 36 con esfera rosé engastada.", "url":"https://www.rolex.com/watches/datejust", "img":""},
-    {"id":"datejust-36-yellow-black-diamond", "name":"Rolex Datejust 36 · oro amarillo y diamantes, esfera negra", "price":23500.00, "discount":50, "desc":"Datejust 36 con esfera negra engastada.", "url":"https://www.rolex.com/watches/datejust", "img":""},
-    {"id":"oyster-perpetual-41-slate", "name":"Rolex Oyster Perpetual 41 · acero y oro amarillo, esfera pizarra", "price":9650.00, "discount":50, "desc":"Oyster Perpetual 41 con esfera pizarra.", "url":"https://www.rolex.com/watches/oyster-perpetual", "img":""},
-    {"id":"datejust-41-everose-white", "name":"Rolex Datejust 41 · acero y oro Everose, esfera blanca", "price":17550.00, "discount":50, "desc":"Datejust 41 Rolesor Everose con esfera blanca.", "url":"https://www.rolex.com/watches/datejust", "img":""},
-])
-
-# Descuento interno ProEshop del 50% en todas las referencias Rolex.
-for _rolex_product in ROLEX_CATALOG:
-    _rolex_product["discount"] = 50
-ROLEX_DISCOUNT_IDS = {p["id"] for p in ROLEX_CATALOG}
-
-
-# Catálogo basado en los cuatro productos visibles en la categoría de electrónica del proveedor.
-# Los precios son los Sale Price/Our Price publicados al consultar la página; se deben revalidar antes de vender.
-JEWELERS_CATALOG = [
-    {"id":"niton-xl2-100p", "name":"Niton XL2 100p, Niton Gold XRF Analyzer XL2100", "price":20500.00, "desc":"Analizador XRF para metales preciosos.", "url":"https://www.jewelerstoystore.com/Niton-XL2-100p-XL2100-Niton-Gold-XRF-Analyzer-p/xrf-xl2.htm"},
-    {"id":"niton-dxl", "name":"Niton DXL Precious Metal Analyzer", "price":21750.00, "desc":"Analizador de metales preciosos.", "url":"https://www.jewelerstoystore.com/precious-metal-analyzer-p/dxl.htm"},
-    {"id":"niton-xl2-battery", "name":"Niton XL2 Battery: 7.4V 7800mAh Li-ion (NTL200SL)", "price":295.00, "desc":"Batería de repuesto para analizador XRF Niton XL2.", "url":"https://www.jewelerstoystore.com/Niton-XL2-Battery-7-4V-p/xl-2.htm"},
-    {"id":"niton-xl2-charger", "name":"Niton XL2 Battery Charger – Fast, Smart & Reliable Charging for Your XRF Analyzer", "price":395.00, "desc":"Cargador para analizador XRF Niton XL2.", "url":"https://www.jewelerstoystore.com/Niton-XL2-Battery-Charger-p/xl-3.htm"},
+    {"id":"land-dweller-40", "name":"Rolex Land-Dweller 40 · acero y oro blanco", "price":16100.00, "discount":50, "desc":"Esfera blanco intenso con motivo nido de abeja.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m127334-0001", "reference":"m127334-0001"},
+    {"id":"day-date-40-platinum", "name":"Rolex Day-Date 40 · platino, esfera azul glaciar", "price":68800.00, "discount":50, "desc":"Caja de platino y esfera azul glaciar.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m228236-0018", "reference":"m228236-0018"},
+    {"id":"sky-dweller-everose", "name":"Rolex Sky-Dweller · oro Everose, esfera pizarra", "price":64900.00, "discount":50, "desc":"Caja de oro Everose y esfera pizarra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m336935-0008", "reference":"m336935-0008"},
+    {"id":"lady-datejust-two-tone", "name":"Rolex Lady-Datejust 28 · acero y oro amarillo", "price":15100.00, "discount":50, "desc":"Lady-Datejust con esfera plateada engastada de diamantes.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m279173-0007", "reference":"m279173-0007"},
+    {"id":"datejust-41-green", "name":"Rolex Datejust 41 · acero y oro blanco, esfera verde", "price":11650.00, "discount":50, "desc":"Datejust 41 con esfera verde sombreado.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126334-0033", "reference":"m126334-0033"},
+    {"id":"oyster-perpetual-41-slate", "name":"Rolex Oyster Perpetual 41 · acero y oro amarillo", "price":9650.00, "discount":50, "desc":"Oyster Perpetual 41 con esfera pizarra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m134303-0001", "reference":"m134303-0001"},
+    {"id":"sea-dweller-two-tone", "name":"Rolex Sea-Dweller 43 · acero y oro amarillo", "price":22450.00, "discount":50, "desc":"Reloj de buceo con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126603-0001", "reference":"m126603-0001"},
+    {"id":"gmt-master-ii-grnr", "name":"Rolex GMT-Master II · bisel gris y negro", "price":12000.00, "discount":50, "desc":"GMT-Master II de acero, referencia GRNR.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/c_limit%2Cw_1920/v1/rolexcom/094398bf1f99/collection/watches-grid/beautyshot-cards/m126710grnr-0004/m126710grnr-0004_v01", "reference":"m126710grnr-0004"},
+    {"id":"gmt-master-ii-batman", "name":"Rolex GMT-Master II · bisel azul y negro", "price":12000.00, "discount":50, "desc":"GMT-Master II de acero con bisel azul y negro.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126710blnr-0003", "reference":"m126710blnr-0003"},
+    {"id":"yacht-master-42-gold", "name":"Rolex Yacht-Master 42 · oro amarillo", "price":38100.00, "discount":50, "desc":"Yacht-Master 42 en oro amarillo con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m226658-0001", "reference":"m226658-0001"},
+    {"id":"yacht-master-ii-steel", "name":"Rolex Yacht-Master II 44 · acero", "price":20300.00, "discount":50, "desc":"Yacht-Master II con esfera blanca.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126680-0001", "reference":"m126680-0001"},
+    {"id":"explorer-40", "name":"Rolex Explorer 40 · acero Oystersteel", "price":8200.00, "discount":50, "desc":"Explorer 40 con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m224270-0001", "reference":"m224270-0001"},
+    {"id":"explorer-ii-black", "name":"Rolex Explorer II 42 · esfera negra", "price":10600.00, "discount":50, "desc":"Explorer II de acero con indicador de segundo huso horario.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m226570-0001", "reference":"m226570-0001"},
+    {"id":"air-king-40", "name":"Rolex Air-King 40 · esfera negra", "price":8150.00, "discount":50, "desc":"Diseño inspirado en la historia de la aviación.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126900-0001", "reference":"m126900-0001"},
+    {"id":"1908-yellow-gold", "name":"Rolex 1908 39 · oro amarillo", "price":40900.00, "discount":50, "desc":"Modelo clásico de oro amarillo con esfera blanca.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m52508-0008", "reference":"m52508-0008"},
+    {"id":"oyster-perpetual-36-multicolor", "name":"Rolex Oyster Perpetual 36 · esfera multicolor", "price":6750.00, "discount":50, "desc":"Oyster Perpetual 36 de acero con motivo multicolor.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126000-0016", "reference":"m126000-0016"},
+    {"id":"land-dweller-platinum", "name":"Rolex Land-Dweller 40 · platino", "price":67000.00, "discount":50, "desc":"Land-Dweller con esfera azul glaciar y motivo nido de abeja.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m127336-0001", "reference":"m127336-0001"},
+    {"id":"daytona-steel-white", "name":"Rolex Cosmograph Daytona 40 · acero, esfera blanca", "price":16900.00, "discount":50, "desc":"Cronógrafo Cosmograph Daytona de acero Oystersteel.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126500ln-0001", "reference":"m126500ln-0001"},
+    {"id":"oyster-perpetual-36-black", "name":"Rolex Oyster Perpetual 36 · esfera negra", "price":6750.00, "discount":50, "desc":"Oyster Perpetual 36 con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126000-0014", "reference":"m126000-0014"},
+    {"id":"gmt-master-ii-grnr-black", "name":"Rolex GMT-Master II · bisel gris y negro, variante", "price":12000.00, "discount":50, "desc":"GMT-Master II de acero con bisel gris y negro.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126710grnr-0003", "reference":"m126710grnr-0003"},
+    {"id":"1908-platinum", "name":"Rolex 1908 39 · platino, esfera azul glaciar", "price":32900.00, "discount":50, "desc":"1908 en platino con esfera azul glaciar.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m52506-0003", "reference":"m52506-0003"},
+    {"id":"1908-white-gold", "name":"Rolex 1908 39 · oro blanco", "price":29600.00, "discount":50, "desc":"1908 de oro blanco con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m52509-0002", "reference":"m52509-0002"},
+    {"id":"daytona-everose-chocolate", "name":"Rolex Cosmograph Daytona · oro Everose", "price":59100.00, "discount":50, "desc":"Daytona de oro Everose con esfera chocolate y negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126505-0005", "reference":"m126505-0005"},
+    {"id":"day-date-white-gold", "name":"Rolex Day-Date 40 · oro blanco", "price":53100.00, "discount":50, "desc":"Day-Date 40 de oro blanco con esfera verde oliva.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m228239-0033", "reference":"m228239-0033"},
+    {"id":"deepsea-yellow-gold", "name":"Rolex Deepsea · oro amarillo, esfera azul", "price":68100.00, "discount":50, "desc":"Deepsea de alta resistencia con esfera azul.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m136668lb-0001", "reference":"m136668lb-0001"},
+    {"id":"submariner-date-black", "name":"Rolex Submariner Date 41 · acero, esfera negra", "price":11350.00, "discount":50, "desc":"Submariner Date de acero Oystersteel.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126610ln-0001", "reference":"m126610ln-0001"},
+    {"id":"oyster-perpetual-28-gold", "name":"Rolex Oyster Perpetual 28 · oro amarillo", "price":31600.00, "discount":50, "desc":"Oyster Perpetual 28 con piedra verde.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m276208-0002", "reference":"m276208-0002"},
+    {"id":"datejust-36-two-tone", "name":"Rolex Datejust 36 · acero y oro amarillo", "price":15050.00, "discount":50, "desc":"Datejust 36 con esfera verde oliva.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126203-0058", "reference":"m126203-0058"},
+    {"id":"day-date-yellow-gold", "name":"Rolex Day-Date 40 · oro amarillo", "price":49400.00, "discount":50, "desc":"Day-Date 40 con esfera blanca.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m228238-0042", "reference":"m228238-0042"},
+    {"id":"land-dweller-diamond", "name":"Rolex Land-Dweller 36 · platino y diamantes", "price":100050.00, "discount":50, "desc":"Land-Dweller 36 con esfera azul glaciar y diamantes.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m127286tbr-0001", "reference":"m127286tbr-0001"},
+    {"id":"daytona-everose-sundust", "name":"Rolex Cosmograph Daytona · oro Everose, Sundust", "price":44800.00, "discount":50, "desc":"Daytona Everose con esfera Sundust y contadores negros.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126515ln-0006", "reference":"m126515ln-0006"},
+    {"id":"oyster-perpetual-34-everose", "name":"Rolex Oyster Perpetual 34 · oro Everose", "price":40100.00, "discount":50, "desc":"Oyster Perpetual 34 con piedra azul.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m124205-0002", "reference":"m124205-0002"},
+    {"id":"yacht-master-40-platinum", "name":"Rolex Yacht-Master 40 · acero y platino", "price":13200.00, "discount":50, "desc":"Yacht-Master 40 con bisel de platino y esfera pizarra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126622-0001", "reference":"m126622-0001"},
+    {"id":"yacht-master-37-everose", "name":"Rolex Yacht-Master 37 · acero y oro Everose", "price":17750.00, "discount":50, "desc":"Yacht-Master 37 con esfera chocolate.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m268621-0003", "reference":"m268621-0003"},
+    {"id":"yacht-master-42-white-gold", "name":"Rolex Yacht-Master 42 · oro blanco", "price":40000.00, "discount":50, "desc":"Yacht-Master 42 de oro blanco con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m226659-0002", "reference":"m226659-0002"},
+    {"id":"datejust-41-yellow-gold", "name":"Rolex Datejust 41 · acero y oro amarillo", "price":17700.00, "discount":50, "desc":"Datejust 41 con esfera champagne.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126333-0010", "reference":"m126333-0010"},
+    {"id":"lady-datejust-everose-diamonds", "name":"Rolex Lady-Datejust 28 · oro Everose y diamantes", "price":53100.00, "discount":50, "desc":"Lady-Datejust con esfera chocolate engastada de diamantes.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m279135rbr-0001", "reference":"m279135rbr-0001"},
+    {"id":"datejust-36-diamond", "name":"Rolex Datejust 36 · oro blanco y diamantes", "price":18050.00, "discount":50, "desc":"Datejust 36 con esfera nácar blanco engastada de diamantes.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126284rbr-0011", "reference":"m126284rbr-0011"},
+    {"id":"gmt-master-ii-everose", "name":"Rolex GMT-Master II · oro Everose", "price":57500.00, "discount":50, "desc":"GMT-Master II de oro Everose con esfera ojo de hierro.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126715chnr-0002", "reference":"m126715chnr-0002"},
+    {"id":"datejust-31-everose", "name":"Rolex Datejust 31 · acero y oro Everose", "price":13950.00, "discount":50, "desc":"Datejust 31 con esfera pizarra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m278241-0018", "reference":"m278241-0018"},
+    {"id":"yacht-master-42-titanium", "name":"Rolex Yacht-Master 42 · titanio RLX", "price":15500.00, "discount":50, "desc":"Yacht-Master 42 en titanio RLX.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m226627-0001", "reference":"m226627-0001"},
+    {"id":"sky-dweller-steel-white-gold", "name":"Rolex Sky-Dweller 42 · acero y oro blanco", "price":17750.00, "discount":50, "desc":"Sky-Dweller con esfera verde menta.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m336934-0001", "reference":"m336934-0001"},
+    {"id":"day-date-yellow-gold-green", "name":"Rolex Day-Date 40 · oro amarillo, esfera verde", "price":49400.00, "discount":50, "desc":"Day-Date 40 de oro amarillo con esfera verde sombreado.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m228238-0069", "reference":"m228238-0069"},
+    {"id":"gmt-master-ii-yellow-gold", "name":"Rolex GMT-Master II · oro amarillo", "price":50800.00, "discount":50, "desc":"GMT-Master II de oro amarillo con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126718grnr-0001", "reference":"m126718grnr-0001"},
+    {"id":"sky-dweller-white-gold", "name":"Rolex Sky-Dweller · oro blanco", "price":53450.00, "discount":50, "desc":"Sky-Dweller de oro blanco con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m336239-0002", "reference":"m336239-0002"},
+    {"id":"yacht-master-ii-yellow-gold", "name":"Rolex Yacht-Master II 44 · oro amarillo", "price":60700.00, "discount":50, "desc":"Yacht-Master II de oro amarillo con esfera blanca.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126688-0001", "reference":"m126688-0001"},
+    {"id":"datejust-41-steel-blue", "name":"Rolex Datejust 41 · acero, esfera azul", "price":8950.00, "discount":50, "desc":"Datejust 41 de acero Oystersteel con esfera azul vivo.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126300-0029", "reference":"m126300-0029"}
 ]
 
 
-# Imágenes locales de respaldo. Evitan las respuestas 403 de las tiendas externas.
-# Son recortes ilustrativos del catálogo visual de ProEshop, no fotografías oficiales verificadas.
-for _i, _p in enumerate(HUBLOT_CATALOG, 1):
-    _p["img"] = f"/static/images/hublot/hublot_{_i:02d}.jpg"
-for _i, _p in enumerate(ROLEX_CATALOG, 1):
-    _p["img"] = f"/static/images/rolex/rolex_{_i:02d}.jpg"
-for _i, _p in enumerate(JEWELERS_CATALOG, 1):
-    _p["img"] = f"/static/images/jewelers/jewelers_{_i:02d}.jpg"
-ROLEX_DISCOUNT_IDS = {p["id"] for p in ROLEX_CATALOG}
+JEWELERS_CATALOG = [{'id': 'niton-xl2-100p',
+  'name': 'Niton XL2 100p, Niton Gold XRF Analyzer XL2100',
+  'price': 20500.0,
+  'desc': 'Analizador XRF para metales preciosos.',
+  'url': 'https://www.jewelerstoystore.com/Niton-XL2-100p-XL2100-Niton-Gold-XRF-Analyzer-p/xrf-xl2.htm'},
+ {'id': 'niton-dxl',
+  'name': 'Niton DXL Precious Metal Analyzer',
+  'price': 21750.0,
+  'desc': 'Analizador de metales preciosos.',
+  'url': 'https://www.jewelerstoystore.com/precious-metal-analyzer-p/dxl.htm'},
+ {'id': 'niton-xl2-battery',
+  'name': 'Niton XL2 Battery: 7.4V 7800mAh Li-ion (NTL200SL)',
+  'price': 295.0,
+  'desc': 'Batería de repuesto para analizador XRF Niton XL2.',
+  'url': 'https://www.jewelerstoystore.com/Niton-XL2-Battery-7-4V-p/xl-2.htm'},
+ {'id': 'niton-xl2-charger',
+  'name': 'Niton XL2 Battery Charger – Fast, Smart & Reliable Charging for Your XRF Analyzer',
+  'price': 395.0,
+  'desc': 'Cargador para analizador XRF Niton XL2.',
+  'url': 'https://www.jewelerstoystore.com/Niton-XL2-Battery-Charger-p/xl-3.htm'}]
 
+
+
+# Imágenes locales de respaldo: las páginas oficiales pueden bloquear la extracción de imágenes (HTTP 403).
+HUBLOT_LOCAL_IMAGES = {p["id"]: f"/static/catalog_images/hublot_{i+1:02d}.jpg" for i, p in enumerate(HUBLOT_CATALOG)}
+def _rolex_fallback_for(product, index):
+    key = (str(product.get("id", "")) + " " + str(product.get("name", ""))).casefold()
+    ranges = [("oyster-perpetual", 1, 13), ("datejust", 14, 26), ("day-date", 27, 30),
+              ("sky-dweller", 31, 34), ("gmt-master", 35, 38), ("submariner", 39, 42),
+              ("sea-dweller", 43, 45), ("deepsea", 43, 45), ("explorer", 46, 49),
+              ("air-king", 46, 49), ("yacht-master", 50, 53), ("milgauss", 54, 55),
+              ("1908", 56, 58), ("cellini", 56, 58), ("pearlmaster", 59, 61),
+              ("land-dweller", 14, 26), ("daytona", 35, 38)]
+    for family, first, last in ranges:
+        if family in key:
+            return f"/static/catalog_images/rolex_crop_{first + (index % (last-first+1)):03d}.jpg"
+    return f"/static/catalog_images/rolex_crop_{1 + (index % 61):03d}.jpg"
+ROLEX_LOCAL_IMAGES = {p["id"]: _rolex_fallback_for(p, i) for i, p in enumerate(ROLEX_CATALOG)}
+JEWELERS_LOCAL_IMAGES = {p["id"]: f"/static/catalog_images/jewelers_{i+1:02d}.jpg" for i, p in enumerate(JEWELERS_CATALOG)}
+for _p in JEWELERS_CATALOG:
+    _p["img"] = JEWELERS_LOCAL_IMAGES.get(_p["id"], "/static/catalog_images/jewelers_01.jpg")
+for _p in ROLEX_CATALOG:
+    _p["discount"] = 50
 
 @app.on_event("startup")
 async def startup():
@@ -819,9 +844,11 @@ async def search(body: SearchBody, request: Request):
     tg_id = get_auth(request)
     platform = body.platform.lower().strip()
     query = body.query.strip()
+    if platform in DISABLED_STORES:
+        raise HTTPException(403, "Esta tienda está deshabilitada temporalmente en ProEshop.")
 
-    if platform not in ACTIVE_PLATFORMS:
-        raise HTTPException(400, "Esta tienda está temporalmente deshabilitada. Usa Rolex, HUBLOT o Joyería.")
+    if platform not in PLATFORMS:
+        raise HTTPException(400, "Tienda no admitida.")
     if not query:
         raise HTTPException(400, "Escribe el nombre de un producto.")
 
@@ -841,8 +868,6 @@ async def search(body: SearchBody, request: Request):
         # than a blank screen; the user can then filter/sort in the shared results UI.
         if not matches:
             matches = HUBLOT_CATALOG
-        # No se consulta el sitio del fabricante durante la búsqueda: responde 403 en Railway.
-        # Se sirven imágenes locales para que todas las fichas tengan una imagen.
         requested_matches = matches[:52]
         results = []
         for p in requested_matches:
@@ -873,10 +898,12 @@ async def search(body: SearchBody, request: Request):
             else:
                 product_url = "https://www.hublot.com/en-us/find-your-hublot"
             # Only assign a photo from an exact model page; never borrow a different model's image.
-            image_url = p.get("img", "") or HUBLOT_OFFICIAL_IMAGES.get(pid, "") or HUBLOT_IMAGE_CACHE.get(pid, "")
-            results.append({"title": p["name"], "price": round(float(p["price"]) * 0.5, 2), "list_price": round(float(p["price"]), 2), "discount_percent": 50,
+            fallback_image = HUBLOT_LOCAL_IMAGES.get(pid, "/static/catalog_images/hublot_01.jpg")
+            image_url = HUBLOT_OFFICIAL_IMAGES.get(pid, "") or HUBLOT_IMAGE_CACHE.get(pid, "") or fallback_image
+            results.append({"title": p["name"], "price": round(float(p["price"]), 2),
                             "currency": "USD", "url": product_url, "image": image_url,
-                            "source": "HUBLOT.com · imagen solo cuando se verifica la ficha exacta",
+                            "fallback_image": fallback_image,
+                            "source": "HUBLOT.com · foto oficial si está disponible; respaldo local de catálogo",
                             "collection": p.get("collection", ""), "description": p.get("desc", "")})
         return {
             "platform": "hublot", "label": "HUBLOT", "query": query,
@@ -885,16 +912,20 @@ async def search(body: SearchBody, request: Request):
         }
     if platform == "jewelers":
         q = query.casefold().strip()
-        broad_terms = {"electronics", "electronic", "todos", "todo", "all", "*", "jewelers", "jewelers toy store"}
+        broad_terms = {"electronics", "electronic", "todos", "todo", "all", "*", "jewelers", "jewelers toy store", "joyeria", "joyería"}
         matches = [p for p in JEWELERS_CATALOG if q in broad_terms or any(q in str(p.get(field, "")).casefold() for field in ("name", "desc", "id"))]
         if not matches:
             matches = JEWELERS_CATALOG
-        results = [{"title": p["name"], "price": round(float(p["price"]) * 0.5, 2),
-                    "list_price": round(float(p["price"]), 2), "discount_percent": 50,
-                    "currency": "USD", "url": p["url"], "image": p.get("img", ""),
-                    "source": "JewelersToyStore.com · imagen ilustrativa local",
-                    "description": p["desc"]} for p in matches]
-        return {"platform":"jewelers", "label":"Jewelers Toy Store", "query":query, "search_url":search_url, "live_results":results, "notice":"Catálogo leído de la categoría Electronic del proveedor. Precios base observados: $20,500, $21,750, $295 y $395 USD; el descuento ProEshop del 50% es propio de esta miniapp, no una oferta anunciada por el proveedor. Confirma precio y disponibilidad antes de comprar."}
+        results = []
+        for p in matches:
+            fallback_image = JEWELERS_LOCAL_IMAGES.get(p["id"], "/static/catalog_images/jewelers_01.jpg")
+            results.append({"title": p["name"], "price": round(float(p["price"]), 2),
+                            "currency": "USD", "url": p["url"], "image": fallback_image,
+                            "fallback_image": fallback_image,
+                            "source": "JewelersToyStore.com · imagen ilustrativa local; consulta la ficha del proveedor",
+                            "description": p["desc"]})
+        return {"platform":"jewelers", "label":"Jewelers Toy Store", "query":query, "search_url":search_url,
+                "live_results":results, "notice":"Las imágenes de respaldo son ilustrativas porque el proveedor bloquea la consulta automática (HTTP 403). Verifica el producto, precio y disponibilidad en la ficha del proveedor."}
     if platform == "rolex":
         q = query.casefold().strip()
         broad_terms = {"rolex", "reloj", "relojes", "watch", "watches", "todos", "todo", "all", "destacados", "*"}
@@ -925,8 +956,15 @@ async def search(body: SearchBody, request: Request):
                 if pid == prefix or pid.startswith(prefix + "-"):
                     return rolex_collections[prefix]
             return "https://www.rolex.com/watches"
-        results = [{"title": p["name"], "price": round(float(p["price"])*0.5, 2), "list_price": round(float(p["price"]), 2), "discount_percent": 50, "currency":"USD", "url":rolex_product_url(p), "image":p.get("img", ""), "source":"Rolex.com · precio de referencia; imagen ilustrativa y oferta ProEshop no oficial", "description":p["desc"]} for p in matches]
-        return {"platform":"rolex", "label":"Rolex · modelos destacados", "query":query, "search_url":"https://www.rolex.com/es/watches/find-rolex?group=0", "live_results":results, "notice":"Modelos destacados del catálogo oficial; Rolex no identifica estos artículos como los más vendidos en esta página. El 50% es una oferta propuesta por ProEshop, no una promoción oficial de Rolex. Imágenes ilustrativas; antes de vender, confirma proveedor autorizado, autenticidad, disponibilidad y precio real."}
+        results = []
+        for p in matches:
+            fallback_image = ROLEX_LOCAL_IMAGES.get(p["id"], "/static/catalog_images/rolex_01.jpg")
+            results.append({"title": p["name"], "price": round(float(p["price"])*0.50, 2),
+                            "list_price": round(float(p["price"]), 2), "discount_percent": 50, "currency":"USD",
+                            "url":p.get("url") or rolex_product_url(p), "image":p.get("img") or fallback_image,
+                            "fallback_image":fallback_image, "source":"Rolex.com · precio de referencia; oferta ProEshop no oficial",
+                            "description":p["desc"]})
+        return {"platform":"rolex", "label":"Rolex · modelos destacados", "query":query, "search_url":"https://www.rolex.com/es/watches/find-rolex?group=0", "live_results":results, "notice":"Catálogo de 40 referencias. Precios de referencia publicados en el catálogo oficial de EE. UU.; el 50% es una promoción de ProEshop, no una oferta oficial de Rolex. Las fotos oficiales se intentan cargar primero y existe respaldo local si el CDN no responde."}
 
     domains = {"amazon": "amazon.com", "target": "target.com", "walmart": "walmart.com"}
     domain = domains[platform]
@@ -1062,22 +1100,24 @@ async def state(request: Request):
         order_events = db.execute("SELECT e.* FROM order_events e JOIN orders o ON o.order_ref=e.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
         store_orders = db.execute("SELECT so.*, o.created_at AS parent_created_at FROM store_orders so JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY so.created_at DESC, so.store_label ASC", (tg_id,)).fetchall()
         store_order_events = db.execute("SELECT e.* FROM store_order_events e JOIN store_orders so ON so.store_order_ref=e.store_order_ref JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
-    # Repara imágenes de carrito ya existente usando recursos locales; no depende de sitios que responden 403.
-    catalog_by_platform = {
-        "hublot": HUBLOT_CATALOG,
-        "rolex": ROLEX_CATALOG,
-        "jewelers": JEWELERS_CATALOG,
-    }
+    # Backfill local image paths for older cart rows; avoids external-site 403 errors in cart/checkout.
     for item in cart:
         platform = str(item.get("platform", "")).lower()
-        catalog = catalog_by_platform.get(platform, [])
-        matched = next((p for p in catalog if p.get("name", "").casefold() == str(item.get("title", "")).casefold()), None)
-        if matched and matched.get("img"):
-            local_image = matched["img"]
-            if item.get("image") != local_image:
-                item["image"] = local_image
-                with conn() as db:
-                    db.execute("UPDATE carts SET image=? WHERE id=? AND telegram_id=?", (local_image, item["id"], tg_id))
+        if platform == "hublot":
+            match = next((p for p in HUBLOT_CATALOG if p.get("name", "").casefold() == str(item.get("title", "")).casefold()), None)
+            fallback = HUBLOT_LOCAL_IMAGES.get(match.get("id", ""), "/static/catalog_images/hublot_01.jpg") if match else "/static/catalog_images/hublot_01.jpg"
+        elif platform == "rolex":
+            match = next((p for p in ROLEX_CATALOG if p.get("name", "").casefold() == str(item.get("title", "")).casefold()), None)
+            fallback = ROLEX_LOCAL_IMAGES.get(match.get("id", ""), "/static/catalog_images/rolex_01.jpg") if match else "/static/catalog_images/rolex_01.jpg"
+        elif platform == "jewelers":
+            match = next((p for p in JEWELERS_CATALOG if p.get("name", "").casefold() == str(item.get("title", "")).casefold()), None)
+            fallback = JEWELERS_LOCAL_IMAGES.get(match.get("id", ""), "/static/catalog_images/jewelers_01.jpg") if match else "/static/catalog_images/jewelers_01.jpg"
+        else:
+            continue
+        if not str(item.get("image", "")).startswith("/static/catalog_images/"):
+            item["image"] = fallback
+            with conn() as db:
+                db.execute("UPDATE carts SET image=? WHERE id=? AND telegram_id=?", (fallback, item["id"], tg_id))
     return {
         "balance": balance["amount"] if balance else str(INITIAL_BALANCE),
         "currency": CURRENCY,
@@ -1089,15 +1129,17 @@ async def state(request: Request):
         "order_events": [dict(x) for x in order_events],
         "store_orders": [dict(x) for x in store_orders],
         "store_order_events": [dict(x) for x in store_order_events],
-        "platforms": [{"id": k, "label": v["label"]} for k,v in PLATFORMS.items() if k in ACTIVE_PLATFORMS]
+        "platforms": [{"id": k, "label": v["label"]} for k,v in PLATFORMS.items()]
     }
 
 
 @app.post("/api/cart")
 async def add_cart(body: AddBody, request: Request):
     tg_id = get_auth(request)
-    if body.platform.lower().strip() not in ACTIVE_PLATFORMS:
-        raise HTTPException(400, "Esta tienda está temporalmente deshabilitada. Usa Rolex, HUBLOT o Joyería.")
+    if body.platform.lower() not in PLATFORMS:
+        raise HTTPException(400, "Tienda no admitida.")
+    if body.platform.lower() in DISABLED_STORES:
+        raise HTTPException(403, "Esta tienda está deshabilitada temporalmente en ProEshop.")
     if body.currency.upper() != CURRENCY.upper():
         raise HTTPException(400, f"El saldo ficticio está denominado en {CURRENCY}; usa esa misma moneda.")
     try:
@@ -1107,19 +1149,23 @@ async def add_cart(body: AddBody, request: Request):
     except (InvalidOperation, ValueError):
         raise HTTPException(400, "Introduce un precio válido mayor que cero.")
     platform = body.platform.lower().strip()
-    # El servidor calcula el precio final desde el catálogo original para evitar descuentos dobles.
+    # Oferta simulada exclusiva de HUBLOT: se aplica en servidor para que
+    # el subtotal, los impuestos, el saldo ficticio y el historial usen el precio rebajado.
     if platform == "hublot":
-        matching = next((p for p in HUBLOT_CATALOG if p["name"] == body.title.strip()), None)
+        matching = next((p for p in HUBLOT_CATALOG if p["name"].casefold() == body.title.strip().casefold()), None)
         if matching:
             price = (Decimal(str(matching["price"])) * Decimal("0.50")).quantize(Decimal("0.01"))
     elif platform == "jewelers":
-        matching = next((p for p in JEWELERS_CATALOG if p["name"] == body.title.strip()), None)
+        matching = next((p for p in JEWELERS_CATALOG if p["name"].casefold() == body.title.strip().casefold()), None)
         if matching:
             price = (Decimal(str(matching["price"])) * Decimal("0.50")).quantize(Decimal("0.01"))
     elif platform == "rolex":
         matching = next((p for p in ROLEX_CATALOG if p["name"] == body.title.strip()), None)
-        if matching:
+        if matching and matching["discount"] == 50:
+            # Calculate the ProEshop 50% promotional price server-side.
             price = (Decimal(str(matching["price"])) * Decimal("0.50")).quantize(Decimal("0.01"))
+        elif matching:
+            price = Decimal(str(matching["price"])).quantize(Decimal("0.01"))
     parsed = urlparse(body.url)
     host = (parsed.hostname or "").lower().rstrip(".")
     allowed_domains = {
@@ -1144,17 +1190,18 @@ async def add_cart(body: AddBody, request: Request):
             "El enlace debe pertenecer al dominio oficial de la tienda seleccionada.",
         )
     image_url = ""
-    if body.image and body.image.startswith("/static/images/") and ".." not in body.image and "\\" not in body.image:
-        image_url = body.image[:2000]
-    elif body.image:
-        image_parsed = urlparse(body.image)
-        image_host = (image_parsed.hostname or "").lower().rstrip(".")
-        image_domains = set(allowed_domains[platform]) | {"cdn11.bigcommerce.com", "cdn.shopify.com", "images.squarespace-cdn.com", "images.ctfassets.net", "media.hublot.com", "assets.hublot.com"}
-        if image_parsed.scheme.lower() == "https" and any(
-            image_host == domain or image_host.endswith("." + domain)
-            for domain in image_domains
-        ):
+    if body.image:
+        if body.image.startswith("/static/catalog_images/") and ".." not in body.image:
             image_url = body.image[:2000]
+        else:
+            image_parsed = urlparse(body.image)
+            image_host = (image_parsed.hostname or "").lower().rstrip(".")
+            image_domains = set(allowed_domains[platform]) | {"cdn11.bigcommerce.com", "cdn.shopify.com", "images.squarespace-cdn.com", "images.ctfassets.net", "media.hublot.com", "assets.hublot.com", "media.rolex.com"}
+            if image_parsed.scheme.lower() == "https" and any(
+                image_host == domain or image_host.endswith("." + domain)
+                for domain in image_domains
+            ):
+                image_url = body.image[:2000]
     with conn() as db:
         db.execute("""INSERT INTO carts(telegram_id,platform,title,price,currency,url,image,qty,created_at)
                       VALUES(?,?,?,?,?,?,?,1,?)""",
