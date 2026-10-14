@@ -20,6 +20,7 @@ log = logging.getLogger("shopcart")
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
+TELEGRAM_MINI_APP_URL = os.getenv("TELEGRAM_MINI_APP_URL", "https://t.me/ProeshopBot").rstrip("/")
 DATABASE_PATH = os.getenv("DATABASE_PATH", "/data/shopcart.db")
 ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()
 DEMO_USERNAME = os.getenv("DEMO_USERNAME", "demo")
@@ -111,6 +112,10 @@ def init_db():
           account_id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE, password_hash TEXT NOT NULL,
           verified INTEGER NOT NULL DEFAULT 0, verify_hash TEXT NOT NULL DEFAULT '', verify_expires REAL NOT NULL DEFAULT 0,
           telegram_id TEXT UNIQUE, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS telegram_verification_handoffs(
+          code_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL, expires_at REAL NOT NULL,
+          used INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS carts(
           id INTEGER PRIMARY KEY AUTOINCREMENT, telegram_id TEXT NOT NULL, platform TEXT NOT NULL,
@@ -782,11 +787,36 @@ async def verify_email(token: str):
         row=db.execute("SELECT account_id FROM email_accounts WHERE verify_hash=? AND verified=0 AND verify_expires>?",(token_hash,time.time())).fetchone()
         if not row: return HTMLResponse("<h2>Enlace inválido o vencido</h2><p>Solicita una nueva verificación desde ProEshop.</p>",status_code=400)
         db.execute("UPDATE email_accounts SET verified=1,verify_hash='',verify_expires=0,updated_at=? WHERE account_id=?",(now_iso(),row['account_id']))
-    audit(row['account_id'],"email_verified","Correo verificado")
-    # Tras verificar, redirigir automáticamente a la vista de inicio de sesión de la Mini App.
-    base = (PUBLIC_BASE_URL or "").rstrip("/")
-    redirect_url = f"{base}/?email_verified=1#login" if base else "/?email_verified=1#login"
-    return HTMLResponse(f"<!doctype html><html lang='es'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width'><meta http-equiv='refresh' content='2;url={escape(redirect_url, quote=True)}'><title>Correo verificado · ProEshop</title></head><body style='font-family:Arial;background:#101429;color:#eef0ff;padding:32px'><main style='max-width:520px;margin:8vh auto;background:#191d38;padding:28px;border-radius:18px'><h1>¡Correo verificado!</h1><p>Tu cuenta ProEshop está activa. Te llevaremos al inicio de sesión automáticamente…</p><p><a style='color:#b8a9ff' href='{escape(redirect_url, quote=True)}'>Continuar ahora</a></p></main><script>setTimeout(()=>location.replace({redirect_url!r}),1200)</script></body></html>")
+        # One-time, short-lived handoff; never put a ProEshop session token in the Telegram URL.
+        handoff=secrets.token_urlsafe(24)
+        db.execute("INSERT INTO telegram_verification_handoffs(code_hash,account_id,expires_at,used,created_at) VALUES(?,?,?,0,?)",
+                   (hashlib.sha256(handoff.encode()).hexdigest(),row['account_id'],time.time()+600,now_iso()))
+    audit(row['account_id'],"email_verified","Correo verificado; retorno seguro a Telegram preparado")
+    deep_link=f"{TELEGRAM_MINI_APP_URL}?startapp=verify_{handoff}"
+    safe_link=escape(deep_link, quote=True)
+    return HTMLResponse(f"<!doctype html><html lang='es'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'><meta name='referrer' content='no-referrer'><title>Correo verificado · ProEshop</title></head><body style='font-family:Arial;background:#101429;color:#eef0ff;padding:32px'><main style='max-width:520px;margin:8vh auto;background:#191d38;padding:28px;border-radius:18px'><h1>¡Correo verificado!</h1><p>Tu correo quedó verificado. Abre ProEshop en Telegram para iniciar sesión automáticamente.</p><p><a id='openApp' style='display:inline-block;background:#8970f5;color:#fff;padding:14px 22px;border-radius:10px;text-decoration:none;font-weight:bold' href='{safe_link}'>Volver a ProEshop en Telegram</a></p><p style='color:#b9bdd3'>Si Telegram no se abre automáticamente, pulsa el botón. Este enlace de acceso es de un solo uso y vence en 10 minutos.</p><script>setTimeout(()=>{{ location.href={deep_link!r}; }},900);</script></main></body></html>")
+
+@app.post("/api/telegram-verification-handoff")
+async def telegram_verification_handoff(body: dict):
+    code=str(body.get("code", ""))
+    init_data=str(body.get("init_data", ""))
+    if not code.startswith("verify_") or len(code)>100:
+        raise HTTPException(400,"Enlace de retorno inválido.")
+    tg_id,tg_user=validate_init_data(init_data)
+    code_hash=hashlib.sha256(code[7:].encode()).hexdigest()
+    with conn() as db:
+        handoff=db.execute("SELECT * FROM telegram_verification_handoffs WHERE code_hash=? AND used=0 AND expires_at>?",(code_hash,time.time())).fetchone()
+        if not handoff: raise HTTPException(400,"El enlace ya se usó o venció. Vuelve a solicitar la verificación.")
+        conflict=db.execute("SELECT account_id FROM email_accounts WHERE telegram_id=? AND account_id<>?",(tg_id,handoff['account_id'])).fetchone()
+        if conflict: raise HTTPException(409,"Este Telegram ya está vinculado a otra cuenta. Inicia sesión y vincula las cuentas desde tu perfil.")
+        db.execute("UPDATE email_accounts SET telegram_id=?,updated_at=? WHERE account_id=? AND verified=1",(tg_id,now_iso(),handoff['account_id']))
+        db.execute("UPDATE telegram_verification_handoffs SET used=1 WHERE code_hash=? AND used=0",(code_hash,))
+    identity=handoff['account_id']
+    with conn() as db:
+        db.execute("INSERT OR IGNORE INTO users(telegram_id,username,demo_login,created_at) VALUES(?,?,?,?)",(identity,tg_user.get('username',''),'',now_iso()))
+    session_token=_new_session(identity)
+    audit(identity,"telegram_email_handoff","Inicio de sesión tras verificar correo y validar Telegram")
+    return {"token":session_token,"username":tg_user.get('first_name') or tg_user.get('username') or 'Cliente',"account_type":"email+telegram"}
 
 @app.post("/api/email-login")
 async def email_login(body: EmailLoginBody):
