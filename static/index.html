@@ -6,6 +6,28 @@
   <title>ProEshop | Luxury Shopping</title>
   <link rel="stylesheet" href="/static/style.css?v=proeshop-email-code-auto-login-20261014">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+  .auth-panel [data-auth-tab="register"]{position:relative}
+  .verification-sent-dialog{width:min(92vw,430px);padding:28px;border:1px solid rgba(151,139,255,.35);border-radius:26px;background:radial-gradient(ellipse at top right,rgba(111,88,255,.20),transparent 48%),#151a32;color:#f4f5ff;box-shadow:0 28px 90px rgba(0,0,0,.62);max-height:88vh;overflow:auto}
+  .verification-sent-dialog::backdrop{background:rgba(4,7,20,.82);backdrop-filter:blur(8px)}
+  .verification-modal-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+  .verification-sent-dialog .dialog-emblem{width:54px;height:54px;display:grid;place-items:center;border-radius:17px;background:linear-gradient(135deg,#8b78ff,#5a49cb);color:white;font-size:26px;box-shadow:0 10px 28px rgba(105,83,255,.3)}
+  .verification-secure-label{font-size:10px;letter-spacing:1.1px;color:#c7c4ff;background:rgba(137,112,245,.12);border:1px solid rgba(137,112,245,.22);border-radius:999px;padding:8px 10px;white-space:nowrap}
+  .verification-secure-label span{color:#77e7b0;margin-right:5px}
+  .verification-sent-dialog h2{font-size:25px;line-height:1.2;margin:0 0 10px;color:#fff}
+  .verification-sent-dialog #verificationSentText{color:#c5c9df;line-height:1.55;margin:0 0 20px;overflow-wrap:anywhere}
+  .verification-sent-dialog #verificationCodeLabel{display:block;color:#e4e6f7;font-size:13px;font-weight:600}
+  .verification-sent-dialog #verificationCode{display:block;width:100%;box-sizing:border-box;margin-top:9px;background:#0e1328;border:1px solid #41496e;border-radius:15px;color:#fff;text-align:center;font-size:27px;font-weight:750;letter-spacing:9px;padding:15px 10px;outline:none}
+  .verification-sent-dialog #verificationCode:focus{border-color:#9583ff;box-shadow:0 0 0 3px rgba(137,112,245,.18)}
+  .verification-sent-dialog #verificationCode::placeholder{color:#5b6282;letter-spacing:9px}
+  .verification-sent-dialog #verifyCodeSubmit{margin-top:9px;min-height:48px}
+  .verification-sent-dialog .verification-modal-footnote{font-size:11px;line-height:1.5;color:#858eaf;margin:16px 0}
+  .verification-sent-dialog #verificationSentOk{border:1px solid #424a6b;background:rgba(255,255,255,.035);color:#d8dbed;min-height:44px}
+  .verification-sent-dialog #verificationCodeError{min-height:18px;margin:7px 0;color:#ff9da9;font-size:12px}
+  .verification-sent-dialog .notification-status{margin:14px 0}
+  @media(max-width:420px){.verification-sent-dialog{padding:22px;border-radius:22px}.verification-sent-dialog h2{font-size:22px}.verification-secure-label{font-size:9px;letter-spacing:.5px}}
+  </style>
+
 </head>
 <body>
 <div class="app-shell">
@@ -38,7 +60,7 @@
   </main>
   <nav id="bottomNav" class="bottom-nav hidden"><button data-tab="home" class="nav-item active"><span>⌂</span><small>Inicio</small></button><button data-tab="search" class="nav-item"><span>⌕</span><small>Buscar</small></button><button data-tab="cart" class="nav-item"><span>🛒</span><small>Carrito</small><i id="navCartCount" class="nav-badge hidden">0</i></button><button data-tab="history" class="nav-item"><span>▤</span><small>Pedidos</small></button><button data-tab="account" class="nav-item"><span>♙</span><small>Cuenta</small></button></nav>
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-  <dialog id="verificationSentDialog" class="notification-dialog verification-sent-dialog"><button id="closeVerificationSent" class="dialog-close" aria-label="Cerrar">×</button><div class="dialog-emblem" id="verificationDialogEmblem">✉</div><h2 id="verificationDialogTitle">Revisa tu correo</h2><p id="verificationSentText">Te enviamos un código de 6 dígitos. Regresa a ProEshop e introdúcelo aquí para activar tu cuenta.</p><form id="verifyCodeForm"><label id="verifyCodeLabel">Código de verificación<input id="verificationCode" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" placeholder="123456" required></label><p id="verificationCodeError" class="error" role="alert"></p><button id="verifyCodeSubmit" class="primary full" type="submit">Verificar código</button></form><div id="verificationSuccessStatus" class="notification-status hidden"><span>✓</span><span>Registro exitoso. Iniciando sesión…</span></div><button id="verificationSentOk" class="secondary full" type="button">Cerrar</button></dialog>
+  <dialog id="verificationSentDialog" class="notification-dialog verification-sent-dialog"><div class="verification-modal-top"><div class="dialog-emblem" id="verificationDialogEmblem">✉</div><span class="verification-secure-label"><span>●</span> VERIFICACIÓN SEGURA</span></div><h2 id="verificationDialogTitle">Confirma tu correo</h2><p id="verificationSentText">Te enviamos un código de 6 dígitos. Introdúcelo aquí para verificar tu correo y crear la cuenta.</p><form id="verifyCodeForm"><label id="verifyCodeLabel">Código de verificación<input id="verificationCode" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" placeholder="000000" required></label><p id="verificationCodeError" class="error" role="alert"></p><button id="verifyCodeSubmit" class="primary full" type="submit">Verificar y crear cuenta <span>→</span></button></form><div id="verificationSuccessStatus" class="notification-status hidden"><span>✓</span><span>Registro exitoso. Iniciando sesión…</span></div><p class="verification-modal-footnote">El código vence en 10 minutos. Si no lo introduces correctamente, la cuenta no se creará.</p><button id="verificationSentOk" class="secondary full" type="button">Cancelar</button></dialog>
   <dialog id="productDialog" class="product-dialog"><button id="closeProductDialog" class="dialog-close" aria-label="Cerrar">×</button><div id="productDialogContent"></div></dialog>
   <dialog id="notificationDialog" class="notification-dialog"><button id="closeNotificationDialog" class="dialog-close" aria-label="Cerrar">×</button><div class="dialog-emblem">♧</div><h2>Notificaciones</h2><p>Cuando confirmes un pedido, ProEshop intentará enviarte una notificación por Telegram si el bot está configurado.</p><div class="notification-status"><span class="pulse"></span><span id="notificationStatusText">Notificaciones de pedido disponibles</span></div><label class="notification-option"><input id="notifyOrders" type="checkbox" checked><span><b>Confirmaciones de pedido</b><small>Avisos de pedidos registrados</small></span></label><label class="notification-option"><input id="notifySecurity" type="checkbox" checked><span><b>Alertas de seguridad</b><small>Preferencia guardada en tu cuenta</small></span></label><button id="saveNotificationsBtn" class="primary full">Guardar preferencias</button><button id="closeNotificationOk" class="secondary full">Cerrar</button></dialog>
 </div><script src="/static/app.js?v=proeshop-email-code-auto-login-20261014"></script>
