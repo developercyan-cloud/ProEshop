@@ -535,6 +535,30 @@ ROLEX_CATALOG = [
     {"id":'day-date-36', "name":'Rolex Day-Date 36 · platino', "price":59000.00, "discount":0, "desc":'Day-Date 36, acabados clásicos.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
     {"id":'1908', "name":'Rolex 1908 · oro amarillo, 39 mm', "price":27000.00, "discount":0, "desc":'1908, esfera blanco intenso.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""}
 ]
+ROLEX_CATALOG.extend([
+    {"id":"oyster-perpetual-41-steel", "name":"Rolex Oyster Perpetual 41 · acero Oystersteel", "price":7050.00, "discount":50, "desc":"Oyster Perpetual 41, esfera clásica.", "url":"https://www.rolex.com/watches/oyster-perpetual", "img":""},
+    {"id":"oyster-perpetual-36-multicolor", "name":"Rolex Oyster Perpetual 36 · esfera multicolor", "price":6750.00, "discount":50, "desc":"Oyster Perpetual 36, esfera multicolor motivo Jubilee.", "url":"https://www.rolex.com/watches/oyster-perpetual", "img":""},
+    {"id":"oyster-perpetual-28-green-stone", "name":"Rolex Oyster Perpetual 28 · oro amarillo, piedra verde", "price":31600.00, "discount":50, "desc":"Oyster Perpetual 28 en oro amarillo.", "url":"https://www.rolex.com/watches/oyster-perpetual", "img":""},
+    {"id":"oyster-perpetual-34-blue-stone", "name":"Rolex Oyster Perpetual 34 · oro Everose, piedra azul", "price":40100.00, "discount":50, "desc":"Oyster Perpetual 34 en oro Everose.", "url":"https://www.rolex.com/watches/oyster-perpetual", "img":""},
+    {"id":"datejust-41-steel-white", "name":"Rolex Datejust 41 · acero Oystersteel, esfera blanca", "price":9150.00, "discount":50, "desc":"Datejust 41 con esfera blanca.", "url":"https://www.rolex.com/watches/datejust", "img":""},
+    {"id":"datejust-36-steel-white", "name":"Rolex Datejust 36 · acero Oystersteel, esfera blanca", "price":8350.00, "discount":50, "desc":"Datejust 36 con esfera blanca.", "url":"https://www.rolex.com/watches/datejust", "img":""},
+    {"id":"datejust-36-green-ombre", "name":"Rolex Datejust 36 · acero y oro blanco, verde sombreado", "price":9900.00, "discount":50, "desc":"Datejust 36 con esfera verde sombreado.", "url":"https://www.rolex.com/watches/datejust", "img":""},
+    {"id":"datejust-36-olive", "name":"Rolex Datejust 36 · acero y oro amarillo, verde oliva", "price":15050.00, "discount":50, "desc":"Datejust 36 Rolesor con esfera verde oliva.", "url":"https://www.rolex.com/watches/datejust", "img":""},
+    {"id":"datejust-36-everose-white", "name":"Rolex Datejust 36 · acero y oro Everose, esfera blanca", "price":15350.00, "discount":50, "desc":"Datejust 36 Rolesor Everose.", "url":"https://www.rolex.com/watches/datejust", "img":""},
+    {"id":"datejust-36-dark-diamond", "name":"Rolex Datejust 36 · acero y oro blanco, gris con diamantes", "price":12550.00, "discount":50, "desc":"Datejust 36 con esfera gris engastada.", "url":"https://www.rolex.com/watches/datejust", "img":""},
+    {"id":"datejust-36-yellow-silver-diamond", "name":"Rolex Datejust 36 · acero y oro amarillo, plata con diamantes", "price":17700.00, "discount":50, "desc":"Datejust 36 con esfera plateada engastada.", "url":"https://www.rolex.com/watches/datejust", "img":""},
+    {"id":"datejust-41-everose-black", "name":"Rolex Datejust 41 · acero y oro Everose, esfera negra", "price":18200.00, "discount":50, "desc":"Datejust 41 Rolesor Everose.", "url":"https://www.rolex.com/watches/datejust", "img":""},
+    {"id":"yacht-master-ii-yellow-gold", "name":"Rolex Yacht-Master II · oro amarillo, 44 mm", "price":60700.00, "discount":50, "desc":"Yacht-Master II en oro amarillo.", "url":"https://www.rolex.com/watches/yacht-master", "img":""},
+    {"id":"oyster-perpetual-34-yellow-black", "name":"Rolex Oyster Perpetual 34 · oro amarillo, esfera negra", "price":37100.00, "discount":50, "desc":"Oyster Perpetual 34 en oro amarillo.", "url":"https://www.rolex.com/watches/oyster-perpetual", "img":""},
+    {"id":"datejust-36-everose-pink-diamond", "name":"Rolex Datejust 36 · oro Everose y diamantes, esfera rosé", "price":26550.00, "discount":50, "desc":"Datejust 36 con esfera rosé engastada.", "url":"https://www.rolex.com/watches/datejust", "img":""},
+    {"id":"datejust-36-yellow-black-diamond", "name":"Rolex Datejust 36 · oro amarillo y diamantes, esfera negra", "price":23500.00, "discount":50, "desc":"Datejust 36 con esfera negra engastada.", "url":"https://www.rolex.com/watches/datejust", "img":""},
+    {"id":"oyster-perpetual-41-slate", "name":"Rolex Oyster Perpetual 41 · acero y oro amarillo, esfera pizarra", "price":9650.00, "discount":50, "desc":"Oyster Perpetual 41 con esfera pizarra.", "url":"https://www.rolex.com/watches/oyster-perpetual", "img":""},
+    {"id":"datejust-41-everose-white", "name":"Rolex Datejust 41 · acero y oro Everose, esfera blanca", "price":17550.00, "discount":50, "desc":"Datejust 41 Rolesor Everose con esfera blanca.", "url":"https://www.rolex.com/watches/datejust", "img":""},
+])
+
+# Descuento interno ProEshop del 50% en todas las referencias Rolex.
+for _rolex_product in ROLEX_CATALOG:
+    _rolex_product["discount"] = 50
 ROLEX_DISCOUNT_IDS = {p["id"] for p in ROLEX_CATALOG}
 
 
@@ -546,6 +570,17 @@ JEWELERS_CATALOG = [
     {"id":"niton-xl2-battery", "name":"Niton XL2 Battery: 7.4V 7800mAh Li-ion (NTL200SL)", "price":295.00, "desc":"Batería de repuesto para analizador XRF Niton XL2.", "url":"https://www.jewelerstoystore.com/Niton-XL2-Battery-7-4V-p/xl-2.htm"},
     {"id":"niton-xl2-charger", "name":"Niton XL2 Battery Charger – Fast, Smart & Reliable Charging for Your XRF Analyzer", "price":395.00, "desc":"Cargador para analizador XRF Niton XL2.", "url":"https://www.jewelerstoystore.com/Niton-XL2-Battery-Charger-p/xl-3.htm"},
 ]
+
+
+# Imágenes locales de respaldo. Evitan las respuestas 403 de las tiendas externas.
+# Son recortes ilustrativos del catálogo visual de ProEshop, no fotografías oficiales verificadas.
+for _i, _p in enumerate(HUBLOT_CATALOG, 1):
+    _p["img"] = f"/static/images/hublot/hublot_{_i:02d}.jpg"
+for _i, _p in enumerate(ROLEX_CATALOG, 1):
+    _p["img"] = f"/static/images/rolex/rolex_{_i:02d}.jpg"
+for _i, _p in enumerate(JEWELERS_CATALOG, 1):
+    _p["img"] = f"/static/images/jewelers/jewelers_{_i:02d}.jpg"
+ROLEX_DISCOUNT_IDS = {p["id"] for p in ROLEX_CATALOG}
 
 
 @app.on_event("startup")
@@ -806,15 +841,9 @@ async def search(body: SearchBody, request: Request):
         # than a blank screen; the user can then filter/sort in the shared results UI.
         if not matches:
             matches = HUBLOT_CATALOG
-        # Resolver en paralelo con límite de concurrencia antes de construir resultados,
-        # para que abrir el catálogo completo no haga 52 consultas seriales.
+        # No se consulta el sitio del fabricante durante la búsqueda: responde 403 en Railway.
+        # Se sirven imágenes locales para que todas las fichas tengan una imagen.
         requested_matches = matches[:52]
-        unresolved_ids = [p.get("id", "") for p in requested_matches
-                          if p.get("id", "") not in HUBLOT_OFFICIAL_IMAGES
-                          and p.get("id", "") not in HUBLOT_IMAGE_CACHE
-                          and p.get("id", "") in HUBLOT_PRODUCT_PAGES]
-        if unresolved_ids:
-            await asyncio.gather(*(cached_hublot_image(pid) for pid in unresolved_ids), return_exceptions=True)
         results = []
         for p in requested_matches:
             # Use a verified product page when known; otherwise open the official
@@ -844,8 +873,8 @@ async def search(body: SearchBody, request: Request):
             else:
                 product_url = "https://www.hublot.com/en-us/find-your-hublot"
             # Only assign a photo from an exact model page; never borrow a different model's image.
-            image_url = HUBLOT_OFFICIAL_IMAGES.get(pid, "") or HUBLOT_IMAGE_CACHE.get(pid, "")
-            results.append({"title": p["name"], "price": round(float(p["price"]), 2),
+            image_url = p.get("img", "") or HUBLOT_OFFICIAL_IMAGES.get(pid, "") or HUBLOT_IMAGE_CACHE.get(pid, "")
+            results.append({"title": p["name"], "price": round(float(p["price"]) * 0.5, 2), "list_price": round(float(p["price"]), 2), "discount_percent": 50,
                             "currency": "USD", "url": product_url, "image": image_url,
                             "source": "HUBLOT.com · imagen solo cuando se verifica la ficha exacta",
                             "collection": p.get("collection", ""), "description": p.get("desc", "")})
@@ -860,11 +889,11 @@ async def search(body: SearchBody, request: Request):
         matches = [p for p in JEWELERS_CATALOG if q in broad_terms or any(q in str(p.get(field, "")).casefold() for field in ("name", "desc", "id"))]
         if not matches:
             matches = JEWELERS_CATALOG
-        images = await asyncio.gather(*(official_product_image(p["url"], "jewelerstoystore.com") for p in matches))
-        results = [{"title": p["name"], "price": round(float(p["price"]), 2),
-                    "currency": "USD", "url": p["url"], "image": image_url,
-                    "source": "JewelersToyStore.com · imagen oficial cuando está disponible",
-                    "description": p["desc"]} for p, image_url in zip(matches, images)]
+        results = [{"title": p["name"], "price": round(float(p["price"]) * 0.5, 2),
+                    "list_price": round(float(p["price"]), 2), "discount_percent": 50,
+                    "currency": "USD", "url": p["url"], "image": p.get("img", ""),
+                    "source": "JewelersToyStore.com · imagen ilustrativa local",
+                    "description": p["desc"]} for p in matches]
         return {"platform":"jewelers", "label":"Jewelers Toy Store", "query":query, "search_url":search_url, "live_results":results, "notice":"Catálogo leído de la categoría Electronic del proveedor. Precios base observados: $20,500, $21,750, $295 y $395 USD; el descuento ProEshop del 50% es propio de esta miniapp, no una oferta anunciada por el proveedor. Confirma precio y disponibilidad antes de comprar."}
     if platform == "rolex":
         q = query.casefold().strip()
@@ -896,8 +925,8 @@ async def search(body: SearchBody, request: Request):
                 if pid == prefix or pid.startswith(prefix + "-"):
                     return rolex_collections[prefix]
             return "https://www.rolex.com/watches"
-        results = [{"title": p["name"], "price": round(float(p["price"])*(1-float(p["discount"])/100), 2), "list_price": round(float(p["price"]), 2), "discount_percent": p["discount"], "currency":"USD", "url":rolex_product_url(p), "image":"", "source":"Rolex.com · precio de referencia; oferta ProEshop no oficial", "description":p["desc"]} for p in matches]
-        return {"platform":"rolex", "label":"Rolex · modelos destacados", "query":query, "search_url":"https://www.rolex.com/es/watches/find-rolex?group=0", "live_results":results, "notice":"Modelos destacados del catálogo oficial; Rolex no identifica estos artículos como los más vendidos en esta página. El 40% en modelos seleccionados es una oferta propuesta por ProEshop, no una promoción oficial de Rolex. Imágenes ilustrativas; antes de vender, confirma proveedor autorizado, autenticidad, disponibilidad y precio real."}
+        results = [{"title": p["name"], "price": round(float(p["price"])*0.5, 2), "list_price": round(float(p["price"]), 2), "discount_percent": 50, "currency":"USD", "url":rolex_product_url(p), "image":p.get("img", ""), "source":"Rolex.com · precio de referencia; imagen ilustrativa y oferta ProEshop no oficial", "description":p["desc"]} for p in matches]
+        return {"platform":"rolex", "label":"Rolex · modelos destacados", "query":query, "search_url":"https://www.rolex.com/es/watches/find-rolex?group=0", "live_results":results, "notice":"Modelos destacados del catálogo oficial; Rolex no identifica estos artículos como los más vendidos en esta página. El 50% es una oferta propuesta por ProEshop, no una promoción oficial de Rolex. Imágenes ilustrativas; antes de vender, confirma proveedor autorizado, autenticidad, disponibilidad y precio real."}
 
     domains = {"amazon": "amazon.com", "target": "target.com", "walmart": "walmart.com"}
     domain = domains[platform]
@@ -1033,62 +1062,22 @@ async def state(request: Request):
         order_events = db.execute("SELECT e.* FROM order_events e JOIN orders o ON o.order_ref=e.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
         store_orders = db.execute("SELECT so.*, o.created_at AS parent_created_at FROM store_orders so JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY so.created_at DESC, so.store_label ASC", (tg_id,)).fetchall()
         store_order_events = db.execute("SELECT e.* FROM store_order_events e JOIN store_orders so ON so.store_order_ref=e.store_order_ref JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
-    # Add official product imagery to legacy cart rows on a best-effort basis.
+    # Repara imágenes de carrito ya existente usando recursos locales; no depende de sitios que responden 403.
+    catalog_by_platform = {
+        "hublot": HUBLOT_CATALOG,
+        "rolex": ROLEX_CATALOG,
+        "jewelers": JEWELERS_CATALOG,
+    }
     for item in cart:
-        if item.get("platform") not in {"hublot", "jewelers"}:
-            continue
-        # Purge the previously hard-coded Hublot asset that was visually mismatched.
-        if item.get("platform") == "hublot" and "Big-Bang-Original-Soft-Touch-All-Red-43-mm-Soldier.png" in str(item.get("image", "")):
-            item["image"] = ""
-            with conn() as db:
-                db.execute("UPDATE carts SET image='' WHERE id=? AND telegram_id=?", (item["id"], tg_id))
-        if item.get("platform") == "hublot":
-            matched_for_image = next((p for p in HUBLOT_CATALOG if p.get("name", "").casefold() == item["title"].casefold()), None)
-            if matched_for_image:
-                exact_image = HUBLOT_OFFICIAL_IMAGES.get(matched_for_image.get("id", ""), "") or await cached_hublot_image(matched_for_image.get("id", ""))
-                if exact_image:
-                    item["image"] = exact_image
+        platform = str(item.get("platform", "")).lower()
+        catalog = catalog_by_platform.get(platform, [])
+        matched = next((p for p in catalog if p.get("name", "").casefold() == str(item.get("title", "")).casefold()), None)
+        if matched and matched.get("img"):
+            local_image = matched["img"]
+            if item.get("image") != local_image:
+                item["image"] = local_image
                 with conn() as db:
-                    db.execute("UPDATE carts SET image=? WHERE id=? AND telegram_id=?", (item["image"], item["id"], tg_id))
-        if item.get("image"):
-            continue
-        image_source = ""
-        domain = "hublot.com" if item["platform"] == "hublot" else "jewelerstoystore.com"
-        if item["platform"] == "hublot":
-            matched_product = next((p for p in HUBLOT_CATALOG if p.get("name", "").casefold() == item["title"].casefold()), None)
-            if matched_product:
-                pid = matched_product.get("id", "")
-                if pid == "bb-original-red":
-                    item["url"] = "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-red-43-mm"
-                elif pid == "bb-original-black":
-                    item["url"] = "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-black-43-mm"
-                elif str(matched_product.get("collection", "")).casefold() == "classic fusion":
-                    item["url"] = "https://www.hublot.com/en-us/find-your-hublot/classic-fusion"
-                elif str(matched_product.get("collection", "")).casefold() == "spirit of big bang":
-                    item["url"] = "https://www.hublot.com/en-us/find-your-hublot/spirit-of-big-bang"
-                elif pid.startswith("square-"):
-                    item["url"] = "https://www.hublot.com/en-us/find-your-hublot/square-bang"
-                elif str(matched_product.get("collection", "")).casefold() == "big bang":
-                    item["url"] = "https://www.hublot.com/en-us/find-your-hublot/big-bang"
-                else:
-                    item["url"] = "https://www.hublot.com/en-us/find-your-hublot"
-                with conn() as db:
-                    db.execute("UPDATE carts SET url=? WHERE id=? AND telegram_id=?", (item["url"], item["id"], tg_id))
-        if item["platform"] == "hublot" and "all red" in item["title"].lower():
-            image_source = "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-red-43-mm"
-            item["image"] = await official_product_image(image_source, domain)
-        else:
-            catalog = HUBLOT_CATALOG if item["platform"] == "hublot" else JEWELERS_CATALOG
-            match = next((p for p in catalog if p.get("name", "").casefold() == item["title"].casefold()), None)
-            if match:
-                image_source = match.get("url", "")
-                if item["platform"] == "hublot" and match.get("id") == "bb-original-black":
-                    image_source = "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-black-43-mm"
-            if image_source:
-                item["image"] = await official_product_image(image_source, domain)
-        if item.get("image"):
-            with conn() as db:
-                db.execute("UPDATE carts SET image=? WHERE id=? AND telegram_id=?", (item["image"], item["id"], tg_id))
+                    db.execute("UPDATE carts SET image=? WHERE id=? AND telegram_id=?", (local_image, item["id"], tg_id))
     return {
         "balance": balance["amount"] if balance else str(INITIAL_BALANCE),
         "currency": CURRENCY,
@@ -1118,17 +1107,19 @@ async def add_cart(body: AddBody, request: Request):
     except (InvalidOperation, ValueError):
         raise HTTPException(400, "Introduce un precio válido mayor que cero.")
     platform = body.platform.lower().strip()
-    # Oferta simulada exclusiva de HUBLOT: se aplica en servidor para que
-    # el subtotal, los impuestos, el saldo ficticio y el historial usen el precio rebajado.
-    if platform in {"hublot", "jewelers"}:
-        price = (price / Decimal("2")).quantize(Decimal("0.01"))
+    # El servidor calcula el precio final desde el catálogo original para evitar descuentos dobles.
+    if platform == "hublot":
+        matching = next((p for p in HUBLOT_CATALOG if p["name"] == body.title.strip()), None)
+        if matching:
+            price = (Decimal(str(matching["price"])) * Decimal("0.50")).quantize(Decimal("0.01"))
+    elif platform == "jewelers":
+        matching = next((p for p in JEWELERS_CATALOG if p["name"] == body.title.strip()), None)
+        if matching:
+            price = (Decimal(str(matching["price"])) * Decimal("0.50")).quantize(Decimal("0.01"))
     elif platform == "rolex":
         matching = next((p for p in ROLEX_CATALOG if p["name"] == body.title.strip()), None)
         if matching:
-            # Apply ProEshop 50% discount on the server using the catalog reference price.
             price = (Decimal(str(matching["price"])) * Decimal("0.50")).quantize(Decimal("0.01"))
-        elif matching:
-            price = Decimal(str(matching["price"])).quantize(Decimal("0.01"))
     parsed = urlparse(body.url)
     host = (parsed.hostname or "").lower().rstrip(".")
     allowed_domains = {
@@ -1153,7 +1144,9 @@ async def add_cart(body: AddBody, request: Request):
             "El enlace debe pertenecer al dominio oficial de la tienda seleccionada.",
         )
     image_url = ""
-    if body.image:
+    if body.image and body.image.startswith("/static/images/") and ".." not in body.image and "\\" not in body.image:
+        image_url = body.image[:2000]
+    elif body.image:
         image_parsed = urlparse(body.image)
         image_host = (image_parsed.hostname or "").lower().rstrip(".")
         image_domains = set(allowed_domains[platform]) | {"cdn11.bigcommerce.com", "cdn.shopify.com", "images.squarespace-cdn.com", "images.ctfassets.net", "media.hublot.com", "assets.hublot.com"}
