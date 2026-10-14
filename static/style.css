@@ -167,3 +167,13 @@ input,select,textarea{color-scheme:dark}
 .product-dialog .product-dialog-media{background:#171c31!important;border:1px solid #343a57}
 .product-dialog .dialog-price{color:#f2f0ff!important}
 @media(max-width:390px){.checkout-product-row{grid-template-columns:48px minmax(0,1fr) auto;gap:8px}.checkout-product-row>img,.checkout-product-placeholder{width:48px;height:48px}.checkout-product-info b{font-size:10px}.checkout-product-row>strong{font-size:10px}}
+
+
+/* Temporalmente solo se muestran Rolex, HUBLOT y Joyería. */
+.store-row{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+@media(min-width:520px){.store-row{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+.rolex-logo{background:linear-gradient(145deg,#d7bd78,#8d6b28);color:#101a14;font-family:Georgia,serif;font-weight:900}
+/* Rolex catalog metadata: reference and description stay legible on mobile. */
+.product-reference{display:block!important;margin:4px 0 2px;color:#8b6b2d!important;font-size:10px!important;font-weight:800;letter-spacing:.25px}
+.product-description{margin:3px 0 8px!important;color:#66758a;font-size:10px;line-height:1.45}
+.discount-note{display:block;margin-top:4px;color:#8a6b26;font-size:9px;line-height:1.4}
