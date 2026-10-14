@@ -200,3 +200,6 @@ input,select,textarea{color-scheme:dark}
 @media(max-width:560px){.crypto-pending-resume{align-items:stretch;flex-direction:column}.crypto-pending-resume .resume-usdt-btn{width:100%}}
 
 .order-filters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 16px}.order-filters label{display:flex;flex-direction:column;gap:5px;font-size:10px;font-weight:800;color:var(--muted)}.order-filters select{width:100%;min-width:0;padding:10px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--ink)}
+
+/* Customer authentication */
+.auth-panel .auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 20px}.auth-tab{border:1px solid var(--line,#353953);border-radius:10px;padding:11px;background:transparent;color:inherit;font:inherit}.auth-tab.active{background:#7f68e9;color:#fff;border-color:#7f68e9}.auth-panel form{display:grid;gap:12px}.auth-panel form h2{margin:0 0 4px}.auth-panel .secondary{margin-top:10px}
