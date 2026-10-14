@@ -501,6 +501,9 @@ PLATFORMS = {
 }
 
 
+DISABLED_STORES = {"amazon", "target", "walmart"}
+
+
 # Catálogo local ilustrativo para que HUBLOT funcione aunque el cliente esté desactualizado.
 HUBLOT_CATALOG = [{'id': 'bb-original-red', 'name': 'Big Bang Original Soft Touch All Red', 'collection': 'Big Bang', 'price': 24900, 'desc': 'Rojo integral y diseño deportivo contemporáneo.', 'img': ''}, {'id': 'bb-original-black', 'name': 'Big Bang Original Soft Touch All Black', 'collection': 'Big Bang', 'price': 24900, 'desc': 'Acabado negro integral de carácter técnico.', 'img': ''}, {'id': 'bb-original-titanium', 'name': 'Big Bang Original Titanium 43 mm', 'collection': 'Big Bang', 'price': 20400, 'desc': 'Titanio ligero con estética emblemática.', 'img': ''}, {'id': 'bb-original-titanium-ceramic', 'name': 'Big Bang Original Titanium Ceramic 43 mm', 'collection': 'Big Bang', 'price': 21600, 'desc': 'Titanio y cerámica en contraste.', 'img': ''}, {'id': 'bb-original-king-gold', 'name': 'Big Bang Original King Gold Ceramic 43 mm', 'collection': 'Big Bang', 'price': 39600, 'desc': 'King Gold combinado con cerámica.', 'img': ''}, {'id': 'bb-original-black-magic', 'name': 'Big Bang Original Black Magic 43 mm', 'collection': 'Big Bang', 'price': 22800, 'desc': 'Cerámica negra con presencia discreta.', 'img': ''}, {'id': 'bb-original-coal-blue', 'name': 'Big Bang Original Titanium Coal Blue 43 mm', 'collection': 'Big Bang', 'price': 20400, 'desc': 'Esfera azul carbón y caja de titanio.', 'img': ''}, {'id': 'bb-reloaded-uefa', 'name': 'Big Bang Reloaded UEFA Champions League 44 mm', 'collection': 'Big Bang', 'price': 25200, 'desc': 'Edición temática de fútbol.', 'img': ''}, {'id': 'bb-sapphire-sky', 'name': 'Big Bang Sapphire Sky Blue 44 mm', 'collection': 'Big Bang', 'price': 84300, 'desc': 'Caja de zafiro azul translúcido.', 'img': ''}, {'id': 'bb-summer-42', 'name': 'Big Bang Summer Multi-Colored Ceramic 42 mm', 'collection': 'Big Bang', 'price': 34300, 'desc': 'Cerámica multicolor de edición llamativa.', 'img': ''}, {'id': 'bb-summer-44', 'name': 'Big Bang Summer Multi-Colored Ceramic 44 mm', 'collection': 'Big Bang', 'price': 119000, 'desc': 'Versión de alta complejidad multicolor.', 'img': ''}, {'id': 'bb-peach-42', 'name': 'Big Bang Titanium Peach Ceramic 42 mm', 'collection': 'Big Bang', 'price': 24000, 'desc': 'Cerámica tono melocotón y titanio.', 'img': ''}, {'id': 'bb-peach-33', 'name': 'Big Bang Peach Ceramic 33 mm', 'collection': 'Big Bang', 'price': 15500, 'desc': 'Formato compacto en cerámica melocotón.', 'img': ''}, {'id': 'bb-petrol-33', 'name': 'Big Bang Petrol Blue Ceramic 33 mm', 'collection': 'Big Bang', 'price': 15500, 'desc': 'Cerámica azul petróleo.', 'img': ''}, {'id': 'bb-mint-33', 'name': 'Big Bang Mint Green Ceramic 33 mm', 'collection': 'Big Bang', 'price': 15500, 'desc': 'Cerámica verde menta.', 'img': ''}, {'id': 'bb-unico-grey', 'name': 'Big Bang Unico Essential Grey 42 mm', 'collection': 'Big Bang', 'price': 24000, 'desc': 'Cronógrafo Unico en tonos grises.', 'img': ''}, {'id': 'bb-magic-gold', 'name': 'Big Bang Reloaded Magic Gold 44 mm', 'collection': 'Big Bang', 'price': 44500, 'desc': 'Aleación Magic Gold resistente a rayaduras.', 'img': ''}, {'id': 'bb-king-gold', 'name': 'Big Bang Original King Gold 43 mm', 'collection': 'Big Bang', 'price': 39600, 'desc': 'King Gold en silueta clásica Big Bang.', 'img': ''}, {'id': 'bb-unico-titanium', 'name': 'Big Bang Unico Titanium 42 mm', 'collection': 'Big Bang', 'price': 26400, 'desc': 'Cronógrafo con caja de titanio.', 'img': ''}, {'id': 'square-unico-titanium', 'name': 'Square Bang Unico Titanium 42 mm', 'collection': 'Big Bang', 'price': 26400, 'desc': 'Caja cuadrada y movimiento Unico.', 'img': ''}, {'id': 'square-unico-ceramic', 'name': 'Square Bang Unico Titanium Ceramic 42 mm', 'collection': 'Big Bang', 'price': 27600, 'desc': 'Titanio y cerámica en formato cuadrado.', 'img': ''}, {'id': 'square-king-gold', 'name': 'Square Bang Unico King Gold 42 mm', 'collection': 'Big Bang', 'price': 49300, 'desc': 'King Gold con geometría cuadrada.', 'img': ''}, {'id': 'square-black-magic', 'name': 'Square Bang Unico Black Magic 42 mm', 'collection': 'Big Bang', 'price': 30000, 'desc': 'Caja cuadrada de cerámica negra.', 'img': ''}, {'id': 'classic-original-titanium', 'name': 'Classic Fusion Original Titanium 42 mm', 'collection': 'Classic Fusion', 'price': 9400, 'desc': 'Elegancia minimalista en titanio.', 'img': ''}, {'id': 'classic-original-black', 'name': 'Classic Fusion Original Black Magic 42 mm', 'collection': 'Classic Fusion', 'price': 11400, 'desc': 'Diseño sobrio con acabado negro.', 'img': ''}, {'id': 'classic-titanium', 'name': 'Classic Fusion Titanium 42 mm', 'collection': 'Classic Fusion', 'price': 8700, 'desc': 'Perfil limpio y caja de titanio.', 'img': ''}, {'id': 'classic-blue', 'name': 'Classic Fusion Titanium Blue 42 mm', 'collection': 'Classic Fusion', 'price': 8700, 'desc': 'Esfera azul y estética refinada.', 'img': ''}, {'id': 'classic-king-gold', 'name': 'Classic Fusion King Gold 42 mm', 'collection': 'Classic Fusion', 'price': 25200, 'desc': 'Oro cálido con líneas depuradas.', 'img': ''}, {'id': 'classic-black-magic', 'name': 'Classic Fusion Black Magic 42 mm', 'collection': 'Classic Fusion', 'price': 10700, 'desc': 'Cerámica negra y diseño elegante.', 'img': ''}, {'id': 'classic-chrono-ti', 'name': 'Classic Fusion Chronograph Titanium 42 mm', 'collection': 'Classic Fusion', 'price': 12300, 'desc': 'Cronógrafo clásico en titanio.', 'img': ''}, {'id': 'classic-chrono-gold', 'name': 'Classic Fusion Chronograph King Gold 42 mm', 'collection': 'Classic Fusion', 'price': 32400, 'desc': 'Cronógrafo con caja King Gold.', 'img': ''}, {'id': 'classic-chrono-black', 'name': 'Classic Fusion Chronograph Black Magic 42 mm', 'collection': 'Classic Fusion', 'price': 13500, 'desc': 'Cronógrafo con acabado cerámico negro.', 'img': ''}, {'id': 'classic-aero-ti', 'name': 'Classic Fusion Aerofusion Titanium 45 mm', 'collection': 'Classic Fusion', 'price': 17100, 'desc': 'Esfera esqueletizada y caja de titanio.', 'img': ''}, {'id': 'classic-aero-black', 'name': 'Classic Fusion Aerofusion Black Magic 45 mm', 'collection': 'Classic Fusion', 'price': 18800, 'desc': 'Arquitectura esqueletizada en negro.', 'img': ''}, {'id': 'spirit-ti', 'name': 'Spirit of Big Bang Titanium 42 mm', 'collection': 'Spirit of Big Bang', 'price': 26400, 'desc': 'Caja tonneau y titanio ligero.', 'img': ''}, {'id': 'spirit-ti-ceramic', 'name': 'Spirit of Big Bang Titanium Ceramic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 27600, 'desc': 'Tonneau con combinación de materiales.', 'img': ''}, {'id': 'spirit-king-gold', 'name': 'Spirit of Big Bang King Gold 42 mm', 'collection': 'Spirit of Big Bang', 'price': 49300, 'desc': 'Caja tonneau en King Gold.', 'img': ''}, {'id': 'spirit-king-ceramic', 'name': 'Spirit of Big Bang King Gold Ceramic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 45700, 'desc': 'King Gold y cerámica negra.', 'img': ''}, {'id': 'spirit-black-magic', 'name': 'Spirit of Big Bang Black Magic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 30000, 'desc': 'Silueta tonneau con acabado negro.', 'img': ''}, {'id': 'spirit-taupe', 'name': 'Spirit of Big Bang Essential Taupe 42 mm', 'collection': 'Spirit of Big Bang', 'price': 24800, 'desc': 'Tono taupe, edición exclusiva online según fabricante.', 'img': ''}, {'id': 'spirit-impact-black', 'name': 'Spirit of Big Bang Impact All Black 42 mm', 'collection': 'Spirit of Big Bang', 'price': 33700, 'desc': 'Diseño oscuro de alta presencia.', 'img': ''}, {'id': 'spirit-impact-sapphire', 'name': 'Spirit of Big Bang Impact Sapphire 42 mm', 'collection': 'Spirit of Big Bang', 'price': 114500, 'desc': 'Caja de zafiro y diseño escultural.', 'img': ''}, {'id': 'spirit-sapphire-blue', 'name': 'Spirit of Big Bang Sapphire Blue 42 mm', 'collection': 'Spirit of Big Bang', 'price': 102400, 'desc': 'Caja de zafiro azul.', 'img': ''}, {'id': 'spirit-coal-blue', 'name': 'Spirit of Big Bang Titanium Coal Blue 42 mm', 'collection': 'Spirit of Big Bang', 'price': 24000, 'desc': 'Titanio y esfera azul carbón.', 'img': ''}, {'id': 'spirit-white', 'name': 'Spirit of Big Bang Titanium White 42 mm', 'collection': 'Spirit of Big Bang', 'price': 26400, 'desc': 'Titanio con estética blanca.', 'img': ''}, {'id': 'spirit-meca-ti', 'name': 'Spirit of Big Bang Meca-10 Titanium 45 mm', 'collection': 'Spirit of Big Bang', 'price': 27600, 'desc': 'Reserva de marcha larga y arquitectura mecánica.', 'img': ''}, {'id': 'spirit-meca-gold', 'name': 'Spirit of Big Bang Meca-10 King Gold 45 mm', 'collection': 'Spirit of Big Bang', 'price': 52900, 'desc': 'Meca-10 con caja King Gold.', 'img': ''}, {'id': 'spirit-tourbillon-black', 'name': 'Spirit of Big Bang Tourbillon 5-Day Power Reserve Black Magic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 109000, 'desc': 'Tourbillon y reserva de marcha de cinco días.', 'img': ''}, {'id': 'spirit-tourbillon-red', 'name': 'Spirit of Big Bang Tourbillon 5-Day Power Reserve Red Magic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 109000, 'desc': 'Cerámica roja y tourbillon.', 'img': ''}, {'id': 'spirit-tourbillon-blue', 'name': 'Spirit of Big Bang Tourbillon 5-Day Power Reserve Sky Blue Ceramic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 109000, 'desc': 'Cerámica azul cielo y tourbillon.', 'img': ''}, {'id': 'spirit-tourbillon-yellow', 'name': 'Spirit of Big Bang Tourbillon 5-Day Power Reserve Yellow Magic 42 mm', 'collection': 'Spirit of Big Bang', 'price': 109000, 'desc': 'Cerámica amarilla y tourbillon.', 'img': ''}, {'id': 'spirit-tourbillon-sapphire', 'name': 'Spirit of Big Bang Tourbillon 5-Day Power Reserve Black Sapphire 42 mm', 'collection': 'Spirit of Big Bang', 'price': 169000, 'desc': 'Caja de zafiro negro y tourbillon.', 'img': ''}]
 
@@ -560,6 +563,50 @@ ROLEX_CATALOG = [
     {"id":"datejust-41-steel-blue", "name":"Rolex Datejust 41 · acero, esfera azul", "price":8950.00, "discount":50, "desc":"Datejust 41 de acero Oystersteel con esfera azul vivo.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126300-0029", "reference":"m126300-0029"}
 ]
 
+
+JEWELERS_CATALOG = [{'id': 'niton-xl2-100p',
+  'name': 'Niton XL2 100p, Niton Gold XRF Analyzer XL2100',
+  'price': 20500.0,
+  'desc': 'Analizador XRF para metales preciosos.',
+  'url': 'https://www.jewelerstoystore.com/Niton-XL2-100p-XL2100-Niton-Gold-XRF-Analyzer-p/xrf-xl2.htm'},
+ {'id': 'niton-dxl',
+  'name': 'Niton DXL Precious Metal Analyzer',
+  'price': 21750.0,
+  'desc': 'Analizador de metales preciosos.',
+  'url': 'https://www.jewelerstoystore.com/precious-metal-analyzer-p/dxl.htm'},
+ {'id': 'niton-xl2-battery',
+  'name': 'Niton XL2 Battery: 7.4V 7800mAh Li-ion (NTL200SL)',
+  'price': 295.0,
+  'desc': 'Batería de repuesto para analizador XRF Niton XL2.',
+  'url': 'https://www.jewelerstoystore.com/Niton-XL2-Battery-7-4V-p/xl-2.htm'},
+ {'id': 'niton-xl2-charger',
+  'name': 'Niton XL2 Battery Charger – Fast, Smart & Reliable Charging for Your XRF Analyzer',
+  'price': 395.0,
+  'desc': 'Cargador para analizador XRF Niton XL2.',
+  'url': 'https://www.jewelerstoystore.com/Niton-XL2-Battery-Charger-p/xl-3.htm'}]
+
+
+
+# Imágenes locales de respaldo: las páginas oficiales pueden bloquear la extracción de imágenes (HTTP 403).
+HUBLOT_LOCAL_IMAGES = {p["id"]: f"/static/catalog_images/hublot_{i+1:02d}.jpg" for i, p in enumerate(HUBLOT_CATALOG)}
+def _rolex_fallback_for(product, index):
+    key = (str(product.get("id", "")) + " " + str(product.get("name", ""))).casefold()
+    ranges = [("oyster-perpetual", 1, 13), ("datejust", 14, 26), ("day-date", 27, 30),
+              ("sky-dweller", 31, 34), ("gmt-master", 35, 38), ("submariner", 39, 42),
+              ("sea-dweller", 43, 45), ("deepsea", 43, 45), ("explorer", 46, 49),
+              ("air-king", 46, 49), ("yacht-master", 50, 53), ("milgauss", 54, 55),
+              ("1908", 56, 58), ("cellini", 56, 58), ("pearlmaster", 59, 61),
+              ("land-dweller", 14, 26), ("daytona", 35, 38)]
+    for family, first, last in ranges:
+        if family in key:
+            return f"/static/catalog_images/rolex_crop_{first + (index % (last-first+1)):03d}.jpg"
+    return f"/static/catalog_images/rolex_crop_{1 + (index % 61):03d}.jpg"
+ROLEX_LOCAL_IMAGES = {p["id"]: _rolex_fallback_for(p, i) for i, p in enumerate(ROLEX_CATALOG)}
+JEWELERS_LOCAL_IMAGES = {p["id"]: f"/static/catalog_images/jewelers_{i+1:02d}.jpg" for i, p in enumerate(JEWELERS_CATALOG)}
+for _p in JEWELERS_CATALOG:
+    _p["img"] = JEWELERS_LOCAL_IMAGES.get(_p["id"], "/static/catalog_images/jewelers_01.jpg")
+for _p in ROLEX_CATALOG:
+    _p["discount"] = 50
 
 @app.on_event("startup")
 async def startup():
@@ -797,6 +844,8 @@ async def search(body: SearchBody, request: Request):
     tg_id = get_auth(request)
     platform = body.platform.lower().strip()
     query = body.query.strip()
+    if platform in DISABLED_STORES:
+        raise HTTPException(403, "Esta tienda está deshabilitada temporalmente en ProEshop.")
 
     if platform not in PLATFORMS:
         raise HTTPException(400, "Tienda no admitida.")
@@ -819,15 +868,7 @@ async def search(body: SearchBody, request: Request):
         # than a blank screen; the user can then filter/sort in the shared results UI.
         if not matches:
             matches = HUBLOT_CATALOG
-        # Resolver en paralelo con límite de concurrencia antes de construir resultados,
-        # para que abrir el catálogo completo no haga 52 consultas seriales.
         requested_matches = matches[:52]
-        unresolved_ids = [p.get("id", "") for p in requested_matches
-                          if p.get("id", "") not in HUBLOT_OFFICIAL_IMAGES
-                          and p.get("id", "") not in HUBLOT_IMAGE_CACHE
-                          and p.get("id", "") in HUBLOT_PRODUCT_PAGES]
-        if unresolved_ids:
-            await asyncio.gather(*(cached_hublot_image(pid) for pid in unresolved_ids), return_exceptions=True)
         results = []
         for p in requested_matches:
             # Use a verified product page when known; otherwise open the official
@@ -857,10 +898,12 @@ async def search(body: SearchBody, request: Request):
             else:
                 product_url = "https://www.hublot.com/en-us/find-your-hublot"
             # Only assign a photo from an exact model page; never borrow a different model's image.
-            image_url = HUBLOT_OFFICIAL_IMAGES.get(pid, "") or HUBLOT_IMAGE_CACHE.get(pid, "")
+            fallback_image = HUBLOT_LOCAL_IMAGES.get(pid, "/static/catalog_images/hublot_01.jpg")
+            image_url = HUBLOT_OFFICIAL_IMAGES.get(pid, "") or HUBLOT_IMAGE_CACHE.get(pid, "") or fallback_image
             results.append({"title": p["name"], "price": round(float(p["price"]), 2),
                             "currency": "USD", "url": product_url, "image": image_url,
-                            "source": "HUBLOT.com · imagen solo cuando se verifica la ficha exacta",
+                            "fallback_image": fallback_image,
+                            "source": "HUBLOT.com · foto oficial si está disponible; respaldo local de catálogo",
                             "collection": p.get("collection", ""), "description": p.get("desc", "")})
         return {
             "platform": "hublot", "label": "HUBLOT", "query": query,
@@ -869,16 +912,20 @@ async def search(body: SearchBody, request: Request):
         }
     if platform == "jewelers":
         q = query.casefold().strip()
-        broad_terms = {"electronics", "electronic", "todos", "todo", "all", "*", "jewelers", "jewelers toy store"}
+        broad_terms = {"electronics", "electronic", "todos", "todo", "all", "*", "jewelers", "jewelers toy store", "joyeria", "joyería"}
         matches = [p for p in JEWELERS_CATALOG if q in broad_terms or any(q in str(p.get(field, "")).casefold() for field in ("name", "desc", "id"))]
         if not matches:
             matches = JEWELERS_CATALOG
-        images = await asyncio.gather(*(official_product_image(p["url"], "jewelerstoystore.com") for p in matches))
-        results = [{"title": p["name"], "price": round(float(p["price"]), 2),
-                    "currency": "USD", "url": p["url"], "image": image_url,
-                    "source": "JewelersToyStore.com · imagen oficial cuando está disponible",
-                    "description": p["desc"]} for p, image_url in zip(matches, images)]
-        return {"platform":"jewelers", "label":"Jewelers Toy Store", "query":query, "search_url":search_url, "live_results":results, "notice":"Catálogo leído de la categoría Electronic del proveedor. Precios base observados: $20,500, $21,750, $295 y $395 USD; el descuento ProEshop del 50% es propio de esta miniapp, no una oferta anunciada por el proveedor. Confirma precio y disponibilidad antes de comprar."}
+        results = []
+        for p in matches:
+            fallback_image = JEWELERS_LOCAL_IMAGES.get(p["id"], "/static/catalog_images/jewelers_01.jpg")
+            results.append({"title": p["name"], "price": round(float(p["price"]), 2),
+                            "currency": "USD", "url": p["url"], "image": fallback_image,
+                            "fallback_image": fallback_image,
+                            "source": "JewelersToyStore.com · imagen ilustrativa local; consulta la ficha del proveedor",
+                            "description": p["desc"]})
+        return {"platform":"jewelers", "label":"Jewelers Toy Store", "query":query, "search_url":search_url,
+                "live_results":results, "notice":"Las imágenes de respaldo son ilustrativas porque el proveedor bloquea la consulta automática (HTTP 403). Verifica el producto, precio y disponibilidad en la ficha del proveedor."}
     if platform == "rolex":
         q = query.casefold().strip()
         broad_terms = {"rolex", "reloj", "relojes", "watch", "watches", "todos", "todo", "all", "destacados", "*"}
@@ -909,8 +956,15 @@ async def search(body: SearchBody, request: Request):
                 if pid == prefix or pid.startswith(prefix + "-"):
                     return rolex_collections[prefix]
             return "https://www.rolex.com/watches"
-        results = [{"title": p["name"], "price": round(float(p["price"])*(1-float(p["discount"])/100), 2), "list_price": round(float(p["price"]), 2), "discount_percent": p["discount"], "currency":"USD", "url":rolex_product_url(p), "image":p.get("img", ""), "source":"Rolex.com · imagen oficial; precio de referencia", "description":p["desc"]} for p in matches]
-        return {"platform":"rolex", "label":"Rolex · modelos destacados", "query":query, "search_url":"https://www.rolex.com/es/watches/find-rolex?group=0", "live_results":results, "notice":"Catálogo de 47 referencias/modelos destacados con imágenes del catálogo oficial Rolex. Precios de referencia en USD; el descuento del 50% es una promoción simulada de ProEshop, no una oferta oficial de Rolex. Confirma precio, disponibilidad y autenticidad con un distribuidor autorizado."}
+        results = []
+        for p in matches:
+            fallback_image = ROLEX_LOCAL_IMAGES.get(p["id"], "/static/catalog_images/rolex_01.jpg")
+            results.append({"title": p["name"], "price": round(float(p["price"])*0.50, 2),
+                            "list_price": round(float(p["price"]), 2), "discount_percent": 50, "currency":"USD",
+                            "url":p.get("url") or rolex_product_url(p), "image":p.get("img") or fallback_image,
+                            "fallback_image":fallback_image, "source":"Rolex.com · precio de referencia; oferta ProEshop no oficial",
+                            "description":p["desc"]})
+        return {"platform":"rolex", "label":"Rolex · modelos destacados", "query":query, "search_url":"https://www.rolex.com/es/watches/find-rolex?group=0", "live_results":results, "notice":"Catálogo de 40 referencias. Precios de referencia publicados en el catálogo oficial de EE. UU.; el 50% es una promoción de ProEshop, no una oferta oficial de Rolex. Las fotos oficiales se intentan cargar primero y existe respaldo local si el CDN no responde."}
 
     domains = {"amazon": "amazon.com", "target": "target.com", "walmart": "walmart.com"}
     domain = domains[platform]
@@ -1046,62 +1100,24 @@ async def state(request: Request):
         order_events = db.execute("SELECT e.* FROM order_events e JOIN orders o ON o.order_ref=e.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
         store_orders = db.execute("SELECT so.*, o.created_at AS parent_created_at FROM store_orders so JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY so.created_at DESC, so.store_label ASC", (tg_id,)).fetchall()
         store_order_events = db.execute("SELECT e.* FROM store_order_events e JOIN store_orders so ON so.store_order_ref=e.store_order_ref JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
-    # Add official product imagery to legacy cart rows on a best-effort basis.
+    # Backfill local image paths for older cart rows; avoids external-site 403 errors in cart/checkout.
     for item in cart:
-        if item.get("platform") not in {"hublot", "jewelers"}:
-            continue
-        # Purge the previously hard-coded Hublot asset that was visually mismatched.
-        if item.get("platform") == "hublot" and "Big-Bang-Original-Soft-Touch-All-Red-43-mm-Soldier.png" in str(item.get("image", "")):
-            item["image"] = ""
-            with conn() as db:
-                db.execute("UPDATE carts SET image='' WHERE id=? AND telegram_id=?", (item["id"], tg_id))
-        if item.get("platform") == "hublot":
-            matched_for_image = next((p for p in HUBLOT_CATALOG if p.get("name", "").casefold() == item["title"].casefold()), None)
-            if matched_for_image:
-                exact_image = HUBLOT_OFFICIAL_IMAGES.get(matched_for_image.get("id", ""), "") or await cached_hublot_image(matched_for_image.get("id", ""))
-                if exact_image:
-                    item["image"] = exact_image
-                with conn() as db:
-                    db.execute("UPDATE carts SET image=? WHERE id=? AND telegram_id=?", (item["image"], item["id"], tg_id))
-        if item.get("image"):
-            continue
-        image_source = ""
-        domain = "hublot.com" if item["platform"] == "hublot" else "jewelerstoystore.com"
-        if item["platform"] == "hublot":
-            matched_product = next((p for p in HUBLOT_CATALOG if p.get("name", "").casefold() == item["title"].casefold()), None)
-            if matched_product:
-                pid = matched_product.get("id", "")
-                if pid == "bb-original-red":
-                    item["url"] = "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-red-43-mm"
-                elif pid == "bb-original-black":
-                    item["url"] = "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-black-43-mm"
-                elif str(matched_product.get("collection", "")).casefold() == "classic fusion":
-                    item["url"] = "https://www.hublot.com/en-us/find-your-hublot/classic-fusion"
-                elif str(matched_product.get("collection", "")).casefold() == "spirit of big bang":
-                    item["url"] = "https://www.hublot.com/en-us/find-your-hublot/spirit-of-big-bang"
-                elif pid.startswith("square-"):
-                    item["url"] = "https://www.hublot.com/en-us/find-your-hublot/square-bang"
-                elif str(matched_product.get("collection", "")).casefold() == "big bang":
-                    item["url"] = "https://www.hublot.com/en-us/find-your-hublot/big-bang"
-                else:
-                    item["url"] = "https://www.hublot.com/en-us/find-your-hublot"
-                with conn() as db:
-                    db.execute("UPDATE carts SET url=? WHERE id=? AND telegram_id=?", (item["url"], item["id"], tg_id))
-        if item["platform"] == "hublot" and "all red" in item["title"].lower():
-            image_source = "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-red-43-mm"
-            item["image"] = await official_product_image(image_source, domain)
+        platform = str(item.get("platform", "")).lower()
+        if platform == "hublot":
+            match = next((p for p in HUBLOT_CATALOG if p.get("name", "").casefold() == str(item.get("title", "")).casefold()), None)
+            fallback = HUBLOT_LOCAL_IMAGES.get(match.get("id", ""), "/static/catalog_images/hublot_01.jpg") if match else "/static/catalog_images/hublot_01.jpg"
+        elif platform == "rolex":
+            match = next((p for p in ROLEX_CATALOG if p.get("name", "").casefold() == str(item.get("title", "")).casefold()), None)
+            fallback = ROLEX_LOCAL_IMAGES.get(match.get("id", ""), "/static/catalog_images/rolex_01.jpg") if match else "/static/catalog_images/rolex_01.jpg"
+        elif platform == "jewelers":
+            match = next((p for p in JEWELERS_CATALOG if p.get("name", "").casefold() == str(item.get("title", "")).casefold()), None)
+            fallback = JEWELERS_LOCAL_IMAGES.get(match.get("id", ""), "/static/catalog_images/jewelers_01.jpg") if match else "/static/catalog_images/jewelers_01.jpg"
         else:
-            catalog = HUBLOT_CATALOG if item["platform"] == "hublot" else JEWELERS_CATALOG
-            match = next((p for p in catalog if p.get("name", "").casefold() == item["title"].casefold()), None)
-            if match:
-                image_source = match.get("url", "")
-                if item["platform"] == "hublot" and match.get("id") == "bb-original-black":
-                    image_source = "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-black-43-mm"
-            if image_source:
-                item["image"] = await official_product_image(image_source, domain)
-        if item.get("image"):
+            continue
+        if not str(item.get("image", "")).startswith("/static/catalog_images/"):
+            item["image"] = fallback
             with conn() as db:
-                db.execute("UPDATE carts SET image=? WHERE id=? AND telegram_id=?", (item["image"], item["id"], tg_id))
+                db.execute("UPDATE carts SET image=? WHERE id=? AND telegram_id=?", (fallback, item["id"], tg_id))
     return {
         "balance": balance["amount"] if balance else str(INITIAL_BALANCE),
         "currency": CURRENCY,
@@ -1122,6 +1138,8 @@ async def add_cart(body: AddBody, request: Request):
     tg_id = get_auth(request)
     if body.platform.lower() not in PLATFORMS:
         raise HTTPException(400, "Tienda no admitida.")
+    if body.platform.lower() in DISABLED_STORES:
+        raise HTTPException(403, "Esta tienda está deshabilitada temporalmente en ProEshop.")
     if body.currency.upper() != CURRENCY.upper():
         raise HTTPException(400, f"El saldo ficticio está denominado en {CURRENCY}; usa esa misma moneda.")
     try:
@@ -1133,8 +1151,14 @@ async def add_cart(body: AddBody, request: Request):
     platform = body.platform.lower().strip()
     # Oferta simulada exclusiva de HUBLOT: se aplica en servidor para que
     # el subtotal, los impuestos, el saldo ficticio y el historial usen el precio rebajado.
-    if platform in {"hublot", "jewelers"}:
-        price = (price / Decimal("2")).quantize(Decimal("0.01"))
+    if platform == "hublot":
+        matching = next((p for p in HUBLOT_CATALOG if p["name"].casefold() == body.title.strip().casefold()), None)
+        if matching:
+            price = (Decimal(str(matching["price"])) * Decimal("0.50")).quantize(Decimal("0.01"))
+    elif platform == "jewelers":
+        matching = next((p for p in JEWELERS_CATALOG if p["name"].casefold() == body.title.strip().casefold()), None)
+        if matching:
+            price = (Decimal(str(matching["price"])) * Decimal("0.50")).quantize(Decimal("0.01"))
     elif platform == "rolex":
         matching = next((p for p in ROLEX_CATALOG if p["name"] == body.title.strip()), None)
         if matching and matching["discount"] == 50:
@@ -1167,14 +1191,17 @@ async def add_cart(body: AddBody, request: Request):
         )
     image_url = ""
     if body.image:
-        image_parsed = urlparse(body.image)
-        image_host = (image_parsed.hostname or "").lower().rstrip(".")
-        image_domains = set(allowed_domains[platform]) | {"cdn11.bigcommerce.com", "cdn.shopify.com", "images.squarespace-cdn.com", "images.ctfassets.net", "media.hublot.com", "assets.hublot.com"}
-        if image_parsed.scheme.lower() == "https" and any(
-            image_host == domain or image_host.endswith("." + domain)
-            for domain in image_domains
-        ):
+        if body.image.startswith("/static/catalog_images/") and ".." not in body.image:
             image_url = body.image[:2000]
+        else:
+            image_parsed = urlparse(body.image)
+            image_host = (image_parsed.hostname or "").lower().rstrip(".")
+            image_domains = set(allowed_domains[platform]) | {"cdn11.bigcommerce.com", "cdn.shopify.com", "images.squarespace-cdn.com", "images.ctfassets.net", "media.hublot.com", "assets.hublot.com", "media.rolex.com"}
+            if image_parsed.scheme.lower() == "https" and any(
+                image_host == domain or image_host.endswith("." + domain)
+                for domain in image_domains
+            ):
+                image_url = body.image[:2000]
     with conn() as db:
         db.execute("""INSERT INTO carts(telegram_id,platform,title,price,currency,url,image,qty,created_at)
                       VALUES(?,?,?,?,?,?,?,1,?)""",
