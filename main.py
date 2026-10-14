@@ -204,6 +204,20 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_purchases_user_date ON purchases(telegram_id, purchased_at);
         CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
         """)
+        # Additive migration: CREATE TABLE IF NOT EXISTS does not add columns to
+        # an existing pending_email_registrations table from older deployments.
+        pending_columns = {row["name"] for row in db.execute("PRAGMA table_info(pending_email_registrations)").fetchall()}
+        pending_migrations = {
+            "email": "TEXT",
+            "password_hash": "TEXT NOT NULL DEFAULT ''",
+            "verify_hash": "TEXT NOT NULL DEFAULT ''",
+            "verify_expires": "REAL NOT NULL DEFAULT 0",
+            "attempts": "INTEGER NOT NULL DEFAULT 0",
+            "created_at": "TEXT NOT NULL DEFAULT ''",
+        }
+        for column_name, column_definition in pending_migrations.items():
+            if column_name not in pending_columns:
+                db.execute(f'ALTER TABLE pending_email_registrations ADD COLUMN "{column_name}" {column_definition}')
         db.execute("PRAGMA journal_mode=WAL")
         # Safe migration for databases created by earlier ShopCart versions.
         purchase_columns = {row["name"] for row in db.execute("PRAGMA table_info(purchases)").fetchall()}
