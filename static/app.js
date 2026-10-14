@@ -631,8 +631,18 @@ showEmailVerifiedLogin();
   await attach(eth,'MetaMask');
  }
  async function connectWC(name){
-  status('Abriendo conexión segura de billetera…');
-  const mod=await import('https://esm.sh/@walletconnect/ethereum-provider@2.21.1');
+  if(!PROJECT_ID||PROJECT_ID.length<20)throw new Error('Falta configurar el Project ID de Reown.');
+  status('Cargando WalletConnect…');
+  let mod;
+  try {
+   mod=await import('https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.21.1/+esm');
+  } catch (firstError) {
+   console.warn('WalletConnect CDN primary failed; trying esm.sh fallback',firstError);
+   try { mod=await import('https://esm.sh/@walletconnect/ethereum-provider@2.21.1?bundle'); }
+   catch(secondError) {
+    throw new Error('No se pudo cargar WalletConnect desde los CDN. Abre ProEshop en Chrome o en el navegador de tu billetera y vuelve a intentar.');
+   }
+  }
   const EthereumProvider=mod.default;
   const wc=await EthereumProvider.init({
    projectId:PROJECT_ID,
@@ -667,10 +677,17 @@ showEmailVerifiedLogin();
   }catch(e){console.error('Wallet connect error',e);status((e&&e.message)||'No se pudo conectar. Intenta nuevamente.');}
   finally{setBusy(false);}
  }
- document.addEventListener('DOMContentLoaded',()=>{
+ function initWalletUI(){
+  if(!state.address){
+   window.proEshopWalletBalanceDisplay=null;
+   const value=$w('balanceValue'); if(value)value.textContent='Conecta tu billetera';
+   const addr=$w('walletAddressShort'); if(addr)addr.textContent='Sin conectar';
+   const caption=$w('walletBalanceCaption'); if(caption)caption.textContent='Saldo USDT de la red conectada';
+  }
   $w('connectMetaMask')?.addEventListener('click',()=>runConnect('metamask'));
   $w('connectTrustWallet')?.addEventListener('click',()=>runConnect('trustwallet'));
   $w('refreshWalletBalance')?.addEventListener('click',async()=>{try{await balance()}catch(e){status('Error al actualizar: '+e.message)}});
   $w('disconnectWallet')?.addEventListener('click',()=>disconnect(true));
- });
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initWalletUI,{once:true});else initWalletUI();
 })();
