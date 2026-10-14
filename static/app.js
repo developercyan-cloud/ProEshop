@@ -71,7 +71,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 24900,
   "desc": "Rojo integral y diseño deportivo contemporáneo.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-original-black",
@@ -79,7 +79,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 24900,
   "desc": "Acabado negro integral de carácter técnico.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-original-titanium",
@@ -87,7 +87,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 20400,
   "desc": "Titanio ligero con estética emblemática.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-original-titanium-ceramic",
@@ -95,7 +95,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 21600,
   "desc": "Titanio y cerámica en contraste.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-original-king-gold",
@@ -103,7 +103,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 39600,
   "desc": "King Gold combinado con cerámica.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-original-black-magic",
@@ -111,7 +111,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 22800,
   "desc": "Cerámica negra con presencia discreta.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-original-coal-blue",
@@ -119,7 +119,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 20400,
   "desc": "Esfera azul carbón y caja de titanio.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-reloaded-uefa",
@@ -127,7 +127,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 25200,
   "desc": "Edición temática de fútbol.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-sapphire-sky",
@@ -135,7 +135,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 84300,
   "desc": "Caja de zafiro azul translúcido.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-summer-42",
@@ -143,7 +143,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 34300,
   "desc": "Cerámica multicolor de edición llamativa.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-summer-44",
@@ -151,7 +151,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 119000,
   "desc": "Versión de alta complejidad multicolor.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-peach-42",
@@ -159,7 +159,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 24000,
   "desc": "Cerámica tono melocotón y titanio.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-peach-33",
@@ -167,7 +167,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 15500,
   "desc": "Formato compacto en cerámica melocotón.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-petrol-33",
@@ -175,7 +175,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 15500,
   "desc": "Cerámica azul petróleo.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-mint-33",
@@ -183,7 +183,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 15500,
   "desc": "Cerámica verde menta.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-unico-grey",
@@ -191,7 +191,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 24000,
   "desc": "Cronógrafo Unico en tonos grises.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-magic-gold",
@@ -199,7 +199,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 44500,
   "desc": "Aleación Magic Gold resistente a rayaduras.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-king-gold",
@@ -207,7 +207,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 39600,
   "desc": "King Gold en silueta clásica Big Bang.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "bb-unico-titanium",
@@ -215,7 +215,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 26400,
   "desc": "Cronógrafo con caja de titanio.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "square-unico-titanium",
@@ -223,7 +223,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 26400,
   "desc": "Caja cuadrada y movimiento Unico.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "square-unico-ceramic",
@@ -231,7 +231,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 27600,
   "desc": "Titanio y cerámica en formato cuadrado.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "square-king-gold",
@@ -239,7 +239,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 49300,
   "desc": "King Gold con geometría cuadrada.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "square-black-magic",
@@ -247,7 +247,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Big Bang",
   "price": 30000,
   "desc": "Caja cuadrada de cerámica negra.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "classic-original-titanium",
@@ -255,7 +255,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Classic Fusion",
   "price": 9400,
   "desc": "Elegancia minimalista en titanio.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "classic-original-black",
@@ -263,7 +263,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Classic Fusion",
   "price": 11400,
   "desc": "Diseño sobrio con acabado negro.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "classic-titanium",
@@ -271,7 +271,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Classic Fusion",
   "price": 8700,
   "desc": "Perfil limpio y caja de titanio.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "classic-blue",
@@ -279,7 +279,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Classic Fusion",
   "price": 8700,
   "desc": "Esfera azul y estética refinada.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "classic-king-gold",
@@ -287,7 +287,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Classic Fusion",
   "price": 25200,
   "desc": "Oro cálido con líneas depuradas.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "classic-black-magic",
@@ -295,7 +295,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Classic Fusion",
   "price": 10700,
   "desc": "Cerámica negra y diseño elegante.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "classic-chrono-ti",
@@ -303,7 +303,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Classic Fusion",
   "price": 12300,
   "desc": "Cronógrafo clásico en titanio.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "classic-chrono-gold",
@@ -311,7 +311,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Classic Fusion",
   "price": 32400,
   "desc": "Cronógrafo con caja King Gold.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "classic-chrono-black",
@@ -319,7 +319,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Classic Fusion",
   "price": 13500,
   "desc": "Cronógrafo con acabado cerámico negro.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "classic-aero-ti",
@@ -327,7 +327,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Classic Fusion",
   "price": 17100,
   "desc": "Esfera esqueletizada y caja de titanio.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "classic-aero-black",
@@ -335,7 +335,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Classic Fusion",
   "price": 18800,
   "desc": "Arquitectura esqueletizada en negro.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-ti",
@@ -343,7 +343,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 26400,
   "desc": "Caja tonneau y titanio ligero.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-ti-ceramic",
@@ -351,7 +351,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 27600,
   "desc": "Tonneau con combinación de materiales.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-king-gold",
@@ -359,7 +359,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 49300,
   "desc": "Caja tonneau en King Gold.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-king-ceramic",
@@ -367,7 +367,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 45700,
   "desc": "King Gold y cerámica negra.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-black-magic",
@@ -375,7 +375,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 30000,
   "desc": "Silueta tonneau con acabado negro.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-taupe",
@@ -383,7 +383,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 24800,
   "desc": "Tono taupe, edición exclusiva online según fabricante.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-impact-black",
@@ -391,7 +391,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 33700,
   "desc": "Diseño oscuro de alta presencia.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-impact-sapphire",
@@ -399,7 +399,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 114500,
   "desc": "Caja de zafiro y diseño escultural.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-sapphire-blue",
@@ -407,7 +407,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 102400,
   "desc": "Caja de zafiro azul.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-coal-blue",
@@ -415,7 +415,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 24000,
   "desc": "Titanio y esfera azul carbón.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-white",
@@ -423,7 +423,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 26400,
   "desc": "Titanio con estética blanca.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-meca-ti",
@@ -431,7 +431,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 27600,
   "desc": "Reserva de marcha larga y arquitectura mecánica.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-meca-gold",
@@ -439,7 +439,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 52900,
   "desc": "Meca-10 con caja King Gold.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1434056886845-dac89ffe9b56?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-tourbillon-black",
@@ -447,7 +447,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 109000,
   "desc": "Tourbillon y reserva de marcha de cinco días.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-tourbillon-red",
@@ -455,7 +455,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 109000,
   "desc": "Cerámica roja y tourbillon.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-tourbillon-blue",
@@ -463,7 +463,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 109000,
   "desc": "Cerámica azul cielo y tourbillon.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-tourbillon-yellow",
@@ -471,7 +471,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 109000,
   "desc": "Cerámica amarilla y tourbillon.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&w=900&q=85"
  },
  {
   "id": "spirit-tourbillon-sapphire",
@@ -479,7 +479,7 @@ const HUBLOT_PRODUCTS = [
   "collection": "Spirit of Big Bang",
   "price": 169000,
   "desc": "Caja de zafiro negro y tourbillon.",
-  "img": ""
+  "img": "https://images.unsplash.com/photo-1614164185128-e4ec99c436d7?auto=format&fit=crop&w=900&q=85"
  }
 ];
 async function openReceipt(ref){const win=window.open('about:blank','_blank');if(win)win.opener=null;try{const r=await fetch('/api/orders/'+encodeURIComponent(ref)+'/receipt',{headers:token?{'Authorization':`Bearer ${token}`}:{}});const html=await r.text();if(!r.ok)throw new Error('No se pudo cargar el recibo.');const blob=new Blob([html],{type:'text/html;charset=utf-8'});const url=URL.createObjectURL(blob);if(win)win.location.href=url;else toast('Permite ventanas emergentes para ver el recibo.');setTimeout(()=>URL.revokeObjectURL(url),60000);}catch(e){if(win)win.close();toast(e.message||'No se pudo abrir el recibo.')}}
