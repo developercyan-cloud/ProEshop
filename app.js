@@ -15,7 +15,7 @@ function toast(msg){ const el=$('toast'); if(!el)return; el.textContent=msg;el.c
 async function api(path,opts={}){const headers={'Content-Type':'application/json',...(token?{'Authorization':`Bearer ${token}`}:{})};const r=await fetch(path,{...opts,headers:{...headers,...opts.headers}});const data=await r.json().catch(()=>({detail:'Respuesta inválida del servidor.'}));if(!r.ok){if(r.status===401&&token){token='';sessionStorage.removeItem('shopcart_token');setLoggedIn(false)}throw new Error(data.detail||data.error||'Ocurrió un error. Intenta nuevamente.')}return data;}
 function showView(view){if(view==='search'){showView('home');setTimeout(()=>$('query')?.focus(),100);return;}const ids={home:'shopView',cart:'cartView',checkout:'checkoutView',history:'historyView',account:'accountView'};document.querySelectorAll('main .view').forEach(v=>v.classList.add('hidden'));const target=$(ids[view]||`${view}View`);if(!target){console.error('Vista no encontrada:',view);return;}target.classList.remove('hidden');document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===(view==='checkout'?'cart':view)));window.scrollTo({top:0,behavior:'smooth'});}
 function setLoggedIn(on){$('loginView').classList.toggle('hidden',on);$('shopView').classList.toggle('hidden',!on);$('bottomNav').classList.toggle('hidden',!on);$('logoutBtn').classList.toggle('hidden',!on);if(on)showView('home');}
-async function refresh(){state=await api('/api/state');$('balanceValue').textContent=money(state.balance,state.currency);$('accountBalance').textContent=money(state.balance,state.currency);$('cartCount').textContent=`${state.cart.length} artículo${state.cart.length===1?'':'s'}`;$('historyCount').textContent=`${(state.orders||[]).length} pedido${(state.orders||[]).length===1?'':'s'}`;$('orderCountLabel').textContent=`${(state.orders||[]).length} pedido${(state.orders||[]).length===1?'':'s'}`;$('navCartCount').textContent=state.cart.length;$('navCartCount').classList.toggle('hidden',!state.cart.length);$('greetingName').textContent=authDisplayName||'bienvenido';$('accountName').textContent=authDisplayName||'Sesión activa';renderCart();renderHistory();}
+async function refresh(){state=await api('/api/state');$('balanceValue').textContent=window.proEshopWalletConnected?window.proEshopWalletBalanceDisplay:'Conecta tu billetera';$('accountBalance').textContent=money(state.balance,state.currency);$('cartCount').textContent=`${state.cart.length} artículo${state.cart.length===1?'':'s'}`;$('historyCount').textContent=`${(state.orders||[]).length} pedido${(state.orders||[]).length===1?'':'s'}`;$('orderCountLabel').textContent=`${(state.orders||[]).length} pedido${(state.orders||[]).length===1?'':'s'}`;$('navCartCount').textContent=state.cart.length;$('navCartCount').classList.toggle('hidden',!state.cart.length);$('greetingName').textContent=authDisplayName||'bienvenido';$('accountName').textContent=authDisplayName||'Sesión activa';renderCart();renderHistory();}
 function estimateCart(){const subtotal=state.cart.reduce((sum,x)=>sum+Number(x.price)*Number(x.qty||1),0);const tax=subtotal*Number(state.tax_rate||0);const shipping=subtotal>0?Number(state.shipping_fee||0):0;return {subtotal,tax,shipping,total:subtotal+tax+shipping};}
 function cartSignature(){return JSON.stringify((state.cart||[]).map(x=>({id:String(x.id),platform:String(x.platform||''),price:Number(x.price)||0,qty:Number(x.qty)||1,title:String(x.title||'')})).sort((a,b)=>a.id.localeCompare(b.id)));}
 function storeIcon(s){return s==='walmart'?'✳':s==='amazon'?'a':s==='target'?'◎':s==='hublot'?'H':s==='jewelers'?'◇':s==='rolex'?'R':'▧';}
@@ -516,7 +516,7 @@ document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',as
 document.querySelectorAll('.store').forEach(b=>b.onclick=()=>{selectedStore=b.dataset.store;document.querySelectorAll('.store').forEach(x=>x.classList.toggle('active',x===b));});
 document.querySelectorAll('[data-search-store]').forEach(b=>b.addEventListener('click',()=>performSearch(undefined,b.dataset.searchStore)));
 function saveAuth(data){token=data.token;authAccountType=data.account_type||'';authDisplayName=data.username||data.email||'Invitado';sessionStorage.setItem('shopcart_token',token);sessionStorage.setItem('shopcart_account_type',authAccountType);sessionStorage.setItem('shopcart_display_name',authDisplayName);setLoggedIn(true);return refresh();}
-document.querySelectorAll('[data-auth-tab]').forEach(btn=>btn.addEventListener('click',()=>{const registering=btn.dataset.authTab==='register';document.querySelectorAll('[data-auth-tab]').forEach(b=>b.classList.toggle('active',b===btn));$('loginForm').classList.toggle('hidden',registering);$('registerForm').classList.toggle('hidden',!registering);$('telegramLoginBtn').classList.toggle('hidden',registering);$('guestLoginBtn').classList.toggle('hidden',registering);$('loginError').textContent='';$('authMessage').textContent='';}));
+document.querySelectorAll('[data-auth-tab]').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('[data-auth-tab]').forEach(b=>b.classList.toggle('active',b===btn));$('loginForm').classList.toggle('hidden',btn.dataset.authTab!=='login');$('registerForm').classList.toggle('hidden',btn.dataset.authTab!=='register');$('loginError').textContent='';$('authMessage').textContent='';}));
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginError').textContent='';$('authMessage').textContent='';try{const data=await api('/api/email-login',{method:'POST',body:JSON.stringify({email:$('loginEmail').value.trim(),password:$('password').value})});await saveAuth(data);toast('Bienvenido a ProEshop');}catch(err){$('loginError').textContent=err.message;}});
 $('registerForm').addEventListener('submit',async e=>{e.preventDefault();$('loginError').textContent='';$('authMessage').textContent='';if($('registerPassword').value!==$('registerPassword2').value){$('loginError').textContent='Las contraseñas no coinciden.';return;}const submitBtn=$('registerForm').querySelector('button[type=submit]');const email=$('registerEmail').value.trim();if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Creando cuenta…';}try{const data=await api('/api/register',{method:'POST',body:JSON.stringify({email,password:$('registerPassword').value})});$('verificationSentText').textContent=`Enviamos un correo a ${email}. Abre el enlace de verificación para activar tu cuenta. Después volverás automáticamente al inicio de sesión.`;$('registerForm').reset();const dlg=$('verificationSentDialog');if(dlg&&!dlg.open)dlg.showModal();}catch(err){$('loginError').textContent=err.message;}finally{if(submitBtn){submitBtn.disabled=false;submitBtn.innerHTML='Crear cuenta <span>→</span>';}}});
 function closeVerificationSent(){const dlg=$('verificationSentDialog');if(dlg?.open)dlg.close();}
@@ -569,4 +569,116 @@ showEmailVerifiedLogin();
     }catch(err){ console.error('Telegram verification handoff:',err); $('loginError').textContent=err.message; }
   }
   if(token){try{setLoggedIn(true);await refresh();}catch(_){token='';sessionStorage.removeItem('shopcart_token');sessionStorage.removeItem('shopcart_account_type');sessionStorage.removeItem('shopcart_display_name');setLoggedIn(false);showEmailVerifiedLogin();}}
+})();
+
+
+/* ProEshop wallet balance: WalletConnect/Reown + injected MetaMask. Read-only USDT balance; no signing or transfers. */
+(function(){
+ const PROJECT_ID=window.PROESHOP_REOWN_PROJECT_ID || '8964c13e0d85a4ac687ce9ebd7474d87';
+ const $w=id=>document.getElementById(id);
+ const state={provider:null,address:'',walletName:'',chainId:null,ethereumProvider:null,connecting:false};
+ window.proEshopWalletConnected=false;
+ window.proEshopWalletBalanceDisplay=null;
+ const networks={
+  1:{name:'Ethereum',token:'0xdAC17F958D2ee523a2206206994597C13D831ec7',decimals:6},
+  56:{name:'BNB Smart Chain',token:'0x55d398326f99059fF775485246999027B3197955',decimals:18},
+  137:{name:'Polygon',token:'0xc2132D05D31c914a87C6611C10748AaCbAbaB0',decimals:6}
+ };
+ function status(t){const e=$w('walletConnectStatus');if(e)e.textContent=t;}
+ function fmt(n){return Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:6})}
+ function short(a){return a?a.slice(0,6)+'…'+a.slice(-4):'Sin conectar'}
+ function setBusy(b){state.connecting=b;['connectMetaMask','connectTrustWallet'].forEach(id=>{const e=$w(id);if(e)e.disabled=b});}
+ function renderConnected(){
+  window.proEshopWalletConnected=true;
+  $w('walletAddressShort').textContent=short(state.address);
+  $w('walletConnectionLabel').textContent=state.walletName.toUpperCase();
+  $w('refreshWalletBalance').disabled=false;$w('disconnectWallet').disabled=false;
+ }
+ async function balance(){
+  if(!state.provider||!state.address)return;
+  const chainHex=await state.provider.request({method:'eth_chainId'});
+  state.chainId=parseInt(chainHex,16);
+  const net=networks[state.chainId];
+  if(!net){
+   window.proEshopWalletBalanceDisplay='Red no compatible';
+   $w('balanceValue').textContent='Red no compatible';
+   $w('walletBalanceCaption').textContent='Cambia a Ethereum, BNB Smart Chain o Polygon';
+   status('Red no compatible. Este panel consulta USDT en Ethereum, BNB Chain o Polygon.');
+   return;
+  }
+  status('Consultando USDT en '+net.name+'…');
+  const data='0x70a08231'+state.address.toLowerCase().replace('0x','').padStart(64,'0');
+  const raw=await state.provider.request({method:'eth_call',params:[{to:net.token,data},'latest']});
+  const amount=Number(BigInt(raw))/Math.pow(10,net.decimals);
+  window.proEshopWalletBalanceDisplay=fmt(amount)+' USDT';
+  $w('balanceValue').textContent=window.proEshopWalletBalanceDisplay;
+  $w('walletBalanceCaption').textContent='USDT · '+net.name+' · saldo consultado en blockchain';
+  status('Saldo actualizado correctamente.');
+  renderConnected();
+ }
+ async function attach(provider,name){
+  state.provider=provider;state.walletName=name;
+  const accounts=await provider.request({method:'eth_requestAccounts'});
+  if(!accounts||!accounts.length)throw new Error('La billetera no devolvió una cuenta.');
+  state.address=accounts[0];renderConnected();
+  if(provider.on){
+   provider.on('accountsChanged',async a=>{if(!a||!a.length){disconnect(false);return;}state.address=a[0];renderConnected();try{await balance()}catch(e){status('No se pudo consultar el saldo: '+e.message)}});
+   provider.on('chainChanged',async()=>{try{await balance()}catch(e){status('No se pudo consultar el saldo: '+e.message)}});
+   provider.on('disconnect',()=>disconnect(false));
+  }
+  await balance();
+ }
+ async function connectInjected(){
+  const eth=window.ethereum;
+  if(!eth)throw new Error('No se detectó MetaMask en este navegador. Usa WalletConnect o abre ProEshop desde la billetera.');
+  await attach(eth,'MetaMask');
+ }
+ async function connectWC(name){
+  // Do not navigate to app/deep-link schemes from Telegram WebView.
+  // This prevents net::ERR_UNKNOWN_URL_SCHEME and keeps the shop loaded.
+  if(!PROJECT_ID || PROJECT_ID.length < 20){
+    throw new Error('WalletConnect no está configurado. El Project ID se conserva en la configuración de ProEshop.');
+  }
+  throw new Error('Telegram no ofrece una conexión directa a esta billetera en este navegador. Abre ProEshop manualmente en el navegador DApp de MetaMask o Trust Wallet y vuelve a pulsar Conectar. La tienda seguirá abierta.');
+ }
+ function findInjectedProvider(which){
+  const providers=[];
+  if(window.ethereum){
+   if(Array.isArray(window.ethereum.providers))providers.push(...window.ethereum.providers);
+   providers.push(window.ethereum);
+  }
+  if(which==='metamask')return providers.find(p=>p.isMetaMask&&!p.isTrust&&!p.isTrustWallet)||providers.find(p=>p.isMetaMask)||null;
+  return providers.find(p=>p.isTrust||p.isTrustWallet)||null;
+ }
+ function disconnect(show=true){
+  try{if(state.ethereumProvider&&state.ethereumProvider.disconnect)state.ethereumProvider.disconnect()}catch(e){}
+  state.provider=null;state.address='';state.walletName='';state.chainId=null;state.ethereumProvider=null;
+  window.proEshopWalletBalanceDisplay=null;
+  window.proEshopWalletConnected=false;
+  const b=$w('balanceValue');if(b)b.textContent='Conecta tu billetera';
+  const c=$w('walletBalanceCaption');if(c)c.textContent='Saldo USDT de la red conectada';
+  const a=$w('walletAddressShort');if(a)a.textContent='Sin conectar';
+  const l=$w('walletConnectionLabel');if(l)l.textContent='PROESHOP WALLET';
+  $w('refreshWalletBalance').disabled=true;$w('disconnectWallet').disabled=true;
+  status('Billetera desconectada. El saldo interno no se modifica.');
+  if(show&&window.toast)window.toast('Billetera desconectada.');
+ }
+ async function runConnect(which){
+  if(state.connecting)return;setBusy(true);
+  try{
+   const injected=findInjectedProvider(which);
+   if(injected)await attach(injected,which==='metamask'?'MetaMask':'Trust Wallet');
+   else await connectWC(which==='metamask'?'MetaMask':'Trust Wallet');
+  }catch(e){
+   console.warn('Wallet connect:',e);
+   if(e&&e.code===4001)status('Conexión cancelada en la billetera.');
+   else status((e&&e.message)||'No se pudo conectar. Abre ProEshop desde el navegador DApp de la billetera e inténtalo de nuevo.');
+  }finally{setBusy(false);}
+ }
+ document.addEventListener('DOMContentLoaded',()=>{
+  $w('connectMetaMask')?.addEventListener('click',()=>runConnect('metamask'));
+  $w('connectTrustWallet')?.addEventListener('click',()=>runConnect('trustwallet'));
+  $w('refreshWalletBalance')?.addEventListener('click',async()=>{try{await balance()}catch(e){status('Error al actualizar: '+e.message)}});
+  $w('disconnectWallet')?.addEventListener('click',()=>disconnect(true));
+ });
 })();
