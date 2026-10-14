@@ -633,6 +633,8 @@ async def logout(request: Request):
     return {"ok": True}
 
 
+HUBLOT_OFFICIAL_IMAGES = {'bb-original-red': 'https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-08/Big-Bang-Original-Soft-Touch-All-Red-43-mm-Soldier.png?itok=evq1Szm7', 'bb-original-black': 'https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-08/Big-Bang-Original-Soft-Touch-All-Black-43-mm-Soldier.png?itok=3YcrBXPZ', 'bb-original-titanium': 'https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-01/Big-Bang-Original-Unico-Titanium-43-mm-Soldier.png?itok=1O9ZHuP7', 'bb-original-titanium-ceramic': 'https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-01/Big-Bang-Original-Unico-Titanium-Ceramic-43-mm-Soldier.png?itok=pxMh47pH', 'bb-original-king-gold': 'https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-01/Big-Bang-Original-Unico-King-Gold-Ceramic-43-mm-Soldier.png?itok=FdLdvA9F', 'bb-original-black-magic': 'https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-01/Big-Bang-Original-Unico-Black-Magic-43-mm-Soldier.png?itok=VNheq-YQ', 'bb-original-coal-blue': 'https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-01/Big-Bang-Original-Unico-Coal-Blue-43-mm-Soldier.png?itok=m5jhSv6e'}
+
 async def official_product_image(product_url: str, allowed_domain: str) -> str:
     """Extract the main image referenced by an exact official product page.
 
@@ -754,7 +756,7 @@ async def search(body: SearchBody, request: Request):
             else:
                 product_url = "https://www.hublot.com/en-us/find-your-hublot"
             # Only assign a photo from an exact model page; never borrow a different model's image.
-            image_url = await official_product_image(product_url, "hublot.com") if pid in exact_hublot_pages else ""
+            image_url = HUBLOT_OFFICIAL_IMAGES.get(pid, "")
             results.append({"title": p["name"], "price": round(float(p["price"]), 2),
                             "currency": "USD", "url": product_url, "image": image_url,
                             "source": "HUBLOT.com · imagen solo cuando se verifica la ficha exacta",
@@ -952,6 +954,12 @@ async def state(request: Request):
             item["image"] = ""
             with conn() as db:
                 db.execute("UPDATE carts SET image='' WHERE id=? AND telegram_id=?", (item["id"], tg_id))
+        if item.get("platform") == "hublot":
+            matched_for_image = next((p for p in HUBLOT_CATALOG if p.get("name", "").casefold() == item["title"].casefold()), None)
+            if matched_for_image and HUBLOT_OFFICIAL_IMAGES.get(matched_for_image.get("id", "")):
+                item["image"] = HUBLOT_OFFICIAL_IMAGES[matched_for_image["id"]]
+                with conn() as db:
+                    db.execute("UPDATE carts SET image=? WHERE id=? AND telegram_id=?", (item["image"], item["id"], tg_id))
         if item.get("image"):
             continue
         image_source = ""
