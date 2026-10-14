@@ -189,3 +189,12 @@ input,select,textarea{color-scheme:dark}
 #checkoutView .payment-option:has(input:checked){border-color:#a99aff!important;box-shadow:0 0 0 2px #8d7bff2b,inset 0 1px #ffffff0a!important;background:linear-gradient(135deg,#2b2948,#1d2239)!important}
 #checkoutView .payment-option b{color:#fff!important}#checkoutView .payment-option small{color:#b8bfd9!important}#checkoutView .payment-option .payment-icon{background:#303653!important;color:#d9d0ff!important}#checkoutView .payment-option input[type=radio]{accent-color:#b4a6ff!important;flex:0 0 auto}#checkoutView .payment-option>i{color:#c5baff!important}
 #cryptoPaymentPanel .crypto-edit-cart{margin-top:9px;background:#252b45!important;border-color:#454d70!important;color:#e4e0ff!important}
+
+/* USDT pending-payment countdown and resume controls */
+.crypto-pending-resume{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:16px 0;padding:16px;border:1px solid rgba(20,184,166,.38);border-radius:16px;background:linear-gradient(135deg,rgba(13,148,136,.12),rgba(59,130,246,.08));color:var(--text,#f3f4f6)}
+.crypto-pending-resume p{margin:6px 0 0;color:var(--muted,#aab2c5);font-size:.88rem}.crypto-pending-resume .resume-usdt-btn{white-space:nowrap;min-width:132px}
+.order-countdown{font-variant-numeric:tabular-nums;color:#fbbf24}
+.crypto-countdown-card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px;margin:14px 0;border:1px solid rgba(245,158,11,.38);border-radius:16px;background:rgba(245,158,11,.08);text-align:center;color:var(--text,#f3f4f6)}
+.crypto-countdown-card small{font-size:.7rem;font-weight:800;letter-spacing:.12em;color:#fbbf24}.crypto-countdown-card strong{font-size:2rem;line-height:1.15;font-variant-numeric:tabular-nums;color:#fbbf24}.crypto-countdown-card span{font-size:.82rem;color:var(--muted,#b7bfd0)}
+.status-pill{max-width:100%;white-space:normal}
+@media(max-width:560px){.crypto-pending-resume{align-items:stretch;flex-direction:column}.crypto-pending-resume .resume-usdt-btn{width:100%}}
