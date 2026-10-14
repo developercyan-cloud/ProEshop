@@ -222,6 +222,45 @@ def init_db():
             db.execute("ALTER TABLE pending_email_registrations ADD COLUMN verify_hash TEXT NOT NULL DEFAULT ''")
             if "code_hash" in pending_columns:
                 db.execute("UPDATE pending_email_registrations SET verify_hash=code_hash WHERE verify_hash=''")
+        # Normalize legacy pending-registration schemas. Earlier versions used
+        # incompatible NOT NULL columns (for example code_hash/account_id) that
+        # cannot be satisfied by the current registration flow. Rebuild ONLY this
+        # temporary table, copying pending rows where possible; all permanent tables
+        # and the Railway volume remain untouched.
+        pending_info = db.execute("PRAGMA table_info(pending_email_registrations)").fetchall()
+        pending_names = {row["name"] for row in pending_info}
+        canonical_names = {"email", "password_hash", "verify_hash", "verify_expires", "attempts", "created_at"}
+        required_legacy = any(row["notnull"] and row["dflt_value"] is None and row["name"] not in canonical_names and not row["pk"] for row in pending_info)
+        if required_legacy or not canonical_names.issubset(pending_names):
+            db.execute("ALTER TABLE pending_email_registrations RENAME TO pending_email_registrations_legacy")
+            db.execute("""CREATE TABLE pending_email_registrations(
+                email TEXT PRIMARY KEY COLLATE NOCASE,
+                password_hash TEXT NOT NULL,
+                verify_hash TEXT NOT NULL,
+                verify_expires REAL NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            )""")
+            legacy_cols = {row["name"] for row in db.execute("PRAGMA table_info(pending_email_registrations_legacy)").fetchall()}
+            def legacy_expr(candidates, fallback):
+                for candidate in candidates:
+                    if candidate in legacy_cols:
+                        return f'"{candidate}"'
+                return fallback
+            email_expr = legacy_expr(["email"], "NULL")
+            password_expr = legacy_expr(["password_hash"], "NULL")
+            hash_expr = legacy_expr(["verify_hash", "code_hash"], "''")
+            expires_expr = legacy_expr(["verify_expires", "expires_at"], "0")
+            attempts_expr = legacy_expr(["attempts"], "0")
+            created_expr = legacy_expr(["created_at"], "''")
+            # Copy only rows that can be used by the current flow. A legacy code
+            # hash is compatible with the SHA-256 verification scheme.
+            db.execute(f"""INSERT OR REPLACE INTO pending_email_registrations
+                (email,password_hash,verify_hash,verify_expires,attempts,created_at)
+                SELECT {email_expr},{password_expr},{hash_expr},{expires_expr},{attempts_expr},{created_expr}
+                FROM pending_email_registrations_legacy
+                WHERE {email_expr} IS NOT NULL AND {password_expr} IS NOT NULL""")
+            db.execute("DROP TABLE pending_email_registrations_legacy")
         # Additive migrations only: preserve the existing Railway volume and all data.
         order_columns = {row["name"] for row in db.execute("PRAGMA table_info(orders)").fetchall()}
         for column, declaration in {
