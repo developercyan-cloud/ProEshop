@@ -516,38 +516,11 @@ document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',as
 document.querySelectorAll('.store').forEach(b=>b.onclick=()=>{selectedStore=b.dataset.store;document.querySelectorAll('.store').forEach(x=>x.classList.toggle('active',x===b));});
 document.querySelectorAll('[data-search-store]').forEach(b=>b.addEventListener('click',()=>performSearch(undefined,b.dataset.searchStore)));
 function saveAuth(data){token=data.token;authAccountType=data.account_type||'';authDisplayName=data.username||data.email||'Invitado';sessionStorage.setItem('shopcart_token',token);sessionStorage.setItem('shopcart_account_type',authAccountType);sessionStorage.setItem('shopcart_display_name',authDisplayName);setLoggedIn(true);return refresh();}
-document.querySelectorAll('[data-auth-tab]').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('[data-auth-tab]').forEach(b=>b.classList.toggle('active',b===btn));$('loginForm').classList.toggle('hidden',btn.dataset.authTab!=='login');$('registerForm').classList.toggle('hidden',btn.dataset.authTab!=='register');$('loginError').textContent='';$('authMessage').textContent='';}));
+document.querySelectorAll('[data-auth-tab]').forEach(btn=>btn.addEventListener('click',()=>{const registering=btn.dataset.authTab==='register';document.querySelectorAll('[data-auth-tab]').forEach(b=>b.classList.toggle('active',b===btn));$('loginForm').classList.toggle('hidden',registering);$('registerForm').classList.toggle('hidden',!registering);$('telegramLoginBtn').classList.toggle('hidden',registering);$('guestLoginBtn').classList.toggle('hidden',registering);$('loginError').textContent='';$('authMessage').textContent='';}));
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginError').textContent='';$('authMessage').textContent='';try{const data=await api('/api/email-login',{method:'POST',body:JSON.stringify({email:$('loginEmail').value.trim(),password:$('password').value})});await saveAuth(data);toast('Bienvenido a ProEshop');}catch(err){$('loginError').textContent=err.message;}});
-let pendingRegistrationEmail='';
-async function requestRegistrationCode(){
-  $('loginError').textContent='';$('authMessage').textContent='';
-  if($('registerPassword').value!==$('registerPassword2').value){$('loginError').textContent='Las contraseñas no coinciden.';return;}
-  const email=$('registerEmail').value.trim();
-  const submitBtn=$('registerSubmitBtn');if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Enviando código…';}
-  try{
-    const data=await api('/api/register',{method:'POST',body:JSON.stringify({email,password:$('registerPassword').value})});
-    pendingRegistrationEmail=email;$('registerEmail').readOnly=true;$('registerPassword').readOnly=true;$('registerPassword2').readOnly=true;
-    $('registerCodeStep').classList.remove('hidden');$('registerCode').required=true;$('registerCode').focus();
-    $('authMessage').textContent=`Enviamos un código a ${email}. Revisa también la carpeta de spam. El código vence en 10 minutos.`;
-    if(data.message)toast('Código enviado al correo');
-  }catch(err){$('loginError').textContent=err.message;}
-  finally{if(submitBtn){submitBtn.disabled=false;submitBtn.innerHTML='Enviar código al correo <span>→</span>';}}
-}
-$('registerForm').addEventListener('submit',async e=>{e.preventDefault();if(!$('registerCodeStep').classList.contains('hidden'))return;await requestRegistrationCode();});
-$('resendRegisterCodeBtn')?.addEventListener('click',requestRegistrationCode);
-$('verifyRegisterCodeBtn')?.addEventListener('click',async()=>{
-  const btn=$('verifyRegisterCodeBtn');const code=$('registerCode').value.trim();$('loginError').textContent='';
-  if(!pendingRegistrationEmail){$('loginError').textContent='Solicita primero un código de verificación.';return;}
-  if(!/^\d{6}$/.test(code)){$('loginError').textContent='Introduce el código de 6 dígitos.';return;}
-  btn.disabled=true;btn.textContent='Verificando código…';
-  try{
-    const data=await api('/api/register/verify-code',{method:'POST',body:JSON.stringify({email:pendingRegistrationEmail,code})});
-    await saveAuth(data);$('registerForm').reset();$('registerCodeStep').classList.add('hidden');$('registerCode').required=false;$('registerEmail').readOnly=false;$('registerPassword').readOnly=false;$('registerPassword2').readOnly=false;pendingRegistrationEmail='';
-    $('authMessage').textContent=data.message||'Cuenta creada y sesión iniciada.';toast('¡Cuenta creada! Sesión iniciada.');
-    if(tg&&typeof tg.HapticFeedback?.notificationOccurred==='function')tg.HapticFeedback.notificationOccurred('success');
-  }catch(err){$('loginError').textContent=err.message;}
-  finally{btn.disabled=false;btn.innerHTML='Verificar código y entrar <span>✓</span>';}
-});
+$('registerForm').addEventListener('submit',async e=>{e.preventDefault();$('loginError').textContent='';$('authMessage').textContent='';if($('registerPassword').value!==$('registerPassword2').value){$('loginError').textContent='Las contraseñas no coinciden.';return;}const submitBtn=$('registerForm').querySelector('button[type=submit]');const email=$('registerEmail').value.trim();if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Creando cuenta…';}try{const data=await api('/api/register',{method:'POST',body:JSON.stringify({email,password:$('registerPassword').value})});$('verificationSentText').textContent=`Enviamos un correo a ${email}. Abre el enlace de verificación para activar tu cuenta. Después volverás automáticamente al inicio de sesión.`;$('registerForm').reset();const dlg=$('verificationSentDialog');if(dlg&&!dlg.open)dlg.showModal();}catch(err){$('loginError').textContent=err.message;}finally{if(submitBtn){submitBtn.disabled=false;submitBtn.innerHTML='Crear cuenta <span>→</span>';}}});
+function closeVerificationSent(){const dlg=$('verificationSentDialog');if(dlg?.open)dlg.close();}
+$('closeVerificationSent')?.addEventListener('click',closeVerificationSent);$('verificationSentOk')?.addEventListener('click',closeVerificationSent);$('verificationSentDialog')?.addEventListener('click',e=>{if(e.target===$('verificationSentDialog'))closeVerificationSent();});
 function showEmailVerifiedLogin(){const params=new URLSearchParams(location.search);if(params.get('email_verified')==='1'){document.querySelector('[data-auth-tab=login]')?.click();$('authMessage').textContent='¡Correo verificado! Tu cuenta está activa. Inicia sesión para continuar.';history.replaceState({},'',location.pathname+location.hash);}}
 $('guestLoginBtn').onclick=async()=>{try{const data=await api('/api/guest-session',{method:'POST',body:'{}'});await saveAuth(data);toast('Continúas como invitado');}catch(e){$('loginError').textContent=e.message;}};
 $('telegramLoginBtn').onclick=async()=>{if(!tg?.initData){$('loginError').textContent='Abre ProEshop desde el bot de Telegram para usar este acceso.';return;}try{const data=await api('/api/telegram-login',{method:'POST',body:JSON.stringify({init_data:tg.initData})});await saveAuth(data);toast('Acceso con Telegram correcto');}catch(e){$('loginError').textContent=e.message;}};
@@ -582,7 +555,7 @@ document.querySelectorAll('[data-query]').forEach(b=>b.addEventListener('click',
 $('checkoutBtn').onclick=openCheckout;$('checkoutForm').addEventListener('submit',submitCheckout);document.querySelectorAll('input[name=payment_method]').forEach(el=>el.addEventListener('change',updateCheckoutPaymentCopy));$('refreshOrders').onclick=async()=>{try{await refresh();toast('Pedidos actualizados');}catch(e){toast(e.message)}};$('orderCategoryFilter')?.addEventListener('change',applyOrderFilters);$('orderStoreFilter')?.addEventListener('change',applyOrderFilters);
 $('notificationBtn').onclick=async()=>{await loadNotificationPreferences();$('notificationDialog').showModal()};$('saveNotificationsBtn').onclick=saveNotificationPreferences;$('adminOpenBtn').onclick=loadAdminMetrics;$('adminRefreshBtn').onclick=loadAdminMetrics;$('closeNotificationDialog').onclick=()=>$('notificationDialog').close();$('closeNotificationOk').onclick=()=>$('notificationDialog').close();$('closeProductDialog').onclick=()=>$('productDialog').close();$('logoutAccountBtn').onclick=()=>$('logoutBtn').click();
 $('logoutBtn').onclick=async()=>{try{await api('/api/logout',{method:'POST',body:'{}'});}catch(_){}token='';authAccountType='';authDisplayName='';sessionStorage.removeItem('shopcart_token');sessionStorage.removeItem('shopcart_account_type');sessionStorage.removeItem('shopcart_display_name');setLoggedIn(false);$('password').value='';$('loginError').textContent='';toast('Sesión cerrada');};
-
+showEmailVerifiedLogin();
 (async()=>{
   // Telegram startapp payload issued after email verification. Exchange it once for a server session.
   const startParam=String(tg?.initDataUnsafe?.start_param||'');
