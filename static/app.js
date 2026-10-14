@@ -634,12 +634,27 @@ showEmailVerifiedLogin();
   await attach(eth,'MetaMask');
  }
  async function connectWC(name){
-  // Do not navigate to app/deep-link schemes from Telegram WebView.
-  // This prevents net::ERR_UNKNOWN_URL_SCHEME and keeps the shop loaded.
-  if(!PROJECT_ID || PROJECT_ID.length < 20){
-    throw new Error('WalletConnect no está configurado. El Project ID se conserva en la configuración de ProEshop.');
-  }
-  throw new Error('Telegram no ofrece una conexión directa a esta billetera en este navegador. Abre ProEshop manualmente en el navegador DApp de MetaMask o Trust Wallet y vuelve a pulsar Conectar. La tienda seguirá abierta.');
+  if(!PROJECT_ID || PROJECT_ID.length < 20) throw new Error('Falta configurar el WalletConnect Project ID.');
+  const SDK=window.ProEshopEthereumProvider;
+  if(!SDK || typeof SDK.init!=='function') throw new Error('No cargó el módulo local de WalletConnect. Verifica que Railway haya completado la compilación y vuelve a desplegar.');
+  status('Abriendo conexión segura con '+name+'…');
+  const provider=await SDK.init({
+   projectId:PROJECT_ID,
+   chains:[1],
+   optionalChains:[56,137],
+   showQrModal:true,
+   methods:['eth_sendTransaction','personal_sign','eth_signTypedData','eth_signTypedData_v4'],
+   events:['chainChanged','accountsChanged'],
+   metadata:{
+    name:'ProEshop',
+    description:'Consulta de saldo USDT',
+    url:window.location.origin,
+    icons:[window.location.origin+'/static/favicon.png']
+   }
+  });
+  state.ethereumProvider=provider;
+  await provider.connect();
+  await attach(provider,name);
  }
  function findInjectedProvider(which){
   const providers=[];
