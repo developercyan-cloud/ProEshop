@@ -234,8 +234,9 @@ ORDER_STATUS_LABELS = {
     "reviewing": "En revisión",
     "payment_review": "En revisión de pago",
     "action_required": "Requiere acción del cliente",
-    "confirmed": "Pedido confirmado",
-    "preparing": "En preparación",
+    "confirmed": "Confirmado",
+    "in_process": "En proceso",
+    "preparing": "En proceso",
     "shipped": "Enviado",
     "delivered": "Entregado",
     "unavailable": "Producto no disponible",
@@ -249,7 +250,8 @@ ORDER_TRANSITIONS = {
     "payment_review": {"reviewing", "confirmed", "action_required", "cancelled", "unavailable"},
     "reviewing": {"confirmed", "action_required", "cancelled", "unavailable"},
     "action_required": {"reviewing", "cancelled"},
-    "confirmed": {"preparing", "cancelled"},
+    "confirmed": {"in_process", "preparing", "cancelled"},
+    "in_process": {"shipped", "cancelled"},
     "preparing": {"shipped", "cancelled"},
     "shipped": {"delivered", "returned"},
     "delivered": {"returned"},
@@ -264,7 +266,8 @@ ORDER_EMAIL_COPY = {
     "payment_review": ("Pago detectado: en revisión", "Detectamos la transferencia USDT en TRON. El equipo está revisando el pago antes de confirmar el pedido."),
     "action_required": ("Necesitamos información para tu pedido", "Tu pedido requiere una acción adicional. Revisa los detalles con el equipo de ProEshop."),
     "confirmed": ("Tu pedido ha sido confirmado", "El pedido fue confirmado por el equipo de ProEshop. El estado del pago se informa por separado."),
-    "preparing": ("Tu pedido está en preparación", "Tu pedido ha pasado a la etapa de preparación."),
+    "in_process": ("Tu pedido está en proceso", "Tu pedido ha pasado a la etapa de proceso."),
+    "preparing": ("Tu pedido está en proceso", "Tu pedido ha pasado a la etapa de proceso."),
     "shipped": ("Tu pedido fue enviado", "Tu pedido figura como enviado. Consulta el número de guía en los detalles del pedido si se ha registrado."),
     "delivered": ("Tu pedido figura como entregado", "Se registró la entrega del pedido."),
     "unavailable": ("Actualización sobre disponibilidad", "El producto no está disponible actualmente. El equipo de ProEshop te informará sobre las opciones."),
@@ -1685,10 +1688,10 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
         db.execute("""INSERT INTO orders(order_ref,telegram_id,subtotal,tax,shipping,total,currency,status,created_at,updated_at,
                       shipping_name,shipping_city,shipping_country,shipping_address,payment_method,customer_email)
                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                   (order_ref, tg_id, str(subtotal), str(tax), str(shipping), str(total), currency, "pending_payment" if is_crypto else "received", when, when,
+                   (order_ref, tg_id, str(subtotal), str(tax), str(shipping), str(total), currency, "pending_payment" if is_crypto else "confirmed", when, when,
                     shipping_name, shipping_city, shipping_country, shipping_address, body.payment_method, customer_email))
-        initial_status = "pending_payment" if is_crypto else "received"
-        initial_label = "Pendiente de pago" if is_crypto else "Pedido recibido"
+        initial_status = "pending_payment" if is_crypto else "confirmed"
+        initial_label = "Pendiente de pago" if is_crypto else "Confirmado"
         initial_detail = (f"Pedido creado. Pago pendiente durante 5 minutos: enviar {requested_usdt} USDT por TRON (TRC-20). Si no se detecta el pago en ese plazo, se cancelará automáticamente." if is_crypto else "Pedido de demostración registrado; no se envió una orden al comercio ni se procesó un pago real.")
         db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
                    (order_ref, initial_status, initial_label, initial_detail, when))
@@ -1720,7 +1723,7 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
             store_total = (store_subtotal + store_tax + store_shipping).quantize(Decimal("0.01"))
             db.execute("""INSERT INTO store_orders(store_order_ref,order_ref,platform,store_label,subtotal,tax,shipping,total,currency,status,created_at,updated_at,customer_email)
                           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                       (store_ref, order_ref, platform, store_label, str(store_subtotal), str(store_tax), str(store_shipping), str(store_total), currency, "pending_payment" if is_crypto else "received", when, when, customer_email))
+                       (store_ref, order_ref, platform, store_label, str(store_subtotal), str(store_tax), str(store_shipping), str(store_total), currency, "pending_payment" if is_crypto else "confirmed", when, when, customer_email))
             lines = []
             for row in items:
                 line_total = (Decimal(row["price"]) * row["qty"]).quantize(Decimal("0.01"))
@@ -1730,7 +1733,7 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
                 lines.append(f"{row['qty']} × {row['title']} — {currency} {line_total:.2f}")
             initial_detail = f"Pedido registrado en ProEshop para {store_label}. No implica compra ni envío real."
             db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
-                       (order_ref, "received", f"{store_label}: Pedido recibido", f"Referencia de tienda: {store_ref}. Artículos: " + "; ".join(lines), when))
+                       (order_ref, initial_status, f"{store_label}: {initial_label}", f"Referencia de tienda: {store_ref}. Artículos: " + "; ".join(lines), when))
             db.execute("INSERT INTO store_order_events(store_order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
                        (store_ref, initial_status, initial_label, initial_detail, when))
             store_emails.append({"store_order_ref": store_ref, "store": store_label, "total": str(store_total), "items": lines})
