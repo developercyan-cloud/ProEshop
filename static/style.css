@@ -172,3 +172,11 @@ input,select,textarea{color-scheme:dark}
 
 /* Luxury catalog category chips */
 .luxury-category-row{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px!important}.luxury-category-row .category-chip{min-width:0;min-height:76px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:7px;padding:12px 6px;border:1px solid #49405e;background:linear-gradient(145deg,#1a2035,#17172a);border-radius:15px;color:#f1e9d4}.luxury-category-row .category-chip span{font-size:23px;color:#d6b36d;line-height:1}.luxury-category-row .category-chip b{font-size:11px;letter-spacing:.8px}.luxury-category-row .category-chip:active{transform:scale(.98)}
+
+/* USDT TRC-20 checkout */
+.crypto-amount{display:block;margin-top:8px;font-size:1.25rem;letter-spacing:.02em;overflow-wrap:anywhere}
+.crypto-address-row{display:flex;gap:8px;align-items:center;margin-top:8px}
+.crypto-address-row input{min-width:0;flex:1;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem}
+.crypto-address-row button{flex:0 0 auto}
+#cryptoPaymentPanel .info-banner{margin:12px 0}
+#cryptoPaymentStatus{margin:16px 0;padding:12px;border-radius:12px;background:rgba(80,190,145,.10)}
