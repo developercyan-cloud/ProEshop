@@ -169,3 +169,6 @@ input,select,textarea{color-scheme:dark}
 @media(max-width:390px){.checkout-product-row{grid-template-columns:48px minmax(0,1fr) auto;gap:8px}.checkout-product-row>img,.checkout-product-placeholder{width:48px;height:48px}.checkout-product-info b{font-size:10px}.checkout-product-row>strong{font-size:10px}}
 
 .rolex-logo{font-size:24px;color:#c8a85a;font-family:serif;font-weight:700}
+
+/* Luxury catalog category chips */
+.luxury-category-row{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px!important}.luxury-category-row .category-chip{min-width:0;min-height:76px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:7px;padding:12px 6px;border:1px solid #49405e;background:linear-gradient(145deg,#1a2035,#17172a);border-radius:15px;color:#f1e9d4}.luxury-category-row .category-chip span{font-size:23px;color:#d6b36d;line-height:1}.luxury-category-row .category-chip b{font-size:11px;letter-spacing:.8px}.luxury-category-row .category-chip:active{transform:scale(.98)}
