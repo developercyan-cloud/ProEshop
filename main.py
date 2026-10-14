@@ -508,40 +508,56 @@ HUBLOT_CATALOG = [{'id': 'bb-original-red', 'name': 'Big Bang Original Soft Touc
 # Modelos destacados del catálogo oficial Rolex. La página oficial no publica ranking de ventas;
 # se presentan como modelos destacados, no como una lista verificada de los más vendidos.
 # Precios base en USD observados en la página oficial; confirmar antes de publicar ofertas de venta.
+# Catálogo Rolex: 47 referencias/modelos destacados con fotografías servidas por media.rolex.com.
+# Los precios son referencias en USD; el descuento del 50% es una promoción interna de ProEshop, no oficial de Rolex.
 ROLEX_CATALOG = [
-    {"id":'land-dweller-40', "name":'Rolex Land-Dweller 40 · acero y oro blanco', "price":16450.00, "discount":0, "desc":'Land-Dweller 40, esfera blanco intenso con motivo nido de abeja.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'datejust-41', "name":'Rolex Datejust 41 · acero y oro blanco, esfera verde', "price":11650.00, "discount":40, "desc":'Datejust 41, esfera verde sombreado.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'datejust-41-steel', "name":'Rolex Datejust 41 · acero Oystersteel', "price":8950.00, "discount":0, "desc":'Datejust 41, versión Oystersteel.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'datejust-36', "name":'Rolex Datejust 36 · acero y oro blanco', "price":10400.00, "discount":0, "desc":'Datejust 36, diseño clásico.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'lady-datejust', "name":'Rolex Lady-Datejust · 28 mm', "price":15100.00, "discount":0, "desc":'Lady-Datejust, acero y oro amarillo.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'oyster-perpetual-41', "name":'Rolex Oyster Perpetual 41 · acero y oro amarillo', "price":9650.00, "discount":40, "desc":'Oyster Perpetual 41, esfera pizarra.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'cosmograph-daytona', "name":'Rolex Cosmograph Daytona · platino', "price":84600.00, "discount":0, "desc":'Cosmograph Daytona, esfera azul glaciar.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'submariner-date', "name":'Rolex Submariner Date · acero Oystersteel', "price":11900.00, "discount":0, "desc":'Submariner Date, esfera negra.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'submariner-date-gold', "name":'Rolex Submariner Date · acero y oro amarillo', "price":17200.00, "discount":0, "desc":'Submariner Date, esfera azul.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'gmt-master-ii', "name":'Rolex GMT-Master II · Oystersteel', "price":12500.00, "discount":0, "desc":'GMT-Master II, reloj de doble huso horario.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'explorer-40', "name":'Rolex Explorer 40 · acero Oystersteel', "price":8350.00, "discount":40, "desc":'Explorer 40, esfera negra.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'explorer-ii', "name":'Rolex Explorer II · 42 mm', "price":10600.00, "discount":40, "desc":'Explorer II, esfera blanca.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'air-king', "name":'Rolex Air-King · 40 mm', "price":8150.00, "discount":0, "desc":'Air-King, esfera negra.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'sea-dweller', "name":'Rolex Sea-Dweller · 43 mm', "price":22450.00, "discount":40, "desc":'Sea-Dweller, reloj de submarinismo.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'deepsea', "name":'Rolex Deepsea · 44 mm', "price":15880.00, "discount":0, "desc":'Deepsea, esfera D-blue.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'sky-dweller', "name":'Rolex Sky-Dweller · oro Everose', "price":64900.00, "discount":0, "desc":'Sky-Dweller, esfera pizarra.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'yacht-master-42', "name":'Rolex Yacht-Master 42 · oro amarillo', "price":38100.00, "discount":0, "desc":'Yacht-Master 42, esfera negra.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'yacht-master-40', "name":'Rolex Yacht-Master 40 · acero y platino', "price":13200.00, "discount":0, "desc":'Yacht-Master 40, bisel de platino.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'yacht-master-ii', "name":'Rolex Yacht-Master II · 44 mm', "price":20300.00, "discount":0, "desc":'Yacht-Master II, esfera blanca.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'day-date-40', "name":'Rolex Day-Date 40 · platino', "price":68800.00, "discount":0, "desc":'Day-Date 40, esfera azul glaciar.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'day-date-36', "name":'Rolex Day-Date 36 · platino', "price":59000.00, "discount":0, "desc":'Day-Date 36, acabados clásicos.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""},
-    {"id":'1908', "name":'Rolex 1908 · oro amarillo, 39 mm', "price":27000.00, "discount":0, "desc":'1908, esfera blanco intenso.', "url":"https://www.rolex.com/es/watches/find-rolex?group=0", "img":""}
-]
-ROLEX_DISCOUNT_IDS = {p["id"] for p in ROLEX_CATALOG if p["discount"] == 40}
-
-
-# Catálogo basado en los cuatro productos visibles en la categoría de electrónica del proveedor.
-# Los precios son los Sale Price/Our Price publicados al consultar la página; se deben revalidar antes de vender.
-JEWELERS_CATALOG = [
-    {"id":"niton-xl2-100p", "name":"Niton XL2 100p, Niton Gold XRF Analyzer XL2100", "price":20500.00, "desc":"Analizador XRF para metales preciosos.", "url":"https://www.jewelerstoystore.com/Niton-XL2-100p-XL2100-Niton-Gold-XRF-Analyzer-p/xrf-xl2.htm"},
-    {"id":"niton-dxl", "name":"Niton DXL Precious Metal Analyzer", "price":21750.00, "desc":"Analizador de metales preciosos.", "url":"https://www.jewelerstoystore.com/precious-metal-analyzer-p/dxl.htm"},
-    {"id":"niton-xl2-battery", "name":"Niton XL2 Battery: 7.4V 7800mAh Li-ion (NTL200SL)", "price":295.00, "desc":"Batería de repuesto para analizador XRF Niton XL2.", "url":"https://www.jewelerstoystore.com/Niton-XL2-Battery-7-4V-p/xl-2.htm"},
-    {"id":"niton-xl2-charger", "name":"Niton XL2 Battery Charger – Fast, Smart & Reliable Charging for Your XRF Analyzer", "price":395.00, "desc":"Cargador para analizador XRF Niton XL2.", "url":"https://www.jewelerstoystore.com/Niton-XL2-Battery-Charger-p/xl-3.htm"},
+    {"id":"land-dweller-40", "name":"Rolex Land-Dweller 40 · acero y oro blanco", "price":16100.00, "discount":50, "desc":"Esfera blanco intenso con motivo nido de abeja.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m127334-0001", "reference":"m127334-0001"},
+    {"id":"day-date-40-platinum", "name":"Rolex Day-Date 40 · platino, esfera azul glaciar", "price":68800.00, "discount":50, "desc":"Caja de platino y esfera azul glaciar.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m228236-0018", "reference":"m228236-0018"},
+    {"id":"sky-dweller-everose", "name":"Rolex Sky-Dweller · oro Everose, esfera pizarra", "price":64900.00, "discount":50, "desc":"Caja de oro Everose y esfera pizarra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m336935-0008", "reference":"m336935-0008"},
+    {"id":"lady-datejust-two-tone", "name":"Rolex Lady-Datejust 28 · acero y oro amarillo", "price":15100.00, "discount":50, "desc":"Lady-Datejust con esfera plateada engastada de diamantes.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m279173-0007", "reference":"m279173-0007"},
+    {"id":"datejust-41-green", "name":"Rolex Datejust 41 · acero y oro blanco, esfera verde", "price":11650.00, "discount":50, "desc":"Datejust 41 con esfera verde sombreado.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126334-0033", "reference":"m126334-0033"},
+    {"id":"oyster-perpetual-41-slate", "name":"Rolex Oyster Perpetual 41 · acero y oro amarillo", "price":9650.00, "discount":50, "desc":"Oyster Perpetual 41 con esfera pizarra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m134303-0001", "reference":"m134303-0001"},
+    {"id":"sea-dweller-two-tone", "name":"Rolex Sea-Dweller 43 · acero y oro amarillo", "price":22450.00, "discount":50, "desc":"Reloj de buceo con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126603-0001", "reference":"m126603-0001"},
+    {"id":"gmt-master-ii-grnr", "name":"Rolex GMT-Master II · bisel gris y negro", "price":12000.00, "discount":50, "desc":"GMT-Master II de acero, referencia GRNR.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/c_limit%2Cw_1920/v1/rolexcom/094398bf1f99/collection/watches-grid/beautyshot-cards/m126710grnr-0004/m126710grnr-0004_v01", "reference":"m126710grnr-0004"},
+    {"id":"gmt-master-ii-batman", "name":"Rolex GMT-Master II · bisel azul y negro", "price":12000.00, "discount":50, "desc":"GMT-Master II de acero con bisel azul y negro.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126710blnr-0003", "reference":"m126710blnr-0003"},
+    {"id":"yacht-master-42-gold", "name":"Rolex Yacht-Master 42 · oro amarillo", "price":38100.00, "discount":50, "desc":"Yacht-Master 42 en oro amarillo con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m226658-0001", "reference":"m226658-0001"},
+    {"id":"yacht-master-ii-steel", "name":"Rolex Yacht-Master II 44 · acero", "price":20300.00, "discount":50, "desc":"Yacht-Master II con esfera blanca.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126680-0001", "reference":"m126680-0001"},
+    {"id":"explorer-40", "name":"Rolex Explorer 40 · acero Oystersteel", "price":8200.00, "discount":50, "desc":"Explorer 40 con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m224270-0001", "reference":"m224270-0001"},
+    {"id":"explorer-ii-black", "name":"Rolex Explorer II 42 · esfera negra", "price":10600.00, "discount":50, "desc":"Explorer II de acero con indicador de segundo huso horario.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m226570-0001", "reference":"m226570-0001"},
+    {"id":"air-king-40", "name":"Rolex Air-King 40 · esfera negra", "price":8150.00, "discount":50, "desc":"Diseño inspirado en la historia de la aviación.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126900-0001", "reference":"m126900-0001"},
+    {"id":"1908-yellow-gold", "name":"Rolex 1908 39 · oro amarillo", "price":40900.00, "discount":50, "desc":"Modelo clásico de oro amarillo con esfera blanca.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m52508-0008", "reference":"m52508-0008"},
+    {"id":"oyster-perpetual-36-multicolor", "name":"Rolex Oyster Perpetual 36 · esfera multicolor", "price":6750.00, "discount":50, "desc":"Oyster Perpetual 36 de acero con motivo multicolor.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126000-0016", "reference":"m126000-0016"},
+    {"id":"land-dweller-platinum", "name":"Rolex Land-Dweller 40 · platino", "price":67000.00, "discount":50, "desc":"Land-Dweller con esfera azul glaciar y motivo nido de abeja.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m127336-0001", "reference":"m127336-0001"},
+    {"id":"daytona-steel-white", "name":"Rolex Cosmograph Daytona 40 · acero, esfera blanca", "price":16900.00, "discount":50, "desc":"Cronógrafo Cosmograph Daytona de acero Oystersteel.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126500ln-0001", "reference":"m126500ln-0001"},
+    {"id":"oyster-perpetual-36-black", "name":"Rolex Oyster Perpetual 36 · esfera negra", "price":6750.00, "discount":50, "desc":"Oyster Perpetual 36 con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126000-0014", "reference":"m126000-0014"},
+    {"id":"gmt-master-ii-grnr-black", "name":"Rolex GMT-Master II · bisel gris y negro, variante", "price":12000.00, "discount":50, "desc":"GMT-Master II de acero con bisel gris y negro.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126710grnr-0003", "reference":"m126710grnr-0003"},
+    {"id":"1908-platinum", "name":"Rolex 1908 39 · platino, esfera azul glaciar", "price":32900.00, "discount":50, "desc":"1908 en platino con esfera azul glaciar.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m52506-0003", "reference":"m52506-0003"},
+    {"id":"1908-white-gold", "name":"Rolex 1908 39 · oro blanco", "price":29600.00, "discount":50, "desc":"1908 de oro blanco con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m52509-0002", "reference":"m52509-0002"},
+    {"id":"daytona-everose-chocolate", "name":"Rolex Cosmograph Daytona · oro Everose", "price":59100.00, "discount":50, "desc":"Daytona de oro Everose con esfera chocolate y negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126505-0005", "reference":"m126505-0005"},
+    {"id":"day-date-white-gold", "name":"Rolex Day-Date 40 · oro blanco", "price":53100.00, "discount":50, "desc":"Day-Date 40 de oro blanco con esfera verde oliva.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m228239-0033", "reference":"m228239-0033"},
+    {"id":"deepsea-yellow-gold", "name":"Rolex Deepsea · oro amarillo, esfera azul", "price":68100.00, "discount":50, "desc":"Deepsea de alta resistencia con esfera azul.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m136668lb-0001", "reference":"m136668lb-0001"},
+    {"id":"submariner-date-black", "name":"Rolex Submariner Date 41 · acero, esfera negra", "price":11350.00, "discount":50, "desc":"Submariner Date de acero Oystersteel.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126610ln-0001", "reference":"m126610ln-0001"},
+    {"id":"oyster-perpetual-28-gold", "name":"Rolex Oyster Perpetual 28 · oro amarillo", "price":31600.00, "discount":50, "desc":"Oyster Perpetual 28 con piedra verde.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m276208-0002", "reference":"m276208-0002"},
+    {"id":"datejust-36-two-tone", "name":"Rolex Datejust 36 · acero y oro amarillo", "price":15050.00, "discount":50, "desc":"Datejust 36 con esfera verde oliva.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126203-0058", "reference":"m126203-0058"},
+    {"id":"day-date-yellow-gold", "name":"Rolex Day-Date 40 · oro amarillo", "price":49400.00, "discount":50, "desc":"Day-Date 40 con esfera blanca.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m228238-0042", "reference":"m228238-0042"},
+    {"id":"land-dweller-diamond", "name":"Rolex Land-Dweller 36 · platino y diamantes", "price":100050.00, "discount":50, "desc":"Land-Dweller 36 con esfera azul glaciar y diamantes.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m127286tbr-0001", "reference":"m127286tbr-0001"},
+    {"id":"daytona-everose-sundust", "name":"Rolex Cosmograph Daytona · oro Everose, Sundust", "price":44800.00, "discount":50, "desc":"Daytona Everose con esfera Sundust y contadores negros.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126515ln-0006", "reference":"m126515ln-0006"},
+    {"id":"oyster-perpetual-34-everose", "name":"Rolex Oyster Perpetual 34 · oro Everose", "price":40100.00, "discount":50, "desc":"Oyster Perpetual 34 con piedra azul.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m124205-0002", "reference":"m124205-0002"},
+    {"id":"yacht-master-40-platinum", "name":"Rolex Yacht-Master 40 · acero y platino", "price":13200.00, "discount":50, "desc":"Yacht-Master 40 con bisel de platino y esfera pizarra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126622-0001", "reference":"m126622-0001"},
+    {"id":"yacht-master-37-everose", "name":"Rolex Yacht-Master 37 · acero y oro Everose", "price":17750.00, "discount":50, "desc":"Yacht-Master 37 con esfera chocolate.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m268621-0003", "reference":"m268621-0003"},
+    {"id":"yacht-master-42-white-gold", "name":"Rolex Yacht-Master 42 · oro blanco", "price":40000.00, "discount":50, "desc":"Yacht-Master 42 de oro blanco con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m226659-0002", "reference":"m226659-0002"},
+    {"id":"datejust-41-yellow-gold", "name":"Rolex Datejust 41 · acero y oro amarillo", "price":17700.00, "discount":50, "desc":"Datejust 41 con esfera champagne.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126333-0010", "reference":"m126333-0010"},
+    {"id":"lady-datejust-everose-diamonds", "name":"Rolex Lady-Datejust 28 · oro Everose y diamantes", "price":53100.00, "discount":50, "desc":"Lady-Datejust con esfera chocolate engastada de diamantes.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m279135rbr-0001", "reference":"m279135rbr-0001"},
+    {"id":"datejust-36-diamond", "name":"Rolex Datejust 36 · oro blanco y diamantes", "price":18050.00, "discount":50, "desc":"Datejust 36 con esfera nácar blanco engastada de diamantes.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126284rbr-0011", "reference":"m126284rbr-0011"},
+    {"id":"gmt-master-ii-everose", "name":"Rolex GMT-Master II · oro Everose", "price":57500.00, "discount":50, "desc":"GMT-Master II de oro Everose con esfera ojo de hierro.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126715chnr-0002", "reference":"m126715chnr-0002"},
+    {"id":"datejust-31-everose", "name":"Rolex Datejust 31 · acero y oro Everose", "price":13950.00, "discount":50, "desc":"Datejust 31 con esfera pizarra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m278241-0018", "reference":"m278241-0018"},
+    {"id":"yacht-master-42-titanium", "name":"Rolex Yacht-Master 42 · titanio RLX", "price":15500.00, "discount":50, "desc":"Yacht-Master 42 en titanio RLX.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m226627-0001", "reference":"m226627-0001"},
+    {"id":"sky-dweller-steel-white-gold", "name":"Rolex Sky-Dweller 42 · acero y oro blanco", "price":17750.00, "discount":50, "desc":"Sky-Dweller con esfera verde menta.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m336934-0001", "reference":"m336934-0001"},
+    {"id":"day-date-yellow-gold-green", "name":"Rolex Day-Date 40 · oro amarillo, esfera verde", "price":49400.00, "discount":50, "desc":"Day-Date 40 de oro amarillo con esfera verde sombreado.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m228238-0069", "reference":"m228238-0069"},
+    {"id":"gmt-master-ii-yellow-gold", "name":"Rolex GMT-Master II · oro amarillo", "price":50800.00, "discount":50, "desc":"GMT-Master II de oro amarillo con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126718grnr-0001", "reference":"m126718grnr-0001"},
+    {"id":"sky-dweller-white-gold", "name":"Rolex Sky-Dweller · oro blanco", "price":53450.00, "discount":50, "desc":"Sky-Dweller de oro blanco con esfera negra.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m336239-0002", "reference":"m336239-0002"},
+    {"id":"yacht-master-ii-yellow-gold", "name":"Rolex Yacht-Master II 44 · oro amarillo", "price":60700.00, "discount":50, "desc":"Yacht-Master II de oro amarillo con esfera blanca.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126688-0001", "reference":"m126688-0001"},
+    {"id":"datejust-41-steel-blue", "name":"Rolex Datejust 41 · acero, esfera azul", "price":8950.00, "discount":50, "desc":"Datejust 41 de acero Oystersteel con esfera azul vivo.", "url":"https://www.rolex.com/es/watches/find-rolex", "img":"https://media.rolex.com/image/upload/q_auto%3Aeco/f_auto/t_v7-grid/c_limit%2Cw_1920/v1/a677b2c664f6/catalogue/2026/upright-bba-with-shadow/m126300-0029", "reference":"m126300-0029"}
 ]
 
 
@@ -634,6 +650,80 @@ async def logout(request: Request):
 
 
 HUBLOT_OFFICIAL_IMAGES = {'bb-original-red': 'https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-08/Big-Bang-Original-Soft-Touch-All-Red-43-mm-Soldier.png?itok=evq1Szm7', 'bb-original-black': 'https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-08/Big-Bang-Original-Soft-Touch-All-Black-43-mm-Soldier.png?itok=3YcrBXPZ', 'bb-original-titanium': 'https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-01/Big-Bang-Original-Unico-Titanium-43-mm-Soldier.png?itok=1O9ZHuP7', 'bb-original-titanium-ceramic': 'https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-01/Big-Bang-Original-Unico-Titanium-Ceramic-43-mm-Soldier.png?itok=pxMh47pH', 'bb-original-king-gold': 'https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-01/Big-Bang-Original-Unico-King-Gold-Ceramic-43-mm-Soldier.png?itok=FdLdvA9F', 'bb-original-black-magic': 'https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-01/Big-Bang-Original-Unico-Black-Magic-43-mm-Soldier.png?itok=VNheq-YQ', 'bb-original-coal-blue': 'https://www.hublot.com/sites/default/files/styles/watch_item_desktop_1x_scale_no_crop_600_6000_/public/2026-01/Big-Bang-Original-Unico-Coal-Blue-43-mm-Soldier.png?itok=m5jhSv6e'}
+
+
+# Páginas oficiales individuales para los 52 modelos del catálogo local.
+# Las imágenes se extraen exclusivamente de la ficha individual correspondiente;
+# no se reutiliza la foto de otro reloj si una referencia no existe en la web oficial.
+HUBLOT_PRODUCT_PAGES = {
+    "bb-original-red": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-red-43-mm",
+    "bb-original-black": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-soft-touch-all-black-43-mm",
+    "bb-original-titanium": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-unico-titanium-43-mm",
+    "bb-original-titanium-ceramic": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-unico-titanium-ceramic-43-mm",
+    "bb-original-king-gold": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-unico-king-gold-ceramic-43-mm",
+    "bb-original-black-magic": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-unico-black-magic-43-mm",
+    "bb-original-coal-blue": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-unico-titanium-coal-blue-43-mm",
+    "bb-reloaded-uefa": "https://www.hublot.com/en-us/watches/big-bang/big-bang-reloaded-uefa-champions-league-titanium-ceramic-44-mm",
+    "bb-sapphire-sky": "https://www.hublot.com/en-us/watches/big-bang/big-bang-sapphire-sky-blue-44-mm",
+    "bb-summer-42": "https://www.hublot.com/en-us/watches/big-bang/big-bang-summer-multi-colored-ceramic-42-mm",
+    "bb-summer-44": "https://www.hublot.com/en-us/watches/big-bang/big-bang-summer-multi-colored-ceramic-44-mm",
+    "bb-peach-42": "https://www.hublot.com/en-us/watches/big-bang/big-bang-titanium-peach-ceramic-42-mm",
+    "bb-peach-33": "https://www.hublot.com/en-us/watches/big-bang/big-bang-peach-ceramic-33-mm",
+    "bb-petrol-33": "https://www.hublot.com/en-us/watches/big-bang/big-bang-petrol-blue-ceramic-33-mm",
+    "bb-mint-33": "https://www.hublot.com/en-us/watches/big-bang/big-bang-mint-green-ceramic-33-mm",
+    "bb-unico-grey": "https://www.hublot.com/en-us/watches/big-bang/big-bang-unico-essential-grey-42-mm",
+    "bb-magic-gold": "https://www.hublot.com/en-us/watches/big-bang/big-bang-reloaded-magic-gold-44-mm",
+    "bb-king-gold": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-unico-king-gold-43-mm",
+    "bb-unico-titanium": "https://www.hublot.com/en-us/watches/big-bang/big-bang-unico-titanium-42-mm",
+    "square-unico-titanium": "https://www.hublot.com/en-us/watches/square-bang/square-bang-unico-titanium-42-mm",
+    "square-unico-ceramic": "https://www.hublot.com/en-us/watches/square-bang/square-bang-unico-titanium-ceramic-42-mm",
+    "square-king-gold": "https://www.hublot.com/en-us/watches/square-bang/square-bang-unico-king-gold-42-mm",
+    "square-black-magic": "https://www.hublot.com/en-us/watches/square-bang/square-bang-unico-black-magic-42-mm",
+    "classic-original-titanium": "https://www.hublot.com/en-us/watches/classic-fusion/classic-fusion-original-titanium-42-mm",
+    "classic-original-black": "https://www.hublot.com/en-us/watches/classic-fusion/classic-fusion-original-black-magic-42-mm",
+    "classic-titanium": "https://www.hublot.com/en-us/watches/classic-fusion/classic-fusion-titanium-42-mm",
+    "classic-blue": "https://www.hublot.com/en-us/watches/classic-fusion/classic-fusion-titanium-blue-42-mm",
+    "classic-king-gold": "https://www.hublot.com/en-us/watches/classic-fusion/classic-fusion-king-gold-42-mm",
+    "classic-black-magic": "https://www.hublot.com/en-us/watches/classic-fusion/classic-fusion-black-magic-42-mm",
+    "classic-chrono-ti": "https://www.hublot.com/en-us/watches/classic-fusion/classic-fusion-chronograph-titanium-42-mm",
+    "classic-chrono-gold": "https://www.hublot.com/en-us/watches/classic-fusion/classic-fusion-chronograph-king-gold-42-mm",
+    "classic-chrono-black": "https://www.hublot.com/en-us/watches/classic-fusion/classic-fusion-chronograph-black-magic-42-mm",
+    "classic-aero-ti": "https://www.hublot.com/en-us/watches/classic-fusion/classic-fusion-aerofusion-titanium-45-mm",
+    "classic-aero-black": "https://www.hublot.com/en-us/watches/classic-fusion/classic-fusion-aerofusion-black-magic-45-mm",
+    "spirit-ti": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-titanium-42-mm",
+    "spirit-ti-ceramic": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-titanium-ceramic-42-mm",
+    "spirit-king-gold": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-king-gold-42-mm",
+    "spirit-king-ceramic": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-king-gold-ceramic-42-mm",
+    "spirit-black-magic": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-black-magic-42-mm",
+    "spirit-taupe": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-essential-taupe-42-mm",
+    "spirit-impact-black": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-impact-all-black-42-mm",
+    "spirit-impact-sapphire": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-impact-sapphire-42-mm",
+    "spirit-sapphire-blue": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-sapphire-blue-42-mm",
+    "spirit-coal-blue": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-titanium-coal-blue-42-mm",
+    "spirit-white": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-titanium-white-42-mm",
+    "spirit-meca-ti": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-meca-10-titanium-45-mm",
+    "spirit-meca-gold": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-meca-10-king-gold-45-mm",
+    "spirit-tourbillon-black": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-tourbillon-5-day-power-reserve-black-magic-42-mm",
+    "spirit-tourbillon-red": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-tourbillon-5-day-power-reserve-red-magic-42-mm",
+    "spirit-tourbillon-blue": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-tourbillon-5-day-power-reserve-sky-blue-ceramic-42-mm",
+    "spirit-tourbillon-yellow": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-tourbillon-5-day-power-reserve-yellow-magic-42-mm",
+    "spirit-tourbillon-sapphire": "https://www.hublot.com/en-us/watches/spirit-of-big-bang/spirit-of-big-bang-tourbillon-5-day-power-reserve-black-sapphire-42-mm",
+}
+
+HUBLOT_IMAGE_CACHE = {}
+HUBLOT_IMAGE_SEMAPHORE = asyncio.Semaphore(8)
+
+async def cached_hublot_image(product_id: str) -> str:
+    """Obtiene y guarda en memoria la imagen publicada en la ficha oficial exacta."""
+    if product_id in HUBLOT_IMAGE_CACHE:
+        return HUBLOT_IMAGE_CACHE[product_id]
+    product_url = HUBLOT_PRODUCT_PAGES.get(product_id)
+    if not product_url:
+        return ""
+    async with HUBLOT_IMAGE_SEMAPHORE:
+        if product_id not in HUBLOT_IMAGE_CACHE:
+            HUBLOT_IMAGE_CACHE[product_id] = await official_product_image(product_url, "hublot.com")
+    return HUBLOT_IMAGE_CACHE[product_id]
 
 async def official_product_image(product_url: str, allowed_domain: str) -> str:
     """Extract the main image referenced by an exact official product page.
@@ -729,8 +819,17 @@ async def search(body: SearchBody, request: Request):
         # than a blank screen; the user can then filter/sort in the shared results UI.
         if not matches:
             matches = HUBLOT_CATALOG
+        # Resolver en paralelo con límite de concurrencia antes de construir resultados,
+        # para que abrir el catálogo completo no haga 52 consultas seriales.
+        requested_matches = matches[:52]
+        unresolved_ids = [p.get("id", "") for p in requested_matches
+                          if p.get("id", "") not in HUBLOT_OFFICIAL_IMAGES
+                          and p.get("id", "") not in HUBLOT_IMAGE_CACHE
+                          and p.get("id", "") in HUBLOT_PRODUCT_PAGES]
+        if unresolved_ids:
+            await asyncio.gather(*(cached_hublot_image(pid) for pid in unresolved_ids), return_exceptions=True)
         results = []
-        for p in matches[:52]:
+        for p in requested_matches:
             # Use a verified product page when known; otherwise open the official
             # Hublot collection matching the model instead of sending every item to /watches.
             pid = p.get("id", "")
@@ -743,7 +842,9 @@ async def search(body: SearchBody, request: Request):
                 "bb-original-black-magic": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-unico-black-magic-43-mm",
                 "bb-original-coal-blue": "https://www.hublot.com/en-us/watches/big-bang/big-bang-original-unico-titanium-coal-blue-43-mm",
             }
-            if pid in exact_hublot_pages:
+            if pid in HUBLOT_PRODUCT_PAGES:
+                product_url = HUBLOT_PRODUCT_PAGES[pid]
+            elif pid in exact_hublot_pages:
                 product_url = exact_hublot_pages[pid]
             elif str(p.get("collection", "")).casefold() == "classic fusion":
                 product_url = "https://www.hublot.com/en-us/find-your-hublot/classic-fusion"
@@ -756,7 +857,7 @@ async def search(body: SearchBody, request: Request):
             else:
                 product_url = "https://www.hublot.com/en-us/find-your-hublot"
             # Only assign a photo from an exact model page; never borrow a different model's image.
-            image_url = HUBLOT_OFFICIAL_IMAGES.get(pid, "")
+            image_url = HUBLOT_OFFICIAL_IMAGES.get(pid, "") or HUBLOT_IMAGE_CACHE.get(pid, "")
             results.append({"title": p["name"], "price": round(float(p["price"]), 2),
                             "currency": "USD", "url": product_url, "image": image_url,
                             "source": "HUBLOT.com · imagen solo cuando se verifica la ficha exacta",
@@ -808,8 +909,8 @@ async def search(body: SearchBody, request: Request):
                 if pid == prefix or pid.startswith(prefix + "-"):
                     return rolex_collections[prefix]
             return "https://www.rolex.com/watches"
-        results = [{"title": p["name"], "price": round(float(p["price"])*(1-float(p["discount"])/100), 2), "list_price": round(float(p["price"]), 2), "discount_percent": p["discount"], "currency":"USD", "url":rolex_product_url(p), "image":"", "source":"Rolex.com · precio de referencia; oferta ProEshop no oficial", "description":p["desc"]} for p in matches]
-        return {"platform":"rolex", "label":"Rolex · modelos destacados", "query":query, "search_url":"https://www.rolex.com/es/watches/find-rolex?group=0", "live_results":results, "notice":"Modelos destacados del catálogo oficial; Rolex no identifica estos artículos como los más vendidos en esta página. El 40% en modelos seleccionados es una oferta propuesta por ProEshop, no una promoción oficial de Rolex. Imágenes ilustrativas; antes de vender, confirma proveedor autorizado, autenticidad, disponibilidad y precio real."}
+        results = [{"title": p["name"], "price": round(float(p["price"])*(1-float(p["discount"])/100), 2), "list_price": round(float(p["price"]), 2), "discount_percent": p["discount"], "currency":"USD", "url":rolex_product_url(p), "image":p.get("img", ""), "source":"Rolex.com · imagen oficial; precio de referencia", "description":p["desc"]} for p in matches]
+        return {"platform":"rolex", "label":"Rolex · modelos destacados", "query":query, "search_url":"https://www.rolex.com/es/watches/find-rolex?group=0", "live_results":results, "notice":"Catálogo de 47 referencias/modelos destacados con imágenes del catálogo oficial Rolex. Precios de referencia en USD; el descuento del 50% es una promoción simulada de ProEshop, no una oferta oficial de Rolex. Confirma precio, disponibilidad y autenticidad con un distribuidor autorizado."}
 
     domains = {"amazon": "amazon.com", "target": "target.com", "walmart": "walmart.com"}
     domain = domains[platform]
@@ -956,8 +1057,10 @@ async def state(request: Request):
                 db.execute("UPDATE carts SET image='' WHERE id=? AND telegram_id=?", (item["id"], tg_id))
         if item.get("platform") == "hublot":
             matched_for_image = next((p for p in HUBLOT_CATALOG if p.get("name", "").casefold() == item["title"].casefold()), None)
-            if matched_for_image and HUBLOT_OFFICIAL_IMAGES.get(matched_for_image.get("id", "")):
-                item["image"] = HUBLOT_OFFICIAL_IMAGES[matched_for_image["id"]]
+            if matched_for_image:
+                exact_image = HUBLOT_OFFICIAL_IMAGES.get(matched_for_image.get("id", ""), "") or await cached_hublot_image(matched_for_image.get("id", ""))
+                if exact_image:
+                    item["image"] = exact_image
                 with conn() as db:
                     db.execute("UPDATE carts SET image=? WHERE id=? AND telegram_id=?", (item["image"], item["id"], tg_id))
         if item.get("image"):
@@ -1034,9 +1137,9 @@ async def add_cart(body: AddBody, request: Request):
         price = (price / Decimal("2")).quantize(Decimal("0.01"))
     elif platform == "rolex":
         matching = next((p for p in ROLEX_CATALOG if p["name"] == body.title.strip()), None)
-        if matching and matching["discount"] == 40:
-            # Calculate the discount on the server from the catalog reference price.
-            price = (Decimal(str(matching["price"])) * Decimal("0.60")).quantize(Decimal("0.01"))
+        if matching and matching["discount"] == 50:
+            # Calculate the ProEshop 50% promotional price server-side.
+            price = (Decimal(str(matching["price"])) * Decimal("0.50")).quantize(Decimal("0.01"))
         elif matching:
             price = Decimal(str(matching["price"])).quantize(Decimal("0.01"))
     parsed = urlparse(body.url)
