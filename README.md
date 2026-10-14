@@ -23,3 +23,7 @@
 
 ## Alcance
 Los pedidos, descuentos y estados de seguimiento son registros internos de ProEshop. No implican compra, pago ni envío real en las tiendas proveedoras.
+
+
+## Pagos reales con USDT por TRON
+Se añadió checkout con USDT TRC-20, detección de transferencias confirmadas y cambio automático a `payment_review` (En revisión de pago). Consulta `README_USDT_TRON.md` para configuración de Railway y comprobaciones de despliegue. Configura `TRONGRID_API_KEY` para evitar depender de límites públicos.

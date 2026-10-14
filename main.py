@@ -38,6 +38,13 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", SMTP_USER).strip()
 SMTP_USE_SSL = os.getenv("SMTP_USE_SSL", "false").lower() in {"1", "true", "yes"}
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
+# USDT TRC-20 mainnet configuration. Keep the receiving address in server config.
+TRON_USDT_ADDRESS = os.getenv("TRON_USDT_ADDRESS", "TXVaW6HaAYaHxpEh9zU6pHTMASPYr3R6QC").strip()
+TRON_USDT_CONTRACT = "TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj"
+TRONGRID_API_KEY = os.getenv("TRONGRID_API_KEY", "").strip()
+TRON_API_BASE = os.getenv("TRON_API_BASE", "https://api.trongrid.io").rstrip("/")
+TRON_POLL_SECONDS = max(20, int(os.getenv("TRON_POLL_SECONDS", "45")))
+_tron_monitor_task = None
 
 
 app = FastAPI(title="ProEshop Telegram Mini App", docs_url=None, redoc_url=None)
@@ -120,6 +127,14 @@ def init_db():
           payment_method TEXT NOT NULL DEFAULT 'demo_balance',
           customer_email TEXT NOT NULL DEFAULT ''
         );
+        CREATE TABLE IF NOT EXISTS crypto_payments(
+          order_ref TEXT PRIMARY KEY, network TEXT NOT NULL, token_symbol TEXT NOT NULL,
+          token_contract TEXT NOT NULL, receiving_address TEXT NOT NULL, requested_amount TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending', txid TEXT NOT NULL DEFAULT '', paid_amount TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_checked_at TEXT NOT NULL DEFAULT '',
+          FOREIGN KEY(order_ref) REFERENCES orders(order_ref) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_crypto_payments_status ON crypto_payments(status, created_at);
         CREATE TABLE IF NOT EXISTS store_orders(
           store_order_ref TEXT PRIMARY KEY, order_ref TEXT NOT NULL, platform TEXT NOT NULL,
           store_label TEXT NOT NULL, subtotal TEXT NOT NULL, tax TEXT NOT NULL,
@@ -216,6 +231,7 @@ ORDER_STATUS_LABELS = {
     "confirmed_simulated": "Confirmado (simulado, legado)",
     "received": "Pedido recibido",
     "reviewing": "En revisión",
+    "payment_review": "En revisión de pago",
     "action_required": "Requiere acción del cliente",
     "confirmed": "Pedido confirmado",
     "preparing": "En preparación",
@@ -227,7 +243,8 @@ ORDER_STATUS_LABELS = {
 }
 ORDER_TRANSITIONS = {
     "confirmed_simulated": {"reviewing", "cancelled", "unavailable"},
-    "received": {"reviewing", "action_required", "cancelled", "unavailable"},
+    "received": {"reviewing", "payment_review", "action_required", "cancelled", "unavailable"},
+    "payment_review": {"reviewing", "confirmed", "action_required", "cancelled", "unavailable"},
     "reviewing": {"confirmed", "action_required", "cancelled", "unavailable"},
     "action_required": {"reviewing", "cancelled"},
     "confirmed": {"preparing", "cancelled"},
@@ -241,6 +258,7 @@ ORDER_TRANSITIONS = {
 ORDER_EMAIL_COPY = {
     "received": ("Recibimos tu pedido", "Tu pedido fue registrado en ProEshop. Esto confirma el registro, no un pago ni una compra con un proveedor."),
     "reviewing": ("Estamos revisando tu pedido", "Estamos verificando los detalles y la disponibilidad del pedido."),
+    "payment_review": ("Pago detectado: en revisión", "Detectamos la transferencia USDT en TRON. El equipo está revisando el pago antes de confirmar el pedido."),
     "action_required": ("Necesitamos información para tu pedido", "Tu pedido requiere una acción adicional. Revisa los detalles con el equipo de ProEshop."),
     "confirmed": ("Tu pedido ha sido confirmado", "El pedido fue confirmado por el equipo de ProEshop. El estado del pago se informa por separado."),
     "preparing": ("Tu pedido está en preparación", "Tu pedido ha pasado a la etapa de preparación."),
@@ -610,7 +628,9 @@ for _p in ROLEX_CATALOG:
 
 @app.on_event("startup")
 async def startup():
+    global _tron_monitor_task
     init_db()
+    _tron_monitor_task = asyncio.create_task(tron_payment_monitor())
     if BOT_TOKEN and PUBLIC_BASE_URL:
         async with httpx.AsyncClient(timeout=15) as client:
             r = await client.post(
@@ -620,6 +640,18 @@ async def startup():
             )
             if r.status_code >= 400:
                 log.error("No se pudo configurar webhook: %s", r.text[:300])
+
+
+@app.on_event("shutdown")
+async def shutdown_tron_monitor():
+    global _tron_monitor_task
+    if _tron_monitor_task:
+        _tron_monitor_task.cancel()
+        try:
+            await _tron_monitor_task
+        except asyncio.CancelledError:
+            pass
+        _tron_monitor_task = None
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -1428,11 +1460,11 @@ async def receipt(order_ref: str, request: Request):
     esc = lambda value: escape(str(value or ""))
     rows = "".join(f"<tr><td>{esc(x['title'])}</td><td>{int(x['qty'])}</td><td>{esc(x['currency'])} {Decimal(x['total']):.2f}</td></tr>" for x in lines)
     page = f"""<!doctype html><html lang='es'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
-    <title>Recibo de prueba {esc(order_ref)}</title><style>body{{font:16px system-ui;max-width:760px;margin:40px auto;padding:20px;color:#15243b}}.tag{{display:inline-block;background:#fff0cf;padding:8px 12px;border-radius:8px;font-weight:700}}table{{width:100%;border-collapse:collapse;margin:24px 0}}td,th{{padding:12px;border-bottom:1px solid #ddd;text-align:left}}.total{{font-size:1.4rem;font-weight:800}}button{{padding:12px 16px;background:#075fc7;color:white;border:0;border-radius:8px}}@media print{{button{{display:none}}}}</style>
-    <h1>ProEshop</h1><div class='tag'>RECIBO DE PRUEBA · SIN VALOR FISCAL</div><h2>Pedido {esc(order_ref)}</h2><p>Fecha: {esc(order['created_at'])}<br>Estado: {esc(ORDER_STATUS_LABELS.get(order['status'], order['status']))}</p>
+    <title>Recibo ProEshop {esc(order_ref)}</title><style>body{{font:16px system-ui;max-width:760px;margin:40px auto;padding:20px;color:#15243b}}.tag{{display:inline-block;background:#fff0cf;padding:8px 12px;border-radius:8px;font-weight:700}}table{{width:100%;border-collapse:collapse;margin:24px 0}}td,th{{padding:12px;border-bottom:1px solid #ddd;text-align:left}}.total{{font-size:1.4rem;font-weight:800}}button{{padding:12px 16px;background:#075fc7;color:white;border:0;border-radius:8px}}@media print{{button{{display:none}}}}</style>
+    <h1>ProEshop</h1><div class='tag'>{'REGISTRO DE PAGO USDT · PENDIENTE DE REVISIÓN' if order['payment_method']=='usdt_trc20' else 'RECIBO DE PRUEBA · SIN VALOR FISCAL'}</div><h2>Pedido {esc(order_ref)}</h2><p>Fecha: {esc(order['created_at'])}<br>Estado: {esc(ORDER_STATUS_LABELS.get(order['status'], order['status']))}</p>
     <table><thead><tr><th>Artículo</th><th>Cantidad</th><th>Total de línea</th></tr></thead><tbody>{rows}</tbody></table>
     <p>Subtotal: {esc(order['currency'])} {Decimal(order['subtotal']):.2f}</p><p>Impuestos estimados: {esc(order['currency'])} {Decimal(order['tax']):.2f}</p><p>Envío estimado: {esc(order['currency'])} {Decimal(order['shipping']):.2f}</p><p class='total'>Total estimado: {esc(order['currency'])} {Decimal(order['total']):.2f}</p>
-    <p>Este documento solo registra una operación ficticia del simulador. No acredita pago, compra, envío ni obligación fiscal.</p><p>Para guardar una copia, usa la opción Imprimir del navegador y selecciona Guardar como PDF.</p></html>"""
+    <p>{'Este registro no confirma por sí solo el pago. Consulta el estado en ProEshop; el equipo debe revisar la transferencia antes de aprobar el pedido.' if order['payment_method']=='usdt_trc20' else 'Este documento solo registra una operación ficticia del simulador. No acredita pago, compra, envío ni obligación fiscal.'}</p><p>Para guardar una copia, usa la opción Imprimir del navegador y selecciona Guardar como PDF.</p></html>"""
     audit(tg_id, "receipt_view", f"order={order_ref}")
     return HTMLResponse(page)
 
@@ -1459,11 +1491,102 @@ async def admin_metrics(request: Request):
     return metrics
 
 
+async def verify_pending_tron_payments():
+    """Match confirmed incoming TRC-20 USDT transfers against unique order amounts."""
+    with conn() as db:
+        pending = db.execute("SELECT cp.*,o.telegram_id,o.customer_email,o.total,o.currency FROM crypto_payments cp JOIN orders o ON o.order_ref=cp.order_ref WHERE cp.status='pending' ORDER BY cp.created_at LIMIT 100").fetchall()
+    if not pending:
+        return
+    headers = {"Accept": "application/json"}
+    if TRONGRID_API_KEY:
+        headers["TRON-PRO-API-KEY"] = TRONGRID_API_KEY
+    params = {"limit": 200, "only_confirmed": "true", "order_by": "block_timestamp,desc", "contract_address": TRON_USDT_CONTRACT}
+    try:
+        async with httpx.AsyncClient(timeout=12, headers=headers) as client:
+            response = await client.get(f"{TRON_API_BASE}/v1/accounts/{TRON_USDT_ADDRESS}/transactions/trc20", params=params)
+            response.raise_for_status()
+            transfers = response.json().get("data", [])
+    except Exception as exc:
+        log.warning("No se pudieron consultar transferencias USDT TRON: %s", str(exc)[:220])
+        return
+    by_amount = {}
+    for tx in transfers:
+        try:
+            token = tx.get("token_info") or {}
+            if str(token.get("address", "")) != TRON_USDT_CONTRACT:
+                continue
+            if str(tx.get("to", "")) != TRON_USDT_ADDRESS:
+                continue
+            raw = Decimal(str(tx.get("value", "0")))
+            decimals = int(token.get("decimals", 6))
+            amount = (raw / (Decimal(10) ** decimals)).quantize(Decimal("0.000001"))
+            txid = str(tx.get("transaction_id", ""))
+            timestamp = int(tx.get("block_timestamp", 0))
+            if txid:
+                by_amount.setdefault(str(amount), []).append((txid, amount, timestamp))
+        except (ValueError, TypeError, InvalidOperation):
+            continue
+    for payment in pending:
+        matches = by_amount.get(str(Decimal(payment["requested_amount"]).quantize(Decimal("0.000001"))), [])
+        try:
+            created_ms = int(datetime.fromisoformat(payment["created_at"].replace("Z", "+00:00")).timestamp() * 1000)
+        except Exception:
+            created_ms = 0
+        match = next((x for x in matches if x[2] >= created_ms and x[0]), None)
+        with conn() as db:
+            db.execute("UPDATE crypto_payments SET last_checked_at=?,updated_at=? WHERE order_ref=? AND status='pending'", (now_iso(), now_iso(), payment["order_ref"]))
+            if not match:
+                continue
+            txid, amount, _ = match
+            # A txid is unique; avoid crediting the same transfer to another order.
+            if db.execute("SELECT 1 FROM crypto_payments WHERE txid=? AND status='detected'", (txid,)).fetchone():
+                continue
+            now = now_iso(); ref = payment["order_ref"]
+            db.execute("UPDATE crypto_payments SET status='detected',txid=?,paid_amount=?,updated_at=? WHERE order_ref=? AND status='pending'", (txid, str(amount), now, ref))
+            db.execute("UPDATE orders SET status='payment_review',updated_at=? WHERE order_ref=? AND status='received'", (now, ref))
+            db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)", (ref, "payment_review", "En revisión de pago", f"Transferencia USDT TRC-20 detectada y confirmada. TXID: {txid}. Importe: {amount} USDT. Pendiente de revisión administrativa.", now))
+            stores = db.execute("SELECT * FROM store_orders WHERE order_ref=? AND status='received'", (ref,)).fetchall()
+            for store in stores:
+                db.execute("UPDATE store_orders SET status='payment_review',updated_at=? WHERE store_order_ref=? AND status='received'", (now, store["store_order_ref"]))
+                detail = f"Pago USDT detectado para el pedido principal. TXID: {txid}. Pendiente de revisión administrativa."
+                db.execute("INSERT INTO store_order_events(store_order_ref,status,label,detail,created_at) VALUES(?,?,?, ?,?)", (store["store_order_ref"], "payment_review", "En revisión de pago", detail, now))
+        log.info("USDT payment detected order=%s txid=%s amount=%s", payment["order_ref"], txid, amount)
+        audit(payment["telegram_id"], "usdt_payment_detected", f"order={payment['order_ref']}; txid={txid}; amount={amount}")
+        if payment["customer_email"]:
+            enqueue_and_send_order_email(payment["order_ref"], "payment_review", payment["customer_email"], payment["total"], payment["currency"], f"Transferencia detectada en TRON. TXID: {txid}. El pago aún debe ser revisado por ProEshop.")
+
+
+@app.get("/api/payment/{order_ref}")
+async def get_crypto_payment(order_ref: str, request: Request):
+    tg_id = get_auth(request)
+    with conn() as db:
+        row = db.execute("SELECT cp.*,o.status AS order_status,o.total,o.currency FROM crypto_payments cp JOIN orders o ON o.order_ref=cp.order_ref WHERE cp.order_ref=? AND o.telegram_id=?", (order_ref, tg_id)).fetchone()
+    if not row:
+        raise HTTPException(404, "No se encontró el pago de este pedido.")
+    if row["status"] == "pending":
+        await verify_pending_tron_payments()
+        with conn() as db:
+            row = db.execute("SELECT cp.*,o.status AS order_status,o.total,o.currency FROM crypto_payments cp JOIN orders o ON o.order_ref=cp.order_ref WHERE cp.order_ref=? AND o.telegram_id=?", (order_ref, tg_id)).fetchone()
+    return {"order_ref": order_ref, "network": row["network"], "token": row["token_symbol"], "address": row["receiving_address"], "amount": row["requested_amount"], "status": row["status"], "order_status": row["order_status"], "txid": row["txid"] or None, "paid_amount": row["paid_amount"] or None, "last_checked_at": row["last_checked_at"] or None, "explorer_url": ("https://tronscan.org/#/transaction/" + row["txid"]) if row["txid"] else None}
+
+
+async def tron_payment_monitor():
+    while True:
+        try:
+            await verify_pending_tron_payments()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("Error inesperado en el monitor de pagos TRON")
+        await asyncio.sleep(TRON_POLL_SECONDS)
+
+
 @app.post("/api/purchase")
 async def fictional_purchase(body: CheckoutBody, request: Request):
     tg_id = get_auth(request)
-    if body.payment_method != "demo_balance":
-        raise HTTPException(400, "Solo está disponible el método de pago de demostración.")
+    if body.payment_method not in {"demo_balance", "usdt_trc20"}:
+        raise HTTPException(400, "Método de pago no compatible.")
+    is_crypto = body.payment_method == "usdt_trc20"
     customer_email = (body.customer_email or body.email).strip().lower()
     if customer_email and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", customer_email):
         raise HTTPException(400, "Introduce un correo electrónico válido.")
@@ -1487,15 +1610,32 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
         total = (subtotal + tax + shipping).quantize(Decimal("0.01"))
         b = db.execute("SELECT amount FROM balances WHERE telegram_id=?", (tg_id,)).fetchone()
         balance = Decimal(b["amount"] if b else str(INITIAL_BALANCE))
-        if total > balance: raise HTTPException(400, f"Saldo ficticio insuficiente. Total estimado {total:.2f}; saldo {balance:.2f}.")
+        if not is_crypto and total > balance: raise HTTPException(400, f"Saldo ficticio insuficiente. Total estimado {total:.2f}; saldo {balance:.2f}.")
+        if is_crypto and currency.upper() != "USD":
+            raise HTTPException(400, "El pago con USDT solo admite pedidos con precios en USD.")
         when = now_iso(); order_ref = "SC-" + secrets.token_hex(5).upper()
+        # Add a unique micro-amount so concurrent orders to the same wallet can be matched safely.
+        requested_usdt = None
+        if is_crypto:
+            pending_amounts = {r[0] for r in db.execute("SELECT requested_amount FROM crypto_payments WHERE status='pending'").fetchall()}
+            for _attempt in range(1000):
+                candidate = (total + (Decimal(secrets.randbelow(999) + 1) / Decimal("1000000"))).quantize(Decimal("0.000001"))
+                if str(candidate) not in pending_amounts:
+                    requested_usdt = candidate
+                    break
+            if requested_usdt is None:
+                raise HTTPException(503, "No se pudo generar un importe único para el pago. Inténtalo nuevamente.")
         db.execute("""INSERT INTO orders(order_ref,telegram_id,subtotal,tax,shipping,total,currency,status,created_at,updated_at,
                       shipping_name,shipping_city,shipping_country,shipping_address,payment_method,customer_email)
                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                    (order_ref, tg_id, str(subtotal), str(tax), str(shipping), str(total), currency, "received", when, when,
-                    shipping_name, shipping_city, shipping_country, shipping_address, "demo_balance", customer_email))
+                    shipping_name, shipping_city, shipping_country, shipping_address, body.payment_method, customer_email))
+        initial_detail = (f"Pedido recibido; pendiente de pago por USDT TRC-20 por {requested_usdt} USDT." if is_crypto else "Pedido de demostración registrado; no se envió una orden al comercio ni se procesó un pago real.")
         db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
-                   (order_ref, "received", "Pedido recibido", "Pedido de demostración registrado; no se envió una orden al comercio ni se procesó un pago real.", when))
+                   (order_ref, "received", "Pedido recibido", initial_detail, when))
+        if is_crypto:
+            db.execute("INSERT INTO crypto_payments(order_ref,network,token_symbol,token_contract,receiving_address,requested_amount,status,created_at,updated_at) VALUES(?,?,?,?,?,?, 'pending', ?, ?)",
+                       (order_ref, "TRON (TRC-20)", "USDT", TRON_USDT_CONTRACT, TRON_USDT_ADDRESS, str(requested_usdt), when, when))
         # Group items by source and create independent status/order references per store.
         groups = {}
         for row in rows:
@@ -1535,15 +1675,16 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
             db.execute("INSERT INTO store_order_events(store_order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
                        (store_ref, "received", "Pedido recibido", initial_detail, when))
             store_emails.append({"store_order_ref": store_ref, "store": store_label, "total": str(store_total), "items": lines})
-        db.execute("UPDATE balances SET amount=? WHERE telegram_id=?", (str(balance-total), tg_id))
+        if not is_crypto:
+            db.execute("UPDATE balances SET amount=? WHERE telegram_id=?", (str(balance-total), tg_id))
         db.execute("DELETE FROM carts WHERE telegram_id=?", (tg_id,))
-    audit(tg_id, "purchase_demo", f"order={order_ref}; stores={len(groups)}; total={total}; currency={currency}")
+    audit(tg_id, "purchase_usdt" if is_crypto else "purchase_demo", f"order={order_ref}; stores={len(groups)}; total={total}; currency={currency}")
     email_results = []
     for item in store_emails:
         detail = (f"Tienda: {item['store']}\nArtículos de esta tienda:\n" + "\n".join(item["items"]) +
                   f"\nSubtotal: {currency} {Decimal(next(v for k,v in group_subtotals.items() if PLATFORMS.get(k, {}).get('label', k.replace('_',' ').title()) == item['store'])):.2f}" +
-                  "\nPedido ficticio: no se realizó compra, cobro ni envío real.")
-        result = enqueue_and_send_store_order_email(item["store_order_ref"], "received", customer_email, item["total"], currency, detail) if customer_email else {"sent": False, "reason": "Sin correo proporcionado"}
+                  (f"\nPago pendiente: enviar {requested_usdt} USDT por TRC-20 a {TRON_USDT_ADDRESS}." if is_crypto else "\nPedido de demostración: no se realizó compra ni pago real."))
+        result = enqueue_and_send_store_order_email(item["store_order_ref"], "received", customer_email, item["total"], currency, detail) if customer_email and not is_crypto else {"sent": False, "reason": "Pago USDT pendiente" if is_crypto else "Sin correo proporcionado"}
         email_results.append({"store": item["store"], "store_order_ref": item["store_order_ref"], "email_sent": bool(result.get("sent")), "email_status": "sent" if result.get("sent") else result.get("reason", "not_configured")})
     with conn() as db:
         pref = db.execute("SELECT order_updates FROM notification_preferences WHERE telegram_id=?", (tg_id,)).fetchone()
@@ -1552,14 +1693,14 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
             async with httpx.AsyncClient(timeout=8) as client:
                 await client.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
                     "chat_id": tg_id,
-                    "text": (f"🛍️ ProEshop — pedido de demostración\nReferencia general: {order_ref}\nTotal estimado: {currency} {total:.2f}\n" +
-                             "Pedidos independientes por tienda:\n" + "\n".join(f"{x['store']}: {x['store_order_ref']} — {x['total']} {currency}" for x in store_emails) +
-                             "\nNo se realizó ninguna compra real ni se procesó un pago.")})
+                    "text": ((f"🛍️ ProEshop — pedido con pago USDT pendiente\nReferencia: {order_ref}\nImporte exacto: {requested_usdt} USDT\nRed: TRON (TRC-20)\nDirección: {TRON_USDT_ADDRESS}" if is_crypto else f"🛍️ ProEshop — pedido de demostración\nReferencia general: {order_ref}\nTotal estimado: {currency} {total:.2f}\nNo se realizó ninguna compra real ni se procesó un pago.") +
+                             ("\nPedidos por tienda: " + ", ".join(x['store_order_ref'] for x in store_emails)) )})
         except httpx.HTTPError:
             log.info("No se pudo enviar notificación de pedido %s", order_ref)
     return {"ok": True, "order_ref": order_ref, "store_orders": store_emails,
             "subtotal": str(subtotal), "tax": str(tax), "shipping": str(shipping), "total": str(total),
-            "balance": str(balance-total), "currency": currency, "status": "received", "purchased_at": when,
+            "balance": str(balance-total) if not is_crypto else str(balance), "currency": currency, "status": "received", "purchased_at": when,
+            "payment": ({"method": "usdt_trc20", "network": "TRON (TRC-20)", "token": "USDT", "address": TRON_USDT_ADDRESS, "amount": str(requested_usdt), "status": "pending"} if is_crypto else None),
             "email_sent": bool(email_results) and all(x["email_sent"] for x in email_results),
-            "email_status": email_results, "message": "Pedido de demostración. Cada tienda tiene referencia, estado y correo independientes; no se realizó una compra real."}
+            "email_status": email_results, "message": ("Pedido registrado. Envía el importe exacto en USDT por TRC-20; el pedido pasará a revisión cuando la transferencia confirmada sea detectada." if is_crypto else "Pedido de demostración registrado; no se realizó una compra real.")}
 
