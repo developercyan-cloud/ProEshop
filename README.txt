@@ -1,27 +1,19 @@
-# ProEshop — WalletConnect empaquetado localmente
+# ProEshop — corrección completa de compilación WalletConnect
 
-Este parche sustituye la conexión de billetera que actualmente termina en un mensaje de error por WalletConnect Ethereum Provider compilado como archivo local. Así, el Mini App no intenta descargar el SDK desde esm.sh/jsDelivr en el navegador de Telegram.
+El proyecto original no tenía `package.json`, por eso Railway no ejecutaba `npm` ni generaba `static/walletconnect.bundle.js`. Además, `railway.toml` seguía indicando `uvicorn ...`, lo que puede prevalecer sobre el comando de inicio de Nixpacks y explica `uvicorn: command not found`.
 
-## Archivos
-- `static/index.html`
-- `static/app.js`
-- `walletconnect-entry.js`
-- `package.json`
-- `nixpacks.toml`
+## Archivos incluidos
+- `package.json` y `walletconnect-entry.js`: añaden el SDK y el comando para compilarlo localmente.
+- `static/walletconnect.bundle.js` NO se incluye; se genera durante el build con `npm run build:wallet`.
+- `static/index.html` y `static/app.js`: cargan el bundle local y usan la función de conexión WalletConnect.
+- `nixpacks.toml`: instala Python/Node, crea `/opt/venv`, instala dependencias y compila WalletConnect.
+- `railway.toml`: corrige el comando de inicio que antes invocaba `uvicorn` fuera del entorno virtual.
 
 ## Aplicación
-Copia los archivos respetando estas rutas:
-- `static/index.html` y `static/app.js` reemplazan los existentes.
-- `walletconnect-entry.js`, `package.json` y `nixpacks.toml` van en la raíz junto a `main.py`.
+Copia cada archivo de este ZIP a la raíz del repositorio respetando las rutas y reemplaza los archivos existentes con el mismo nombre. Los archivos de raíz van junto a `main.py` y `requirements.txt`; los dos archivos dentro de `static/` reemplazan los existentes.
 
-No reemplaces `main.py`, `requirements.txt` ni la base de datos. Conserva el volumen `/data` y `DATABASE_PATH=/data/shopcart.db`.
+Después haz un nuevo despliegue. En Build Logs deberías ver `npm install` y `npm run build:wallet`; el build debe generar `static/walletconnect.bundle.js`.
 
-Railway debe reconstruir la app desde el código para ejecutar `npm install` y `npm run build:wallet`. El resultado esperado es `static/walletconnect.bundle.js`, servido localmente. No subas el archivo `node_modules`.
+No reemplaces `main.py`, `requirements.txt`, ni borres o reinicialices el volumen `/data` y la base de datos `/data/shopcart.db`.
 
-## Prueba
-1. Despliega y confirma en los logs que finalizó `npm run build:wallet`.
-2. Abre ProEshop y pulsa Conectar Trust Wallet.
-3. Autoriza la conexión en la ventana WalletConnect.
-4. El saldo mostrado será USDT real de la red EVM seleccionada (Ethereum, BNB Smart Chain o Polygon). No modifica el saldo interno de la tienda ni firma pagos.
-
-No puedo probar la aprobación real de Trust Wallet desde aquí. La compilación y la conexión deben verificarse en Railway/dispositivo después del despliegue.
+No se puede confirmar la conexión real a Trust Wallet hasta que Railway complete el build y se autorice la conexión desde el dispositivo.
