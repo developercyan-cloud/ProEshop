@@ -634,6 +634,9 @@ showEmailVerifiedLogin();
  }
  async function attach(provider,name){
   state.provider=provider;state.walletName=name;
+  // Al regresar de la billetera, quitar el selector para mostrar ProEshop.
+  const walletChooser=document.getElementById('proeshop-wc-mobile-chooser');
+  if(walletChooser)walletChooser.remove();
   const accounts=await provider.request({method:'eth_requestAccounts'});
   if(!accounts||!accounts.length)throw new Error('La billetera no devolvió una cuenta.');
   state.address=accounts[0];renderConnected();
@@ -661,12 +664,24 @@ showEmailVerifiedLogin();
   const desc=document.createElement('div'); desc.textContent='Selecciona tu billetera. Después de autorizar, vuelve a ProEshop para completar la conexión.'; desc.style.cssText='font-size:14px;line-height:1.45;color:#cbd5e1;margin-bottom:18px;';
   card.append(title,desc);
   const addButton=(label,href,background)=>{
-   const a=document.createElement('a'); a.textContent=label; a.href=href; a.style.cssText='display:block;text-align:center;text-decoration:none;color:white;font-weight:650;padding:13px 14px;border-radius:11px;margin-top:10px;background:'+background+';';
-   a.addEventListener('click',()=>{status('Abriendo '+label+'…');}); card.appendChild(a); return a;
+   const a=document.createElement('a');
+   a.textContent=label;
+   a.href=href;
+   // Android Telegram WebView puede mostrar ERR_UNKNOWN_URL_SCHEME si el enlace
+   // de la billetera reemplaza la miniapp. Abrirlo en un contexto nuevo permite
+   // que Android resuelva el enlace universal de la app instalada.
+   a.target='_blank';
+   a.rel='noopener noreferrer';
+   a.style.cssText='display:block;text-align:center;text-decoration:none;color:white;font-weight:650;padding:13px 14px;border-radius:11px;margin-top:10px;background:'+background+';';
+   a.addEventListener('click',()=>{status('Abriendo '+label+' fuera de la miniapp…');});
+   card.appendChild(a);
+   return a;
   };
   const encoded=encodeURIComponent(uri);
-  addButton('MetaMask','https://metamask.app.link/wc?uri='+encoded+'&target=_self','#6851db');
-  addButton('Trust Wallet','trust://wc?uri='+encoded,'#3375f5');
+  // Usar enlaces HTTPS universales; evitar trust://, que Telegram Android WebView
+  // puede intentar cargar como una página y fallar con ERR_UNKNOWN_URL_SCHEME.
+  addButton('MetaMask','https://metamask.app.link/wc?uri='+encoded,'#6851db');
+  addButton('Trust Wallet','https://link.trustwallet.com/wc?uri='+encoded,'#3375f5');
   const copy=document.createElement('button'); copy.type='button'; copy.textContent='Copiar URI para otra billetera'; copy.style.cssText='width:100%;border:1px solid #475569;color:#e2e8f0;background:#1e293b;font-weight:600;padding:12px;border-radius:11px;margin-top:10px;';
   copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(uri);status('URI copiada. Ábrela o escanéala desde tu billetera compatible con WalletConnect.');copy.textContent='URI copiada';}catch(e){const t=document.createElement('textarea');t.value=uri;t.style.cssText='width:100%;margin-top:10px;';card.appendChild(t);t.focus();t.select();status('Copia la URI que aparece abajo.');}});
   card.appendChild(copy);
