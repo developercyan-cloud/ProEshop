@@ -2,10 +2,15 @@
 nixPkgs = ["python312", "python312Packages.pip", "nodejs_20"]
 
 [phases.install]
-cmds = ["pip install -r requirements.txt", "npm install"]
+cmds = [
+  "python -m venv /opt/venv",
+  "/opt/venv/bin/python -m pip install --upgrade pip",
+  "/opt/venv/bin/python -m pip install -r requirements.txt",
+  "npm install"
+]
 
 [phases.build]
 cmds = ["npm run build:wallet"]
 
 [start]
-cmd = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+cmd = "/opt/venv/bin/uvicorn main:app --host 0.0.0.0 --port $PORT"
