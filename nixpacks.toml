@@ -1,8 +1,8 @@
 [phases.setup]
-nixPkgs = ["python312", "nodejs_20"]
+nixPkgs = ["python312", "python312Packages.pip", "nodejs_20"]
 
 [phases.install]
-cmds = ["python -m pip install -r requirements.txt", "npm install"]
+cmds = ["pip install -r requirements.txt", "npm install"]
 
 [phases.build]
 cmds = ["npm run build:wallet"]
