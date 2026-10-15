@@ -752,16 +752,28 @@ showEmailVerifiedLogin();
   if(show&&window.toast)window.toast('Billetera desconectada.');
  }
  async function runConnect(which){
-  if(state.connecting)return;setBusy(true);
+  if(state.connecting)return;
+  setBusy(true);
   try{
-   const injected=findInjectedProvider(which);
-   if(injected)await attach(injected,which==='metamask'?'MetaMask':'Trust Wallet');
-   else await connectWC(which==='metamask'?'MetaMask':'Trust Wallet', which==='selector');
+   // El selector debe abrir WalletConnect siempre, incluso si hay una billetera
+   // inyectada en el navegador. No enrutar este botón a Trust Wallet por error.
+   if(which==='selector'){
+    await connectWC('WalletConnect',true);
+   }else{
+    const injected=findInjectedProvider(which);
+    if(injected){
+     await attach(injected,which==='metamask'?'MetaMask':'Trust Wallet');
+    }else{
+     await connectWC(which==='metamask'?'MetaMask':'Trust Wallet',false);
+    }
+   }
   }catch(e){
    console.warn('Wallet connect:',e);
    if(e&&e.code===4001)status('Conexión cancelada en la billetera.');
-   else status((e&&e.message)||'No se pudo completar la conexión. Puedes intentar con el selector WalletConnect.');
-  }finally{setBusy(false);}
+   else status((e&&e.message)||'No se pudo completar la conexión. Intenta nuevamente.');
+  }finally{
+   setBusy(false);
+  }
  }
  document.addEventListener('DOMContentLoaded',()=>{
   $w('connectMetaMask')?.addEventListener('click',()=>runConnect('metamask'));
