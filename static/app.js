@@ -587,7 +587,7 @@ showEmailVerifiedLogin();
  function status(t){const e=$w('walletConnectStatus');if(e)e.textContent=t;}
  function fmt(n){return Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:6})}
  function short(a){return a?a.slice(0,6)+'…'+a.slice(-4):'Sin conectar'}
- function setBusy(b){state.connecting=b;['connectMetaMask','connectTrustWallet'].forEach(id=>{const e=$w(id);if(e)e.disabled=b});}
+ function setBusy(b){state.connecting=b;['connectMetaMask','connectTrustWallet','connectWalletSelector'].forEach(id=>{const e=$w(id);if(e)e.disabled=b});}
  function renderConnected(){
   window.proEshopWalletConnected=true;
   $w('walletAddressShort').textContent=short(state.address);
@@ -608,20 +608,7 @@ showEmailVerifiedLogin();
   }
   status('Consultando USDT en '+net.name+'…');
   const data='0x70a08231'+state.address.toLowerCase().replace('0x','').padStart(64,'0');
-  let raw;
-  try {
-   raw=await state.provider.request({method:'eth_call',params:[{to:net.token,data},'latest']});
-  } catch(providerError) {
-   // Some injected wallet browsers expose accounts but reject eth_call. Retry this read-only query via a public RPC.
-   const rpc={1:'https://ethereum-rpc.publicnode.com',56:'https://bsc-rpc.publicnode.com',137:'https://polygon-bor-rpc.publicnode.com'}[state.chainId];
-   if(!rpc)throw providerError;
-   const response=await fetch(rpc,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_call',params:[{to:net.token,data},'latest']})});
-   if(!response.ok)throw new Error('La billetera conectó, pero el nodo RPC no respondió ('+response.status+').');
-   const payload=await response.json();
-   if(payload.error)throw new Error(payload.error.message||'El nodo RPC rechazó la consulta de USDT.');
-   raw=payload.result;
-   if(typeof raw!=='string'||!raw.startsWith('0x'))throw new Error('Respuesta inválida al consultar el saldo USDT.');
-  }
+  const raw=await state.provider.request({method:'eth_call',params:[{to:net.token,data},'latest']});
   const amount=Number(BigInt(raw))/Math.pow(10,net.decimals);
   window.proEshopWalletBalanceDisplay=fmt(amount)+' USDT';
   $w('balanceValue').textContent=window.proEshopWalletBalanceDisplay;
@@ -639,41 +626,46 @@ showEmailVerifiedLogin();
    provider.on('chainChanged',async()=>{try{await balance()}catch(e){status('No se pudo consultar el saldo: '+e.message)}});
    provider.on('disconnect',()=>disconnect(false));
   }
-  try {
-   await balance();
-  } catch(balanceError) {
-   // Keep the connected address visible when only the balance lookup fails.
-   status('Billetera conectada ('+short(state.address)+'), pero no se pudo consultar USDT: '+(balanceError&&balanceError.message?balanceError.message:'error de consulta')+'. Pulsa Actualizar para reintentar.');
-  }
+  await balance();
  }
  async function connectInjected(){
   const eth=window.ethereum;
   if(!eth)throw new Error('No se detectó MetaMask en este navegador. Usa WalletConnect o abre ProEshop desde la billetera.');
   await attach(eth,'MetaMask');
  }
- async function connectWC(name){
-  if(!PROJECT_ID || PROJECT_ID.length < 20) throw new Error('Falta configurar el WalletConnect Project ID.');
-  const SDK=window.ProEshopEthereumProvider;
-  if(!SDK || typeof SDK.init!=='function') throw new Error('No cargó el módulo local de WalletConnect. Verifica que Railway haya completado la compilación y vuelve a desplegar.');
-  status('Abriendo conexión segura con '+name+'…');
-  const provider=await SDK.init({
+ async function connectWC(name, useSelector=false){
+  const EthereumProvider=window.ProEshopEthereumProvider;
+  if(!EthereumProvider || typeof EthereumProvider.init!=='function'){
+   throw new Error('El módulo local de WalletConnect no cargó. Revisa la compilación de Railway.');
+  }
+  status(useSelector?'Abriendo selector de billeteras…':'Preparando solicitud directa para Trust Wallet…');
+  const wc=await EthereumProvider.init({
    projectId:PROJECT_ID,
-   chains:[1],
-   optionalChains:[56,137],
-   showQrModal:true,
-   methods:['eth_sendTransaction','personal_sign','eth_signTypedData','eth_signTypedData_v4'],
+   chains:[1,56,137],
+   optionalChains:[1,56,137],
+   showQrModal:!!useSelector,
+   methods:['eth_sendTransaction','personal_sign','eth_signTypedData','eth_signTypedData_v4','eth_accounts','eth_chainId','eth_call'],
    events:['chainChanged','accountsChanged'],
-   metadata:{
-    name:'ProEshop',
-    description:'Consulta de saldo USDT',
-    url:window.location.origin,
-    icons:[window.location.origin+'/static/favicon.png']
-   }
+   metadata:{name:'ProEshop',description:'Consulta de saldo USDT',url:location.origin,icons:[]}
   });
-  state.ethereumProvider=provider;
-  await provider.connect();
-  await attach(provider,name);
+  state.ethereumProvider=wc;
+  let opened=false;
+  if(!useSelector && /trust/i.test(name)){
+   wc.on('display_uri', uri=>{
+    if(opened || !uri) return;
+    opened=true;
+    const target='https://link.trustwallet.com/wc?uri='+encodeURIComponent(uri);
+    status('Solicitud creada. Abriendo Trust Wallet para autorizar…');
+    try {
+     if(window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.openLink==='function') window.Telegram.WebApp.openLink(target);
+     else window.open(target,'_blank','noopener');
+    } catch(err) { console.warn('Trust Wallet deep link:',err); }
+   });
+  }
+  await wc.connect();
+  await attach(wc,name);
  }
+
  function findInjectedProvider(which){
   const providers=[];
   if(window.ethereum){
@@ -701,28 +693,18 @@ showEmailVerifiedLogin();
   try{
    const injected=findInjectedProvider(which);
    if(injected)await attach(injected,which==='metamask'?'MetaMask':'Trust Wallet');
-   else await connectWC(which==='metamask'?'MetaMask':'Trust Wallet');
+   else await connectWC(which==='metamask'?'MetaMask':'Trust Wallet', which==='selector');
   }catch(e){
    console.warn('Wallet connect:',e);
    if(e&&e.code===4001)status('Conexión cancelada en la billetera.');
-   else status((e&&e.message)||'No se pudo conectar. Abre ProEshop desde el navegador DApp de la billetera e inténtalo de nuevo.');
+   else status((e&&e.message)||'No se pudo completar la conexión. Puedes intentar con el selector WalletConnect.');
   }finally{setBusy(false);}
  }
  document.addEventListener('DOMContentLoaded',()=>{
   $w('connectMetaMask')?.addEventListener('click',()=>runConnect('metamask'));
   $w('connectTrustWallet')?.addEventListener('click',()=>runConnect('trustwallet'));
-  $w('openTrustWalletDapp')?.addEventListener('click',()=>{
-   // Trust Wallet's HTTPS universal link avoids custom URL schemes inside Telegram.
-   const target=window.location.href.split('#')[0];
-   const link='https://link.trustwallet.com/open_url?coin_id=60&url='+encodeURIComponent(target);
-   status('Abriendo ProEshop en el navegador de Trust Wallet. Si no vuelve automáticamente, conecta allí y actualiza esta página.');
-   try{
-    const tg=window.Telegram&&window.Telegram.WebApp;
-    if(tg&&typeof tg.openLink==='function')tg.openLink(link);
-    else window.open(link,'_blank','noopener,noreferrer');
-   }catch(err){status('No se pudo abrir Trust Wallet. Copia y abre este enlace en Trust Wallet: '+link);}
-  });
-  $w('refreshWalletBalance')?.addEventListener('click',async()=>{try{await balance()}catch(e){status('La billetera sigue conectada, pero falló la consulta USDT: '+(e&&e.message?e.message:'error desconocido'))}});
+  $w('connectWalletSelector')?.addEventListener('click',()=>runConnect('selector'));
+  $w('refreshWalletBalance')?.addEventListener('click',async()=>{try{await balance()}catch(e){status('Error al actualizar: '+e.message)}});
   $w('disconnectWallet')?.addEventListener('click',()=>disconnect(true));
  });
 })();
