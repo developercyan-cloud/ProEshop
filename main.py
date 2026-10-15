@@ -47,8 +47,71 @@ TRON_API_BASE = os.getenv("TRON_API_BASE", "https://api.trongrid.io").rstrip("/"
 TRON_POLL_SECONDS = max(20, int(os.getenv("TRON_POLL_SECONDS", "45")))
 _tron_monitor_task = None
 
+# Tenderly Virtual TestNet: configure the RPC URL in Railway Variables.
+# Do not place private keys or wallet secrets here; this endpoint is read-only.
+TENDERLY_VIRTUAL_TESTNET_RPC = os.getenv("TENDERLY_VIRTUAL_TESTNET_RPC", "").strip()
+TENDERLY_USDT_CONTRACT = "0xdAC17F958D2ee523a2206206994597C13D831ec7".lower()
+
 
 app = FastAPI(title="ProEshop Telegram Mini App", docs_url=None, redoc_url=None)
+
+@app.post("/api/tenderly-rpc")
+async def tenderly_readonly_rpc(request: Request):
+    """Restricted read-only JSON-RPC proxy for USDT balance eth_call only."""
+    if not TENDERLY_VIRTUAL_TESTNET_RPC:
+        raise HTTPException(status_code=503, detail="Tenderly Virtual TestNet no está configurada en el servidor.")
+
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="JSON-RPC inválido.")
+
+    if not isinstance(payload, dict) or payload.get("method") != "eth_call":
+        raise HTTPException(status_code=400, detail="Solo se permite eth_call de lectura.")
+
+    params = payload.get("params")
+    if not isinstance(params, list) or len(params) < 1 or not isinstance(params[0], dict):
+        raise HTTPException(status_code=400, detail="Parámetros eth_call inválidos.")
+
+    target = str(params[0].get("to", "")).lower()
+    if target != TENDERLY_USDT_CONTRACT:
+        raise HTTPException(status_code=403, detail="Solo se permite consultar el contrato USDT configurado.")
+
+    # ERC-20 balanceOf(address) selector. Restrict this proxy to balance reads;
+    # no arbitrary contract calls, signatures, or transactions are forwarded.
+    call_data = str(params[0].get("data", "")).lower()
+    if not call_data.startswith("0x70a08231") or len(call_data) != 74:
+        raise HTTPException(status_code=400, detail="Solo se permite consultar balanceOf(address) de USDT.")
+    if len(params) > 1 and params[1] not in ("latest", "pending", "safe", "finalized"):
+        # Explicit block numbers are allowed for reproducible historical reads.
+        block_tag = params[1]
+        if not isinstance(block_tag, str) or not (block_tag == "earliest" or block_tag.startswith("0x")):
+            raise HTTPException(status_code=400, detail="Etiqueta de bloque inválida.")
+
+    forwarded = {
+        "jsonrpc": "2.0",
+        "id": payload.get("id", 1),
+        "method": "eth_call",
+        "params": params[:2],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            upstream = await client.post(TENDERLY_VIRTUAL_TESTNET_RPC, json=forwarded)
+        if upstream.status_code >= 400:
+            log.warning("Tenderly RPC devolvió HTTP %s", upstream.status_code)
+            raise HTTPException(status_code=502, detail="Tenderly rechazó la consulta RPC (HTTP %s)." % upstream.status_code)
+        try:
+            result = upstream.json()
+        except Exception:
+            raise HTTPException(status_code=502, detail="Tenderly devolvió una respuesta no válida.")
+        if not isinstance(result, dict):
+            raise HTTPException(status_code=502, detail="Tenderly devolvió una respuesta RPC no válida.")
+        return JSONResponse(content=result)
+    except HTTPException:
+        raise
+    except httpx.RequestError as exc:
+        log.warning("Error de conexión con Tenderly RPC: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="No se pudo conectar con Tenderly RPC desde el servidor.")
 
 # Lightweight per-process throttling for public-facing credential/search endpoints.
 _RATE_BUCKETS = {}
@@ -57,7 +120,7 @@ _SEARCH_CACHE = {}
 @app.middleware("http")
 async def security_and_rate_limit(request: Request, call_next):
     path = request.url.path
-    if path in ("/api/login", "/api/register", "/api/email-login", "/api/telegram-login", "/api/search"):
+    if path in ("/api/login", "/api/register", "/api/email-login", "/api/telegram-login", "/api/search", "/api/tenderly-rpc"):
         ip = request.client.host if request.client else "unknown"
         key = (ip, path)
         now = time.time()
@@ -73,7 +136,7 @@ async def security_and_rate_limit(request: Request, call_next):
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' https://api.telegram.org https://relay.walletconnect.com wss://relay.walletconnect.com https://*.walletconnect.com wss://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.org https://verify.walletconnect.org https://pulse.walletconnect.org https://api.web3modal.org https://rpc.walletconnect.com; frame-src 'self' https://verify.walletconnect.org https://*.walletconnect.com https://*.walletconnect.org; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    response.headers.setdefault("Content-Security-Policy", "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' https://api.telegram.org; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
     if path == "/" or path.startswith("/api/"):
         response.headers.setdefault("Cache-Control", "no-store")
     return response
