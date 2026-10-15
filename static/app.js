@@ -608,7 +608,20 @@ showEmailVerifiedLogin();
   }
   status('Consultando USDT en '+net.name+'…');
   const data='0x70a08231'+state.address.toLowerCase().replace('0x','').padStart(64,'0');
-  const raw=await state.provider.request({method:'eth_call',params:[{to:net.token,data},'latest']});
+  let raw;
+  try {
+   raw=await state.provider.request({method:'eth_call',params:[{to:net.token,data},'latest']});
+  } catch(providerError) {
+   // Some injected wallet browsers expose accounts but reject eth_call. Retry this read-only query via a public RPC.
+   const rpc={1:'https://ethereum-rpc.publicnode.com',56:'https://bsc-rpc.publicnode.com',137:'https://polygon-bor-rpc.publicnode.com'}[state.chainId];
+   if(!rpc)throw providerError;
+   const response=await fetch(rpc,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_call',params:[{to:net.token,data},'latest']})});
+   if(!response.ok)throw new Error('La billetera conectó, pero el nodo RPC no respondió ('+response.status+').');
+   const payload=await response.json();
+   if(payload.error)throw new Error(payload.error.message||'El nodo RPC rechazó la consulta de USDT.');
+   raw=payload.result;
+   if(typeof raw!=='string'||!raw.startsWith('0x'))throw new Error('Respuesta inválida al consultar el saldo USDT.');
+  }
   const amount=Number(BigInt(raw))/Math.pow(10,net.decimals);
   window.proEshopWalletBalanceDisplay=fmt(amount)+' USDT';
   $w('balanceValue').textContent=window.proEshopWalletBalanceDisplay;
@@ -626,7 +639,12 @@ showEmailVerifiedLogin();
    provider.on('chainChanged',async()=>{try{await balance()}catch(e){status('No se pudo consultar el saldo: '+e.message)}});
    provider.on('disconnect',()=>disconnect(false));
   }
-  await balance();
+  try {
+   await balance();
+  } catch(balanceError) {
+   // Keep the connected address visible when only the balance lookup fails.
+   status('Billetera conectada ('+short(state.address)+'), pero no se pudo consultar USDT: '+(balanceError&&balanceError.message?balanceError.message:'error de consulta')+'. Pulsa Actualizar para reintentar.');
+  }
  }
  async function connectInjected(){
   const eth=window.ethereum;
@@ -704,7 +722,7 @@ showEmailVerifiedLogin();
     else window.open(link,'_blank','noopener,noreferrer');
    }catch(err){status('No se pudo abrir Trust Wallet. Copia y abre este enlace en Trust Wallet: '+link);}
   });
-  $w('refreshWalletBalance')?.addEventListener('click',async()=>{try{await balance()}catch(e){status('Error al actualizar: '+e.message)}});
+  $w('refreshWalletBalance')?.addEventListener('click',async()=>{try{await balance()}catch(e){status('La billetera sigue conectada, pero falló la consulta USDT: '+(e&&e.message?e.message:'error desconocido'))}});
   $w('disconnectWallet')?.addEventListener('click',()=>disconnect(true));
  });
 })();
