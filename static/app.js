@@ -635,33 +635,81 @@ showEmailVerifiedLogin();
  }
  async function connectWC(name, useSelector=false){
   const EthereumProvider=window.ProEshopEthereumProvider;
+
   if(!EthereumProvider || typeof EthereumProvider.init!=='function'){
    throw new Error('El módulo local de WalletConnect no cargó. Revisa la compilación de Railway.');
   }
-  status(useSelector?'Abriendo selector de billeteras…':'Preparando solicitud directa para Trust Wallet…');
-  const wc=await EthereumProvider.init({
-   projectId:PROJECT_ID,
-   chains:[1,56,137],
-   optionalChains:[1,56,137],
-   showQrModal:!!useSelector,
-   methods:['eth_sendTransaction','personal_sign','eth_signTypedData','eth_signTypedData_v4','eth_accounts','eth_chainId','eth_call'],
-   events:['chainChanged','accountsChanged'],
-   metadata:{name:'ProEshop',description:'Consulta de saldo USDT',url:location.origin,icons:[]}
-  });
+
+  if(!PROJECT_ID || PROJECT_ID.length < 20){
+   throw new Error('El Project ID de WalletConnect no está configurado correctamente.');
+  }
+
+  status('Inicializando WalletConnect…');
+
+  let timer;
+  let wc;
+
+  try {
+   wc = await Promise.race([
+    EthereumProvider.init({
+     projectId:PROJECT_ID,
+     chains:[1,56,137],
+     optionalChains:[1,56,137],
+     showQrModal:!!useSelector,
+     methods:[
+      'eth_sendTransaction',
+      'personal_sign',
+      'eth_signTypedData',
+      'eth_signTypedData_v4',
+      'eth_accounts',
+      'eth_chainId',
+      'eth_call'
+     ],
+     events:['chainChanged','accountsChanged'],
+     metadata:{
+      name:'ProEshop',
+      description:'Consulta de saldo USDT',
+      url:location.origin,
+      icons:[]
+     }
+    }),
+    new Promise((_,reject)=>{
+     timer=setTimeout(()=>{
+      reject(new Error(
+       'WalletConnect no respondió en 15 segundos durante la inicialización. Revisa la conexión de red y la configuración de Reown.'
+      ));
+     },15000);
+    })
+   ]);
+  } finally {
+   clearTimeout(timer);
+  }
+
   state.ethereumProvider=wc;
-  let opened=false;
+
   if(!useSelector && /trust/i.test(name)){
-   wc.on('display_uri', uri=>{
-    if(opened || !uri) return;
-    opened=true;
+   wc.on('display_uri',uri=>{
+    if(!uri)return;
+
     const target='https://link.trustwallet.com/wc?uri='+encodeURIComponent(uri);
-    status('Solicitud creada. Abriendo Trust Wallet para autorizar…');
+    status('Solicitud creada. Abriendo Trust Wallet…');
+
     try {
-     if(window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.openLink==='function') window.Telegram.WebApp.openLink(target);
-     else window.open(target,'_blank','noopener');
-    } catch(err) { console.warn('Trust Wallet deep link:',err); }
+     if(window.Telegram &&
+        window.Telegram.WebApp &&
+        typeof window.Telegram.WebApp.openLink==='function'){
+      window.Telegram.WebApp.openLink(target);
+     } else {
+      window.location.href=target;
+     }
+    } catch(err){
+     console.warn('Trust Wallet deep link:',err);
+     status('No se pudo abrir Trust Wallet automáticamente. Intenta desde su navegador DApp.');
+    }
    });
   }
+
+  status('Esperando autorización de la billetera…');
   await wc.connect();
   await attach(wc,name);
  }
