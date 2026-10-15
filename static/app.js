@@ -649,6 +649,30 @@ showEmailVerifiedLogin();
   if(!eth)throw new Error('No se detectó MetaMask en este navegador. Usa WalletConnect o abre ProEshop desde la billetera.');
   await attach(eth,'MetaMask');
  }
+ function showWalletConnectChoices(uri){
+  const old=document.getElementById('proeshop-wc-mobile-chooser');
+  if(old)old.remove();
+  const overlay=document.createElement('div');
+  overlay.id='proeshop-wc-mobile-chooser';
+  overlay.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(3,7,18,.82);display:flex;align-items:center;justify-content:center;padding:18px;font-family:system-ui,-apple-system,sans-serif;';
+  const card=document.createElement('div');
+  card.style.cssText='width:min(420px,100%);background:#101827;color:#f8fafc;border:1px solid #334155;border-radius:18px;padding:22px;box-shadow:0 20px 70px rgba(0,0,0,.5);';
+  const title=document.createElement('div'); title.textContent='Conectar billetera'; title.style.cssText='font-size:20px;font-weight:700;margin-bottom:8px;';
+  const desc=document.createElement('div'); desc.textContent='Selecciona tu billetera. Después de autorizar, vuelve a ProEshop para completar la conexión.'; desc.style.cssText='font-size:14px;line-height:1.45;color:#cbd5e1;margin-bottom:18px;';
+  card.append(title,desc);
+  const addButton=(label,href,background)=>{
+   const a=document.createElement('a'); a.textContent=label; a.href=href; a.style.cssText='display:block;text-align:center;text-decoration:none;color:white;font-weight:650;padding:13px 14px;border-radius:11px;margin-top:10px;background:'+background+';';
+   a.addEventListener('click',()=>{status('Abriendo '+label+'…');}); card.appendChild(a); return a;
+  };
+  const encoded=encodeURIComponent(uri);
+  addButton('MetaMask','https://metamask.app.link/wc?uri='+encoded+'&target=_self','#6851db');
+  addButton('Trust Wallet','trust://wc?uri='+encoded,'#3375f5');
+  const copy=document.createElement('button'); copy.type='button'; copy.textContent='Copiar URI para otra billetera'; copy.style.cssText='width:100%;border:1px solid #475569;color:#e2e8f0;background:#1e293b;font-weight:600;padding:12px;border-radius:11px;margin-top:10px;';
+  copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(uri);status('URI copiada. Ábrela o escanéala desde tu billetera compatible con WalletConnect.');copy.textContent='URI copiada';}catch(e){const t=document.createElement('textarea');t.value=uri;t.style.cssText='width:100%;margin-top:10px;';card.appendChild(t);t.focus();t.select();status('Copia la URI que aparece abajo.');}});
+  card.appendChild(copy);
+  const close=document.createElement('button'); close.type='button';close.textContent='Cancelar';close.style.cssText='width:100%;border:0;color:#cbd5e1;background:transparent;padding:12px;margin-top:6px;';close.addEventListener('click',()=>overlay.remove());card.appendChild(close);
+  overlay.appendChild(card);document.body.appendChild(overlay);
+ }
  async function connectWC(name, useSelector=false){
   const EthereumProvider=window.ProEshopEthereumProvider;
 
@@ -671,7 +695,7 @@ showEmailVerifiedLogin();
      projectId:PROJECT_ID,
      chains:[1,56,137],
      optionalChains:[1,56,137],
-     showQrModal:!!useSelector,
+     showQrModal:false,
      methods:[
       'eth_sendTransaction',
       'personal_sign',
@@ -702,27 +726,20 @@ showEmailVerifiedLogin();
 
   state.ethereumProvider=wc;
 
-  if(!useSelector && /trust/i.test(name)){
-   wc.on('display_uri',uri=>{
-    if(!uri)return;
-
-    const target='https://link.trustwallet.com/wc?uri='+encodeURIComponent(uri);
+  wc.on('display_uri',uri=>{
+   if(!uri)return;
+   if(useSelector){
+    showWalletConnectChoices(uri);
+    status('Solicitud lista. Selecciona una billetera para continuar.');
+    return;
+   }
+   if(/trust/i.test(name)){
+    const target='trust://wc?uri='+encodeURIComponent(uri);
     status('Solicitud creada. Abriendo Trust Wallet…');
-
-    try {
-     if(window.Telegram &&
-        window.Telegram.WebApp &&
-        typeof window.Telegram.WebApp.openLink==='function'){
-      window.Telegram.WebApp.openLink(target);
-     } else {
-      window.location.href=target;
-     }
-    } catch(err){
-     console.warn('Trust Wallet deep link:',err);
-     status('No se pudo abrir Trust Wallet automáticamente. Intenta desde su navegador DApp.');
-    }
-   });
-  }
+    try { window.location.href=target; }
+    catch(err){ console.warn('Trust Wallet deep link:',err); status('No se pudo abrir Trust Wallet automáticamente.'); }
+   }
+  });
 
   status('Esperando autorización de la billetera…');
   await wc.connect();
