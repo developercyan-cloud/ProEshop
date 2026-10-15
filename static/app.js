@@ -580,7 +580,7 @@ showEmailVerifiedLogin();
  window.proEshopWalletConnected=false;
  window.proEshopWalletBalanceDisplay=null;
  const networks={
-  1:{name:'Ethereum',token:'0xdAC17F958D2ee523a2206206994597C13D831ec7',decimals:6},
+  1:{name:'Tenderly Virtual TestNet (Ethereum)',token:'0xdAC17F958D2ee523a2206206994597C13D831ec7',decimals:6},
   56:{name:'BNB Smart Chain',token:'0x55d398326f99059fF775485246999027B3197955',decimals:18},
   137:{name:'Polygon',token:'0xc2132D05D31c914a87C6611C10748AaCbAbaB0',decimals:6}
  };
@@ -595,10 +595,12 @@ showEmailVerifiedLogin();
   $w('refreshWalletBalance').disabled=false;$w('disconnectWallet').disabled=false;
  }
  async function readOnlyRpc(chainId, method, params){
-  // eth_call es una lectura pública de blockchain. No debe enviarse al namespace
-  // de la sesión WalletConnect, porque algunas billeteras no lo aprueban como
-  // método de sesión. Usamos el RPC de WalletConnect Cloud con el mismo Project ID.
-  const url='https://rpc.walletconnect.com/v1/?chainId='+encodeURIComponent('eip155:'+chainId)+'&projectId='+encodeURIComponent(PROJECT_ID);
+  // Las lecturas de Ethereum (chainId 1) se consultan en la Virtual TestNet
+  // configurada por el usuario en Tenderly. Otras redes mantienen su RPC anterior.
+  // No se envían firmas ni transacciones: este método solo consulta estado on-chain.
+  const url=Number(chainId)===1
+   ? 'https://virtual.mainnet.eu.rpc.tenderly.co/devkrost/project/14c7dc'
+   : 'https://rpc.walletconnect.com/v1/?chainId='+encodeURIComponent('eip155:'+chainId)+'&projectId='+encodeURIComponent(PROJECT_ID);
   const response=await fetch(url,{
    method:'POST',
    headers:{'Content-Type':'application/json'},
@@ -628,7 +630,7 @@ showEmailVerifiedLogin();
   const amount=Number(BigInt(raw))/Math.pow(10,net.decimals);
   window.proEshopWalletBalanceDisplay=fmt(amount)+' USDT';
   $w('balanceValue').textContent=window.proEshopWalletBalanceDisplay;
-  $w('walletBalanceCaption').textContent='USDT · '+net.name+' · saldo consultado en blockchain';
+  $w('walletBalanceCaption').textContent='USDT · '+net.name+' · saldo consultado en Tenderly';
   status('Saldo actualizado correctamente.');
   renderConnected();
  }
