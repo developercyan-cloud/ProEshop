@@ -748,21 +748,29 @@ showEmailVerifiedLogin();
 
   wc.on('display_uri',uri=>{
    if(!uri)return;
-   if(useSelector){
-    showWalletConnectChoices(uri);
-    status('Solicitud lista. Selecciona una billetera para continuar.');
-    return;
-   }
-   if(/trust/i.test(name)){
-    const target='trust://wc?uri='+encodeURIComponent(uri);
-    status('Solicitud creada. Abriendo Trust Wallet…');
-    try { window.location.href=target; }
-    catch(err){ console.warn('Trust Wallet deep link:',err); status('No se pudo abrir Trust Wallet automáticamente.'); }
-   }
+   // En Android/Telegram, los enlaces de billetera deben abrirse tras un toque
+   // explícito del usuario. Mostrar siempre el selector evita dejar MetaMask
+   // esperando sin entregar la URI y evita esquemas nativos dentro del WebView.
+   showWalletConnectChoices(uri);
+   status('Solicitud lista. Selecciona MetaMask o Trust Wallet para continuar.');
   });
 
   status('Esperando autorización de la billetera…');
-  await wc.connect();
+  let connectTimer;
+  try {
+   await Promise.race([
+    wc.connect(),
+    new Promise((_,reject)=>{
+     connectTimer=setTimeout(()=>reject(new Error(
+      'La billetera no terminó la conexión en 90 segundos. Vuelve a intentarlo y confirma la solicitud dentro de la billetera.'
+     )),90000);
+    })
+   ]);
+  } finally {
+   clearTimeout(connectTimer);
+  }
+  const chooser=document.getElementById('proeshop-wc-mobile-chooser');
+  if(chooser)chooser.remove();
   await attach(wc,name);
  }
 
