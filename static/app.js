@@ -587,9 +587,12 @@ showEmailVerifiedLogin();
  function status(t){const e=$w('walletConnectStatus');if(e)e.textContent=t;}
  function fmt(n){return Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:6})}
  function short(a){return a?a.slice(0,6)+'…'+a.slice(-4):'Sin conectar'}
- function setBusy(b){state.connecting=b;['connectMetaMask','connectTrustWallet','connectWalletSelector'].forEach(id=>{const e=$w(id);if(e)e.disabled=b});}
+ let pendingWalletUri='';
+ function setBusy(b){state.connecting=b;['connectWalletSelector','walletMetaMaskChoice','walletTrustChoice','walletCopyUri'].forEach(id=>{const e=$w(id);if(e)e.disabled=b});}
  function renderConnected(){
   window.proEshopWalletConnected=true;
+  const mainConnect=$w('connectWalletSelector');
+  if(mainConnect){mainConnect.textContent='Conectado';mainConnect.classList.add('wallet-connected');mainConnect.disabled=false;}
   $w('walletAddressShort').textContent=short(state.address);
   $w('walletConnectionLabel').textContent=state.walletName.toUpperCase();
   $w('refreshWalletBalance').disabled=false;$w('disconnectWallet').disabled=false;
@@ -633,87 +636,54 @@ showEmailVerifiedLogin();
   if(!eth)throw new Error('No se detectó MetaMask en este navegador. Usa WalletConnect o abre ProEshop desde la billetera.');
   await attach(eth,'MetaMask');
  }
- async function connectWC(name, useSelector=false){
+ async function connectWC(name, walletTarget=''){
   const EthereumProvider=window.ProEshopEthereumProvider;
-
   if(!EthereumProvider || typeof EthereumProvider.init!=='function'){
-   throw new Error('El módulo local de WalletConnect no cargó. Revisa la compilación de Railway.');
+   throw new Error('El módulo local de WalletConnect no cargó. Verifica que Railway haya ejecutado npm run build:wallet y que exista /static/walletconnect.bundle.js.');
   }
-
   if(!PROJECT_ID || PROJECT_ID.length < 20){
    throw new Error('El Project ID de WalletConnect no está configurado correctamente.');
   }
-
   status('Inicializando WalletConnect…');
-
-  let timer;
-  let wc;
-
-  try {
-   wc = await Promise.race([
+  let timer, wc;
+  try{
+   wc=await Promise.race([
     EthereumProvider.init({
      projectId:PROJECT_ID,
      chains:[1,56,137],
      optionalChains:[1,56,137],
-     showQrModal:!!useSelector,
-     methods:[
-      'eth_sendTransaction',
-      'personal_sign',
-      'eth_signTypedData',
-      'eth_signTypedData_v4',
-      'eth_accounts',
-      'eth_chainId',
-      'eth_call'
-     ],
+     showQrModal:false,
+     methods:['eth_sendTransaction','personal_sign','eth_signTypedData','eth_signTypedData_v4','eth_accounts','eth_chainId','eth_call'],
      events:['chainChanged','accountsChanged'],
-     metadata:{
-      name:'ProEshop',
-      description:'Consulta de saldo USDT',
-      url:location.origin,
-      icons:[]
-     }
+     metadata:{name:'ProEshop',description:'Consulta de saldo USDT',url:location.origin,icons:[]}
     }),
-    new Promise((_,reject)=>{
-     timer=setTimeout(()=>{
-      reject(new Error(
-       'WalletConnect no respondió en 15 segundos durante la inicialización. Revisa la conexión de red y la configuración de Reown.'
-      ));
-     },15000);
-    })
+    new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('WalletConnect no respondió en 15 segundos. Revisa la red e inténtalo de nuevo.')),15000);})
    ]);
-  } finally {
-   clearTimeout(timer);
-  }
-
+  }finally{clearTimeout(timer);}
   state.ethereumProvider=wc;
-
-  if(!useSelector && /trust/i.test(name)){
-   wc.on('display_uri',uri=>{
-    if(!uri)return;
-
+  wc.on('display_uri',uri=>{
+   if(!uri)return;
+   pendingWalletUri=uri;
+   const copy=$w('walletCopyUri');if(copy)copy.disabled=false;
+   status('Solicitud creada. Autoriza la conexión en '+name+' y vuelve a ProEshop.');
+   if(walletTarget==='metamask'){
+    const target='https://metamask.app.link/wc?uri='+encodeURIComponent(uri);
+    try{
+     if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(target);
+     else window.location.href=target;
+    }catch(e){console.warn('MetaMask deep link:',e);status('No se pudo abrir MetaMask automáticamente. Usa “Copiar URI para otra billetera”.');}
+   }else if(walletTarget==='trustwallet'){
     const target='https://link.trustwallet.com/wc?uri='+encodeURIComponent(uri);
-    status('Solicitud creada. Abriendo Trust Wallet…');
-
-    try {
-     if(window.Telegram &&
-        window.Telegram.WebApp &&
-        typeof window.Telegram.WebApp.openLink==='function'){
-      window.Telegram.WebApp.openLink(target);
-     } else {
-      window.location.href=target;
-     }
-    } catch(err){
-     console.warn('Trust Wallet deep link:',err);
-     status('No se pudo abrir Trust Wallet automáticamente. Intenta desde su navegador DApp.');
-    }
-   });
-  }
-
-  status('Esperando autorización de la billetera…');
+    try{
+     if(window.Telegram?.WebApp?.openLink) window.Telegram.WebApp.openLink(target);
+     else window.location.href=target;
+    }catch(e){console.warn('Trust Wallet deep link:',e);status('No se pudo abrir Trust Wallet automáticamente. Usa “Copiar URI para otra billetera”.');}
+   }
+  });
+  status('Esperando la solicitud de conexión…');
   await wc.connect();
   await attach(wc,name);
  }
-
  function findInjectedProvider(which){
   const providers=[];
   if(window.ethereum){
@@ -725,9 +695,11 @@ showEmailVerifiedLogin();
  }
  function disconnect(show=true){
   try{if(state.ethereumProvider&&state.ethereumProvider.disconnect)state.ethereumProvider.disconnect()}catch(e){}
-  state.provider=null;state.address='';state.walletName='';state.chainId=null;state.ethereumProvider=null;
+  state.provider=null;state.address='';state.walletName='';state.chainId=null;state.ethereumProvider=null;pendingWalletUri='';
   window.proEshopWalletBalanceDisplay=null;
   window.proEshopWalletConnected=false;
+  const mainConnect=$w('connectWalletSelector');
+  if(mainConnect){mainConnect.textContent='Conectar mi wallet';mainConnect.classList.remove('wallet-connected');mainConnect.disabled=false;}
   const b=$w('balanceValue');if(b)b.textContent='Conecta tu billetera';
   const c=$w('walletBalanceCaption');if(c)c.textContent='Saldo USDT de la red conectada';
   const a=$w('walletAddressShort');if(a)a.textContent='Sin conectar';
@@ -737,21 +709,42 @@ showEmailVerifiedLogin();
   if(show&&window.toast)window.toast('Billetera desconectada.');
  }
  async function runConnect(which){
-  if(state.connecting)return;setBusy(true);
+  if(state.connecting)return;
+  setBusy(true);
   try{
    const injected=findInjectedProvider(which);
-   if(injected)await attach(injected,which==='metamask'?'MetaMask':'Trust Wallet');
-   else await connectWC(which==='metamask'?'MetaMask':'Trust Wallet', which==='selector');
+   if(injected && (which==='metamask'||which==='trustwallet')){
+    await attach(injected,which==='metamask'?'MetaMask':'Trust Wallet');
+   }else{
+    await connectWC(which==='metamask'?'MetaMask':'Trust Wallet',which);
+   }
   }catch(e){
    console.warn('Wallet connect:',e);
    if(e&&e.code===4001)status('Conexión cancelada en la billetera.');
-   else status((e&&e.message)||'No se pudo completar la conexión. Puedes intentar con el selector WalletConnect.');
+   else status((e&&e.message)||'No se pudo completar la conexión. Intenta nuevamente.');
   }finally{setBusy(false);}
  }
+ function openWalletDialog(){
+  const d=$w('walletConnectDialog');
+  if(d && !d.open){if(typeof d.showModal==='function')d.showModal();else d.setAttribute('open','');}
+ }
+ function closeWalletDialog(){
+  const d=$w('walletConnectDialog');
+  if(d?.open && typeof d.close==='function')d.close();else d?.removeAttribute('open');
+ }
  document.addEventListener('DOMContentLoaded',()=>{
-  $w('connectMetaMask')?.addEventListener('click',()=>runConnect('metamask'));
-  $w('connectTrustWallet')?.addEventListener('click',()=>runConnect('trustwallet'));
-  $w('connectWalletSelector')?.addEventListener('click',()=>runConnect('selector'));
+  $w('connectWalletSelector')?.addEventListener('click',openWalletDialog);
+  $w('walletMetaMaskChoice')?.addEventListener('click',()=>{closeWalletDialog();runConnect('metamask')});
+  $w('walletTrustChoice')?.addEventListener('click',()=>{closeWalletDialog();runConnect('trustwallet')});
+  $w('walletCopyUri')?.addEventListener('click',async()=>{
+   if(!pendingWalletUri){status('Todavía no hay un URI para copiar. Selecciona MetaMask o Trust Wallet primero.');return;}
+   try{
+    if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(pendingWalletUri);
+    else {const t=document.createElement('textarea');t.value=pendingWalletUri;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();}
+    status('URI copiado. Pégalo en la billetera compatible.');
+   }catch(e){status('No se pudo copiar el URI. Inténtalo de nuevo.');}
+  });
+  $w('walletCancelConnect')?.addEventListener('click',closeWalletDialog);
   $w('refreshWalletBalance')?.addEventListener('click',async()=>{try{await balance()}catch(e){status('Error al actualizar: '+e.message)}});
   $w('disconnectWallet')?.addEventListener('click',()=>disconnect(true));
  });
