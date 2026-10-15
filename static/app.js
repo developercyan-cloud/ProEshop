@@ -587,7 +587,7 @@ showEmailVerifiedLogin();
  function status(t){const e=$w('walletConnectStatus');if(e)e.textContent=t;}
  function fmt(n){return Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:6})}
  function short(a){return a?a.slice(0,6)+'…'+a.slice(-4):'Sin conectar'}
- function setBusy(b){state.connecting=b;['connectMetaMask','connectTrustWallet'].forEach(id=>{const e=$w(id);if(e)e.disabled=b});}
+ function setBusy(b){state.connecting=b;['connectMetaMask','connectTrustWallet','connectWalletSelector'].forEach(id=>{const e=$w(id);if(e)e.disabled=b});}
  function renderConnected(){
   window.proEshopWalletConnected=true;
   $w('walletAddressShort').textContent=short(state.address);
@@ -644,43 +644,43 @@ showEmailVerifiedLogin();
    throw new Error('El Project ID de WalletConnect no está configurado correctamente.');
   }
 
-  status('Inicializando WalletConnect…');
+  status('Comprobando WalletConnect y la conexión con Reown…');
 
   let timer;
   let wc;
-
+  const initOptions={
+   projectId:PROJECT_ID,
+   chains:[1,56,137],
+   optionalChains:[1,56,137],
+   showQrModal:!!useSelector,
+   methods:['eth_sendTransaction','personal_sign','eth_signTypedData','eth_signTypedData_v4','eth_accounts','eth_chainId','eth_call'],
+   events:['chainChanged','accountsChanged'],
+   metadata:{name:'ProEshop',description:'Consulta de saldo USDT',url:location.origin,icons:[]}
+  };
+  let initPromise;
   try {
-   wc = await Promise.race([
-    EthereumProvider.init({
-     projectId:PROJECT_ID,
-     chains:[1,56,137],
-     optionalChains:[1,56,137],
-     showQrModal:!!useSelector,
-     methods:[
-      'eth_sendTransaction',
-      'personal_sign',
-      'eth_signTypedData',
-      'eth_signTypedData_v4',
-      'eth_accounts',
-      'eth_chainId',
-      'eth_call'
-     ],
-     events:['chainChanged','accountsChanged'],
-     metadata:{
-      name:'ProEshop',
-      description:'Consulta de saldo USDT',
-      url:location.origin,
-      icons:[]
-     }
-    }),
+   // Capturamos el error original de init y liberamos la interfaz si el SDK queda esperando.
+   initPromise=Promise.resolve().then(()=>EthereumProvider.init(initOptions));
+   initPromise.catch(err=>console.error('[ProEshop WalletConnect] Error original de init:',err));
+   wc=await Promise.race([
+    initPromise,
     new Promise((_,reject)=>{
      timer=setTimeout(()=>{
-      reject(new Error(
-       'WalletConnect no respondió en 15 segundos durante la inicialización. Revisa la conexión de red y la configuración de Reown.'
-      ));
-     },15000);
+      const diagnostics=[
+       'origen='+location.origin,
+       'online='+(navigator.onLine?'sí':'no'),
+       'HTTPS='+(window.isSecureContext?'sí':'no'),
+       'módulo='+(typeof window.ProEshopEthereumProvider),
+       'modo='+(useSelector?'selector':'conexión directa')
+      ].join(' | ');
+      console.error('[ProEshop WalletConnect] init sigue pendiente tras 20 s.',diagnostics);
+      reject(new Error('WalletConnect no terminó de inicializarse. Diagnóstico: '+diagnostics+'. No se ha conectado ninguna billetera.'));
+     },20000);
     })
    ]);
+  } catch(err) {
+   console.error('[ProEshop WalletConnect] Falló la inicialización:',err);
+   throw err;
   } finally {
    clearTimeout(timer);
   }
@@ -713,6 +713,7 @@ showEmailVerifiedLogin();
   await wc.connect();
   await attach(wc,name);
  }
+
  function findInjectedProvider(which){
   const providers=[];
   if(window.ethereum){
@@ -740,16 +741,17 @@ showEmailVerifiedLogin();
   try{
    const injected=findInjectedProvider(which);
    if(injected)await attach(injected,which==='metamask'?'MetaMask':'Trust Wallet');
-   else await connectWC(which==='metamask'?'MetaMask':'Trust Wallet');
+   else await connectWC(which==='metamask'?'MetaMask':'Trust Wallet', which==='selector');
   }catch(e){
    console.warn('Wallet connect:',e);
    if(e&&e.code===4001)status('Conexión cancelada en la billetera.');
-   else status((e&&e.message)||'No se pudo conectar. Abre ProEshop desde el navegador DApp de la billetera e inténtalo de nuevo.');
+   else status((e&&e.message)||'No se pudo completar la conexión. Puedes intentar con el selector WalletConnect.');
   }finally{setBusy(false);}
  }
  document.addEventListener('DOMContentLoaded',()=>{
   $w('connectMetaMask')?.addEventListener('click',()=>runConnect('metamask'));
   $w('connectTrustWallet')?.addEventListener('click',()=>runConnect('trustwallet'));
+  $w('connectWalletSelector')?.addEventListener('click',()=>runConnect('selector'));
   $w('refreshWalletBalance')?.addEventListener('click',async()=>{try{await balance()}catch(e){status('Error al actualizar: '+e.message)}});
   $w('disconnectWallet')?.addEventListener('click',()=>disconnect(true));
  });
