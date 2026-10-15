@@ -594,6 +594,22 @@ showEmailVerifiedLogin();
   $w('walletConnectionLabel').textContent=state.walletName.toUpperCase();
   $w('refreshWalletBalance').disabled=false;$w('disconnectWallet').disabled=false;
  }
+ async function readOnlyRpc(chainId, method, params){
+  // eth_call es una lectura pública de blockchain. No debe enviarse al namespace
+  // de la sesión WalletConnect, porque algunas billeteras no lo aprueban como
+  // método de sesión. Usamos el RPC de WalletConnect Cloud con el mismo Project ID.
+  const url='https://rpc.walletconnect.com/v1/?chainId='+encodeURIComponent('eip155:'+chainId)+'&projectId='+encodeURIComponent(PROJECT_ID);
+  const response=await fetch(url,{
+   method:'POST',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({jsonrpc:'2.0',id:Date.now(),method,params})
+  });
+  if(!response.ok)throw new Error('El RPC de blockchain respondió HTTP '+response.status+'.');
+  const result=await response.json();
+  if(result.error)throw new Error(result.error.message||'El RPC rechazó la consulta de saldo.');
+  if(typeof result.result!=='string')throw new Error('El RPC no devolvió un resultado válido para el saldo USDT.');
+  return result.result;
+ }
  async function balance(){
   if(!state.provider||!state.address)return;
   const chainHex=await state.provider.request({method:'eth_chainId'});
@@ -608,7 +624,7 @@ showEmailVerifiedLogin();
   }
   status('Consultando USDT en '+net.name+'…');
   const data='0x70a08231'+state.address.toLowerCase().replace('0x','').padStart(64,'0');
-  const raw=await state.provider.request({method:'eth_call',params:[{to:net.token,data},'latest']});
+  const raw=await readOnlyRpc(state.chainId,'eth_call',[{to:net.token,data},'latest']);
   const amount=Number(BigInt(raw))/Math.pow(10,net.decimals);
   window.proEshopWalletBalanceDisplay=fmt(amount)+' USDT';
   $w('balanceValue').textContent=window.proEshopWalletBalanceDisplay;
@@ -635,82 +651,81 @@ showEmailVerifiedLogin();
  }
  async function connectWC(name, useSelector=false){
   const EthereumProvider=window.ProEshopEthereumProvider;
+
   if(!EthereumProvider || typeof EthereumProvider.init!=='function'){
    throw new Error('El módulo local de WalletConnect no cargó. Revisa la compilación de Railway.');
   }
+
   if(!PROJECT_ID || PROJECT_ID.length < 20){
    throw new Error('El Project ID de WalletConnect no está configurado correctamente.');
   }
 
   status('Inicializando WalletConnect…');
-  let initTimer;
+
+  let timer;
   let wc;
+
   try {
    wc = await Promise.race([
     EthereumProvider.init({
      projectId:PROJECT_ID,
-     // Use the current optional-chain configuration; this app only reads balances.
+     chains:[1,56,137],
      optionalChains:[1,56,137],
      showQrModal:!!useSelector,
-     optionalMethods:['eth_accounts','eth_requestAccounts','eth_chainId','eth_call'],
-     optionalEvents:['chainChanged','accountsChanged'],
-     relayUrl:'wss://relay.walletconnect.com',
-     metadata:{name:'ProEshop',description:'Consulta de saldo USDT',url:location.origin,icons:[]}
+     methods:[
+      'eth_sendTransaction',
+      'personal_sign',
+      'eth_signTypedData',
+      'eth_signTypedData_v4',
+      'eth_accounts',
+      'eth_chainId'
+     ],
+     events:['chainChanged','accountsChanged'],
+     metadata:{
+      name:'ProEshop',
+      description:'Consulta de saldo USDT',
+      url:location.origin,
+      icons:[]
+     }
     }),
-    new Promise((_,reject)=>{initTimer=setTimeout(()=>reject(new Error('La inicialización del SDK WalletConnect no terminó en 25 segundos. No se llegó a ejecutar connect() ni se generó una solicitud. Revisa el error de inicialización del relay en la consola del navegador.')),25000);})
+    new Promise((_,reject)=>{
+     timer=setTimeout(()=>{
+      reject(new Error(
+       'WalletConnect no respondió en 15 segundos durante la inicialización. Revisa la conexión de red y la configuración de Reown.'
+      ));
+     },15000);
+    })
    ]);
-  } finally { clearTimeout(initTimer); }
-
-  state.ethereumProvider=wc;
-  let uriSeen=false;
-  let openAttempted=false;
-  const openTrustWallet=(uri)=>{
-   if(!uri || openAttempted)return;
-   uriSeen=true;
-   openAttempted=true;
-   const target='https://link.trustwallet.com/wc?uri='+encodeURIComponent(uri);
-   status('Enlace de conexión recibido. Abriendo Trust Wallet…');
-   try {
-    if(window.Telegram?.WebApp && typeof window.Telegram.WebApp.openLink==='function'){
-     window.Telegram.WebApp.openLink(target);
-    } else {
-     // Use the WalletConnect URI from the active click flow to invoke Trust Wallet on Android.
-     window.location.assign(target);
-    }
-   } catch(err) {
-    console.error('[ProEshop WalletConnect] No se pudo abrir Trust Wallet:',err);
-    status('Se recibió el enlace, pero el navegador no pudo abrir Trust Wallet. Copia el enlace o prueba desde Chrome.');
-   }
-  };
-
-  // Attach before connect(): WalletConnect may emit display_uri immediately.
-  if(typeof wc.on==='function'){
-   wc.on('display_uri',(uri)=>{
-    console.info('[ProEshop WalletConnect] display_uri recibido:',!!uri);
-    if(!useSelector && /trust/i.test(name)) openTrustWallet(uri);
-    else if(useSelector) status('WalletConnect generó un enlace. Usa el selector que aparece en pantalla para elegir tu billetera.');
-   });
-   wc.on('connect',()=>console.info('[ProEshop WalletConnect] evento connect recibido'));
-   wc.on('session_event',(event)=>console.info('[ProEshop WalletConnect] session_event recibido',event?.name||''));
-   wc.on('error',(err)=>{console.error('[ProEshop WalletConnect] error del proveedor:',err);status('Error de WalletConnect: '+(err?.message||'revisa la conexión de Reown'));});
+  } finally {
+   clearTimeout(timer);
   }
 
-  status(useSelector?'Abriendo selector WalletConnect…':'Solicitando enlace de conexión a WalletConnect…');
-  let connectTimer;
-  try {
-   await Promise.race([
-    wc.connect(),
-    new Promise((_,reject)=>{connectTimer=setTimeout(()=>{
-     const relay=wc?.signer?.client?.core?.relayer;
-     const relayState=relay ? (relay.connected ? 'conectado' : (relay.connecting ? 'conectando' : 'desconectado')) : 'no disponible';
-     const detail=uriSeen
-      ? 'Se generó el enlace, pero Trust Wallet no autorizó la conexión en 30 segundos.'
-      : 'Diagnóstico WalletConnect: no se generó enlace en 30 segundos. Estado del relay Reown: '+relayState+'. Si está desconectado o conectando, el bloqueo está entre ProEshop y el relay; no en Trust Wallet.';
-     console.error('[ProEshop WalletConnect] timeout', {relayState, providerConnected:wc?.connected, providerConnecting:wc?.connecting});
-     reject(new Error(detail));
-    },30000);})
-   ]);
-  } finally { clearTimeout(connectTimer); }
+  state.ethereumProvider=wc;
+
+  if(!useSelector && /trust/i.test(name)){
+   wc.on('display_uri',uri=>{
+    if(!uri)return;
+
+    const target='https://link.trustwallet.com/wc?uri='+encodeURIComponent(uri);
+    status('Solicitud creada. Abriendo Trust Wallet…');
+
+    try {
+     if(window.Telegram &&
+        window.Telegram.WebApp &&
+        typeof window.Telegram.WebApp.openLink==='function'){
+      window.Telegram.WebApp.openLink(target);
+     } else {
+      window.location.href=target;
+     }
+    } catch(err){
+     console.warn('Trust Wallet deep link:',err);
+     status('No se pudo abrir Trust Wallet automáticamente. Intenta desde su navegador DApp.');
+    }
+   });
+  }
+
+  status('Esperando autorización de la billetera…');
+  await wc.connect();
   await attach(wc,name);
  }
 
@@ -743,7 +758,7 @@ showEmailVerifiedLogin();
    if(injected)await attach(injected,which==='metamask'?'MetaMask':'Trust Wallet');
    else await connectWC(which==='metamask'?'MetaMask':'Trust Wallet', which==='selector');
   }catch(e){
-   console.error('[ProEshop WalletConnect] Falló la conexión:',e);
+   console.warn('Wallet connect:',e);
    if(e&&e.code===4001)status('Conexión cancelada en la billetera.');
    else status((e&&e.message)||'No se pudo completar la conexión. Puedes intentar con el selector WalletConnect.');
   }finally{setBusy(false);}
