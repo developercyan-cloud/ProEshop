@@ -1,19 +1,15 @@
-# ProEshop — corrección completa de compilación WalletConnect
+PROESHOP — conexión WalletConnect directa desde Telegram
 
-El proyecto original no tenía `package.json`, por eso Railway no ejecutaba `npm` ni generaba `static/walletconnect.bundle.js`. Además, `railway.toml` seguía indicando `uvicorn ...`, lo que puede prevalecer sobre el comando de inicio de Nixpacks y explica `uvicorn: command not found`.
+Reemplaza estos archivos respetando las rutas:
+- static/app.js
+- static/index.html
+- package.json
+- nixpacks.toml
+Y agrega en la raíz:
+- walletconnect-entry.js
 
-## Archivos incluidos
-- `package.json` y `walletconnect-entry.js`: añaden el SDK y el comando para compilarlo localmente.
-- `static/walletconnect.bundle.js` NO se incluye; se genera durante el build con `npm run build:wallet`.
-- `static/index.html` y `static/app.js`: cargan el bundle local y usan la función de conexión WalletConnect.
-- `nixpacks.toml`: instala Python/Node, crea `/opt/venv`, instala dependencias y compila WalletConnect.
-- `railway.toml`: corrige el comando de inicio que antes invocaba `uvicorn` fuera del entorno virtual.
+Este parche usa el proveedor WalletConnect empaquetado localmente (no ESM CDN), intenta abrir Trust Wallet con la solicitud wc: y conserva un botón de respaldo “Usar selector WalletConnect”.
 
-## Aplicación
-Copia cada archivo de este ZIP a la raíz del repositorio respetando las rutas y reemplaza los archivos existentes con el mismo nombre. Los archivos de raíz van junto a `main.py` y `requirements.txt`; los dos archivos dentro de `static/` reemplazan los existentes.
+No reemplaces main.py, requirements.txt ni modifiques /data/shopcart.db. Conserva las demás variables de Railway. El comando de inicio se fija en nixpacks.toml para usar el entorno virtual /opt/venv.
 
-Después haz un nuevo despliegue. En Build Logs deberías ver `npm install` y `npm run build:wallet`; el build debe generar `static/walletconnect.bundle.js`.
-
-No reemplaces `main.py`, `requirements.txt`, ni borres o reinicialices el volumen `/data` y la base de datos `/data/shopcart.db`.
-
-No se puede confirmar la conexión real a Trust Wallet hasta que Railway complete el build y se autorice la conexión desde el dispositivo.
+Nota: Android/Telegram/Trust Wallet pueden variar el manejo de enlaces universales. El URI se envía a Trust Wallet, pero la aprobación y retorno deben validarse en el teléfono tras desplegar. El saldo consultado sigue siendo solo lectura.
