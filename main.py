@@ -57,11 +57,11 @@ _SEARCH_CACHE = {}
 @app.middleware("http")
 async def security_and_rate_limit(request: Request, call_next):
     path = request.url.path
-    if path in ("/api/login", "/api/register", "/api/verify-email-code", "/api/email-login", "/api/telegram-login", "/api/search"):
+    if path in ("/api/login", "/api/register", "/api/email-login", "/api/telegram-login", "/api/search"):
         ip = request.client.host if request.client else "unknown"
         key = (ip, path)
         now = time.time()
-        window, limit = (60, 12 if path in ("/api/login", "/api/verify-email-code") else 30)
+        window, limit = (60, 12 if path == "/api/login" else 30)
         hits = [t for t in _RATE_BUCKETS.get(key, []) if now - t < window]
         if len(hits) >= limit:
             return JSONResponse({"detail": "Demasiadas solicitudes. Espera un minuto e inténtalo otra vez."}, status_code=429)
@@ -73,7 +73,7 @@ async def security_and_rate_limit(request: Request, call_next):
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-    response.headers.setdefault("Content-Security-Policy", "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' https://api.telegram.org; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' https://api.telegram.org https://relay.walletconnect.com wss://relay.walletconnect.com https://*.walletconnect.com wss://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.org https://verify.walletconnect.org https://pulse.walletconnect.org https://api.web3modal.org https://rpc.walletconnect.com; frame-src 'self' https://verify.walletconnect.org https://*.walletconnect.com https://*.walletconnect.org; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     if path == "/" or path.startswith("/api/"):
         response.headers.setdefault("Cache-Control", "no-store")
     return response
@@ -112,11 +112,6 @@ def init_db():
           account_id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE, password_hash TEXT NOT NULL,
           verified INTEGER NOT NULL DEFAULT 0, verify_hash TEXT NOT NULL DEFAULT '', verify_expires REAL NOT NULL DEFAULT 0,
           telegram_id TEXT UNIQUE, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS pending_email_registrations(
-          email TEXT PRIMARY KEY COLLATE NOCASE, password_hash TEXT NOT NULL,
-          verify_hash TEXT NOT NULL, verify_expires REAL NOT NULL,
-          attempts INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS telegram_verification_handoffs(
           code_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL, expires_at REAL NOT NULL,
@@ -214,53 +209,6 @@ def init_db():
         cart_columns = {row["name"] for row in db.execute("PRAGMA table_info(carts)").fetchall()}
         if "image" not in cart_columns:
             db.execute("ALTER TABLE carts ADD COLUMN image TEXT NOT NULL DEFAULT ''")
-        # Additive migration for email-code registration; preserve pending rows.
-        pending_columns = {row["name"] for row in db.execute(
-            "PRAGMA table_info(pending_email_registrations)"
-        ).fetchall()}
-        if "verify_hash" not in pending_columns:
-            db.execute("ALTER TABLE pending_email_registrations ADD COLUMN verify_hash TEXT NOT NULL DEFAULT ''")
-            if "code_hash" in pending_columns:
-                db.execute("UPDATE pending_email_registrations SET verify_hash=code_hash WHERE verify_hash=''")
-        # Normalize legacy pending-registration schemas. Earlier versions used
-        # incompatible NOT NULL columns (for example code_hash/account_id) that
-        # cannot be satisfied by the current registration flow. Rebuild ONLY this
-        # temporary table, copying pending rows where possible; all permanent tables
-        # and the Railway volume remain untouched.
-        pending_info = db.execute("PRAGMA table_info(pending_email_registrations)").fetchall()
-        pending_names = {row["name"] for row in pending_info}
-        canonical_names = {"email", "password_hash", "verify_hash", "verify_expires", "attempts", "created_at"}
-        required_legacy = any(row["notnull"] and row["dflt_value"] is None and row["name"] not in canonical_names and not row["pk"] for row in pending_info)
-        if required_legacy or not canonical_names.issubset(pending_names):
-            db.execute("ALTER TABLE pending_email_registrations RENAME TO pending_email_registrations_legacy")
-            db.execute("""CREATE TABLE pending_email_registrations(
-                email TEXT PRIMARY KEY COLLATE NOCASE,
-                password_hash TEXT NOT NULL,
-                verify_hash TEXT NOT NULL,
-                verify_expires REAL NOT NULL,
-                attempts INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL
-            )""")
-            legacy_cols = {row["name"] for row in db.execute("PRAGMA table_info(pending_email_registrations_legacy)").fetchall()}
-            def legacy_expr(candidates, fallback):
-                for candidate in candidates:
-                    if candidate in legacy_cols:
-                        return f'"{candidate}"'
-                return fallback
-            email_expr = legacy_expr(["email"], "NULL")
-            password_expr = legacy_expr(["password_hash"], "NULL")
-            hash_expr = legacy_expr(["verify_hash", "code_hash"], "''")
-            expires_expr = legacy_expr(["verify_expires", "expires_at"], "0")
-            attempts_expr = legacy_expr(["attempts"], "0")
-            created_expr = legacy_expr(["created_at"], "''")
-            # Copy only rows that can be used by the current flow. A legacy code
-            # hash is compatible with the SHA-256 verification scheme.
-            db.execute(f"""INSERT OR REPLACE INTO pending_email_registrations
-                (email,password_hash,verify_hash,verify_expires,attempts,created_at)
-                SELECT {email_expr},{password_expr},{hash_expr},{expires_expr},{attempts_expr},{created_expr}
-                FROM pending_email_registrations_legacy
-                WHERE {email_expr} IS NOT NULL AND {password_expr} IS NOT NULL""")
-            db.execute("DROP TABLE pending_email_registrations_legacy")
         # Additive migrations only: preserve the existing Railway volume and all data.
         order_columns = {row["name"] for row in db.execute("PRAGMA table_info(orders)").fetchall()}
         for column, declaration in {
@@ -788,19 +736,16 @@ def _new_session(identity: str) -> str:
         db.execute("INSERT INTO sessions(token,telegram_id,created_at,active) VALUES(?,?,?,1)", (token, identity, time.time()))
     return token
 
-def _send_verification_code(email: str, code: str):
-    """Send a short-lived numeric verification code using Brevo API or configured SMTP."""
+def _send_verification_email(email: str, verify_url: str):
     if not SMTP_FROM_EMAIL:
         raise RuntimeError("Configura SMTP_FROM_EMAIL para verificar las cuentas por correo.")
-    subject = "Tu código de verificación · ProEshop"
-    text_body = (f"Hola. Tu código para verificar tu correo en ProEshop es: {code}\n\n"
-                 "El código vence en 10 minutos y solo puede utilizarse una vez. "
-                 "Si no solicitaste esta cuenta, ignora este mensaje.")
-    html_body = f"""<!doctype html><html lang='es'><meta charset='utf-8'><body style='font-family:Arial;background:#101429;color:#eef0ff;padding:28px'><div style='max-width:560px;margin:auto;background:#191d38;padding:28px;border-radius:18px'><h1>ProEshop</h1><h2>Tu código de verificación</h2><p>Regresa a ProEshop en Telegram e introduce este código para activar tu cuenta:</p><div style='font-size:34px;letter-spacing:9px;font-weight:bold;background:#101429;color:#fff;text-align:center;padding:18px;border-radius:12px'>{code}</div><p>El código vence en 10 minutos y solo puede utilizarse una vez.</p><p style='color:#b9bdd3'>Si no solicitaste esta cuenta, ignora este mensaje.</p></div></body></html>"""
+    subject = "Verifica tu correo · ProEshop"
+    text_body = f"Hola. Para verificar tu correo en ProEshop, abre este enlace (válido durante 30 minutos):\n\n{verify_url}\n\nSi no solicitaste esta cuenta, ignora este mensaje."
+    html_body = f"""<!doctype html><html lang='es'><meta charset='utf-8'><body style='font-family:Arial;background:#101429;color:#eef0ff;padding:28px'><div style='max-width:560px;margin:auto;background:#191d38;padding:28px;border-radius:18px'><h1>ProEshop</h1><h2>Verifica tu correo</h2><p>Confirma que tienes acceso a esta dirección para activar tu cuenta.</p><p><a style='display:inline-block;background:#8970f5;color:#fff;padding:14px 22px;border-radius:10px;text-decoration:none;font-weight:bold' href='{escape(verify_url, quote=True)}'>Verificar correo</a></p><p>El enlace vence en 30 minutos. Si no solicitaste esta cuenta, ignora este mensaje.</p></div></body></html>"""
     if BREVO_API_KEY:
         with httpx.Client(timeout=12) as client:
             response = client.post("https://api.brevo.com/v3/smtp/email", headers={"api-key": BREVO_API_KEY, "accept":"application/json", "content-type":"application/json"}, json={"sender":{"email":SMTP_FROM_EMAIL,"name":"ProEshop"},"to":[{"email":email}],"subject":subject,"textContent":text_body,"htmlContent":html_body})
-            if response.status_code >= 300: raise RuntimeError("No se pudo enviar el código de verificación.")
+            if response.status_code >= 300: raise RuntimeError("No se pudo enviar el correo de verificación.")
         return
     if not SMTP_HOST: raise RuntimeError("Configura BREVO_API_KEY o SMTP_HOST para enviar verificaciones.")
     msg=EmailMessage(); msg["Subject"]=subject; msg["From"]=f"ProEshop <{SMTP_FROM_EMAIL}>"; msg["To"]=email; msg.set_content(text_body); msg.add_alternative(html_body,subtype="html")
@@ -819,96 +764,21 @@ async def register_account(body: RegisterBody, request: Request):
     email=body.email.strip().lower()
     if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email): raise HTTPException(422,"Introduce un correo válido.")
     if len(body.password)<10 or not re.search(r"[A-Za-z]",body.password) or not re.search(r"\d",body.password): raise HTTPException(422,"La contraseña debe tener al menos 10 caracteres e incluir letras y números.")
-    code=f"{secrets.randbelow(1_000_000):06d}"
-    code_hash=hashlib.sha256(code.encode()).hexdigest()
-    expires=time.time()+600
-    with conn() as db:
-        exists=db.execute("SELECT 1 FROM email_accounts WHERE email=? COLLATE NOCASE",(email,)).fetchone()
-        if exists:
-            raise HTTPException(409,"Ya existe una cuenta con ese correo. Inicia sesión o recupera tu acceso.")
-        # Replacing a pending attempt is safe: pending registrations are not user accounts.
-        db.execute("DELETE FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,))
-        # Backward-compatible insert: older Railway databases may still have a
-        # required code_hash column, while newer schema versions use verify_hash.
-        pending_columns = {row["name"] for row in db.execute(
-            "PRAGMA table_info(pending_email_registrations)"
-        ).fetchall()}
-        pending_values = {
-            "email": email,
-            "password_hash": _password_hash(body.password),
-            "code_hash": code_hash,
-            "verify_hash": code_hash,
-            "verify_expires": expires,
-            "attempts": 0,
-            "created_at": now_iso(),
-        }
-        insert_columns = [name for name in pending_values if name in pending_columns]
-        required_missing = [
-            row["name"] for row in db.execute(
-                "PRAGMA table_info(pending_email_registrations)"
-            ).fetchall()
-            if row["notnull"] and row["dflt_value"] is None
-            and row["name"] not in insert_columns and not row["pk"]
-        ]
-        if required_missing:
-            raise HTTPException(500, "La tabla de registros pendientes tiene un esquema incompatible. Contacta al administrador.")
-        sql_columns = ",".join(f'"{name}"' for name in insert_columns)
-        placeholders = ",".join("?" for _ in insert_columns)
-        db.execute(
-            f"INSERT INTO pending_email_registrations({sql_columns}) VALUES({placeholders})",
-            [pending_values[name] for name in insert_columns],
-        )
+    account_id="email:"+secrets.token_urlsafe(18)
+    raw=secrets.token_urlsafe(32); token_hash=hashlib.sha256(raw.encode()).hexdigest(); expires=time.time()+1800
     try:
-        _send_verification_code(email,code)
+        with conn() as db:
+            db.execute("INSERT INTO email_accounts(account_id,email,password_hash,verified,verify_hash,verify_expires,created_at,updated_at) VALUES(?,?,?,0,?,?,?,?)",(account_id,email,_password_hash(body.password),token_hash,expires,now_iso(),now_iso()))
+    except sqlite3.IntegrityError:
+        raise HTTPException(409,"Ya existe una cuenta con ese correo. Inicia sesión o recupera tu acceso.")
+    verify_url=f"{PUBLIC_BASE_URL or str(request.base_url).rstrip('/')}/api/verify-email?token={quote_plus(raw)}"
+    try: _send_verification_email(email,verify_url)
     except Exception as exc:
-        with conn() as db: db.execute("DELETE FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,))
-        log.warning("No se pudo enviar código de verificación: %s",str(exc)[:180])
-        raise HTTPException(503,"No pudimos enviar el código. Revisa la configuración de correo en Railway e inténtalo de nuevo.")
-    audit("pending:"+hashlib.sha256(email.encode()).hexdigest()[:16],"register_pending","Código de verificación enviado; la cuenta aún no ha sido creada")
-    return {"ok":True,"message":"Te enviamos un código de verificación de 6 dígitos. La cuenta se creará únicamente si el código es correcto.","email":email}
-
-
-@app.post("/api/verify-email-code")
-async def verify_email_code(body: dict):
-    email=str(body.get("email", "")).strip().lower()
-    code=str(body.get("code", "")).strip()
-    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email) or not re.fullmatch(r"\d{6}", code):
-        raise HTTPException(400,"Introduce el correo y el código de 6 dígitos.")
-    code_hash=hashlib.sha256(code.encode()).hexdigest()
-    pending_error=None
-    account_id=None
-    with conn() as db:
-        row=db.execute("SELECT * FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,)).fetchone()
-        if not row:
-            pending_error=(400,"No hay un registro pendiente para ese correo. Vuelve a registrarte.")
-        elif float(row["verify_expires"] or 0) <= time.time():
-            db.execute("DELETE FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,))
-            pending_error=(400,"El código venció. Vuelve a registrarte para recibir uno nuevo.")
-        elif int(row["attempts"] or 0) >= 5:
-            db.execute("DELETE FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,))
-            pending_error=(429,"Se agotaron los intentos. Vuelve a registrarte para recibir un nuevo código.")
-        elif not hmac.compare_digest(str(row["verify_hash"] or ""),code_hash):
-            attempts=int(row["attempts"] or 0)+1
-            if attempts >= 5:
-                db.execute("DELETE FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,))
-                pending_error=(429,"El código no es correcto y se agotaron los intentos. Vuelve a registrarte.")
-            else:
-                db.execute("UPDATE pending_email_registrations SET attempts=? WHERE email=? COLLATE NOCASE",(attempts,email))
-                pending_error=(400,f"El código no es correcto. Te quedan {5-attempts} intentos.")
-        else:
-            account_id="email:"+secrets.token_urlsafe(18)
-            timestamp=now_iso()
-            # Only now, after a valid code, create the actual email account.
-            db.execute("INSERT INTO email_accounts(account_id,email,password_hash,verified,verify_hash,verify_expires,created_at,updated_at) VALUES(?,?,?,1,'',0,?,?)",
-                       (account_id,email,row["password_hash"],timestamp,timestamp))
-            db.execute("DELETE FROM pending_email_registrations WHERE email=? COLLATE NOCASE",(email,))
-    # Raise only after leaving the transaction so attempt counters / expiry cleanup commit.
-    if pending_error:
-        raise HTTPException(pending_error[0],pending_error[1])
-    identity=account_id
-    token=_new_session(identity)
-    audit(identity,"email_verified","Cuenta creada tras verificar el código; sesión iniciada automáticamente")
-    return {"ok":True,"token":token,"username":email.split('@')[0],"email":email,"account_type":"email","message":"Registro exitoso. Tu cuenta fue creada y tu sesión está iniciada."}
+        with conn() as db: db.execute("DELETE FROM email_accounts WHERE account_id=? AND verified=0",(account_id,))
+        log.warning("No se pudo enviar verificación: %s",str(exc)[:180])
+        raise HTTPException(503,"No pudimos enviar el correo. Revisa la configuración de correo en Railway e inténtalo de nuevo.")
+    audit(account_id,"register","Cuenta creada; verificación pendiente")
+    return {"ok":True,"message":"Te enviamos un enlace de verificación. Revisa tu correo; el enlace vence en 30 minutos."}
 
 @app.get("/api/verify-email", response_class=HTMLResponse)
 async def verify_email(token: str):
