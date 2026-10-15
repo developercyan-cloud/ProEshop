@@ -691,6 +691,7 @@ showEmailVerifiedLogin();
    });
    wc.on('connect',()=>console.info('[ProEshop WalletConnect] evento connect recibido'));
    wc.on('session_event',(event)=>console.info('[ProEshop WalletConnect] session_event recibido',event?.name||''));
+   wc.on('error',(err)=>{console.error('[ProEshop WalletConnect] error del proveedor:',err);status('Error de WalletConnect: '+(err?.message||'revisa la conexión de Reown'));});
   }
 
   status(useSelector?'Abriendo selector WalletConnect…':'Solicitando enlace de conexión a WalletConnect…');
@@ -699,9 +700,12 @@ showEmailVerifiedLogin();
    await Promise.race([
     wc.connect(),
     new Promise((_,reject)=>{connectTimer=setTimeout(()=>{
+     const relay=wc?.signer?.client?.core?.relayer;
+     const relayState=relay ? (relay.connected ? 'conectado' : (relay.connecting ? 'conectando' : 'desconectado')) : 'no disponible';
      const detail=uriSeen
       ? 'Se generó el enlace, pero Trust Wallet no autorizó la conexión en 30 segundos.'
-      : 'WalletConnect no generó el enlace de conexión en 30 segundos. No llegó ninguna solicitud a Trust Wallet; revisa la conexión de Reown.';
+      : 'Diagnóstico WalletConnect: no se generó enlace en 30 segundos. Estado del relay Reown: '+relayState+'. Si está desconectado o conectando, el bloqueo está entre ProEshop y el relay; no en Trust Wallet.';
+     console.error('[ProEshop WalletConnect] timeout', {relayState, providerConnected:wc?.connected, providerConnecting:wc?.connecting});
      reject(new Error(detail));
     },30000);})
    ]);
