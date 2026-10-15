@@ -649,14 +649,15 @@ showEmailVerifiedLogin();
    wc = await Promise.race([
     EthereumProvider.init({
      projectId:PROJECT_ID,
-     chains:[1,56,137],
+     // Use the current optional-chain configuration; this app only reads balances.
      optionalChains:[1,56,137],
      showQrModal:!!useSelector,
-     methods:['eth_sendTransaction','personal_sign','eth_signTypedData','eth_signTypedData_v4','eth_accounts','eth_chainId','eth_call'],
-     events:['chainChanged','accountsChanged'],
+     optionalMethods:['eth_accounts','eth_requestAccounts','eth_chainId','eth_call'],
+     optionalEvents:['chainChanged','accountsChanged'],
+     relayUrl:'wss://relay.walletconnect.com',
      metadata:{name:'ProEshop',description:'Consulta de saldo USDT',url:location.origin,icons:[]}
     }),
-    new Promise((_,reject)=>{initTimer=setTimeout(()=>reject(new Error('La inicialización de WalletConnect agotó 20 segundos. No se recibió respuesta de Reown.')),20000);})
+    new Promise((_,reject)=>{initTimer=setTimeout(()=>reject(new Error('La inicialización del SDK WalletConnect no terminó en 25 segundos. No se llegó a ejecutar connect() ni se generó una solicitud. Revisa el error de inicialización del relay en la consola del navegador.')),25000);})
    ]);
   } finally { clearTimeout(initTimer); }
 
