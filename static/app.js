@@ -693,6 +693,17 @@ showEmailVerifiedLogin();
  document.addEventListener('DOMContentLoaded',()=>{
   $w('connectMetaMask')?.addEventListener('click',()=>runConnect('metamask'));
   $w('connectTrustWallet')?.addEventListener('click',()=>runConnect('trustwallet'));
+  $w('openTrustWalletDapp')?.addEventListener('click',()=>{
+   // Trust Wallet's HTTPS universal link avoids custom URL schemes inside Telegram.
+   const target=window.location.href.split('#')[0];
+   const link='https://link.trustwallet.com/open_url?coin_id=60&url='+encodeURIComponent(target);
+   status('Abriendo ProEshop en el navegador de Trust Wallet. Si no vuelve automáticamente, conecta allí y actualiza esta página.');
+   try{
+    const tg=window.Telegram&&window.Telegram.WebApp;
+    if(tg&&typeof tg.openLink==='function')tg.openLink(link);
+    else window.open(link,'_blank','noopener,noreferrer');
+   }catch(err){status('No se pudo abrir Trust Wallet. Copia y abre este enlace en Trust Wallet: '+link);}
+  });
   $w('refreshWalletBalance')?.addEventListener('click',async()=>{try{await balance()}catch(e){status('Error al actualizar: '+e.message)}});
   $w('disconnectWallet')?.addEventListener('click',()=>disconnect(true));
  });
