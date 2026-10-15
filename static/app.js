@@ -598,8 +598,11 @@ showEmailVerifiedLogin();
   // Las lecturas de Ethereum (chainId 1) se consultan en la Virtual TestNet
   // configurada por el usuario en Tenderly. Otras redes mantienen su RPC anterior.
   // No se envían firmas ni transacciones: este método solo consulta estado on-chain.
+  // Ethereum reads go through ProEshop's same-origin backend to avoid CORS
+  // restrictions in Telegram's Android WebView. The backend only permits
+  // read-only eth_call requests to the configured USDT contract.
   const url=Number(chainId)===1
-   ? 'https://virtual.mainnet.eu.rpc.tenderly.co/devkrost/project/14c7dc'
+   ? '/api/tenderly-rpc'
    : 'https://rpc.walletconnect.com/v1/?chainId='+encodeURIComponent('eip155:'+chainId)+'&projectId='+encodeURIComponent(PROJECT_ID);
   const response=await fetch(url,{
    method:'POST',
