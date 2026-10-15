@@ -587,7 +587,7 @@ showEmailVerifiedLogin();
  function status(t){const e=$w('walletConnectStatus');if(e)e.textContent=t;}
  function fmt(n){return Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:6})}
  function short(a){return a?a.slice(0,6)+'…'+a.slice(-4):'Sin conectar'}
- function setBusy(b){state.connecting=b;['connectMetaMask','connectTrustWallet','connectWalletSelector'].forEach(id=>{const e=$w(id);if(e)e.disabled=b});}
+ function setBusy(b){state.connecting=b;['connectMetaMask','connectTrustWallet'].forEach(id=>{const e=$w(id);if(e)e.disabled=b});}
  function renderConnected(){
   window.proEshopWalletConnected=true;
   $w('walletAddressShort').textContent=short(state.address);
@@ -713,7 +713,6 @@ showEmailVerifiedLogin();
   await wc.connect();
   await attach(wc,name);
  }
-
  function findInjectedProvider(which){
   const providers=[];
   if(window.ethereum){
@@ -741,17 +740,16 @@ showEmailVerifiedLogin();
   try{
    const injected=findInjectedProvider(which);
    if(injected)await attach(injected,which==='metamask'?'MetaMask':'Trust Wallet');
-   else await connectWC(which==='metamask'?'MetaMask':'Trust Wallet', which==='selector');
+   else await connectWC(which==='metamask'?'MetaMask':'Trust Wallet');
   }catch(e){
    console.warn('Wallet connect:',e);
    if(e&&e.code===4001)status('Conexión cancelada en la billetera.');
-   else status((e&&e.message)||'No se pudo completar la conexión. Puedes intentar con el selector WalletConnect.');
+   else status((e&&e.message)||'No se pudo conectar. Abre ProEshop desde el navegador DApp de la billetera e inténtalo de nuevo.');
   }finally{setBusy(false);}
  }
  document.addEventListener('DOMContentLoaded',()=>{
   $w('connectMetaMask')?.addEventListener('click',()=>runConnect('metamask'));
   $w('connectTrustWallet')?.addEventListener('click',()=>runConnect('trustwallet'));
-  $w('connectWalletSelector')?.addEventListener('click',()=>runConnect('selector'));
   $w('refreshWalletBalance')?.addEventListener('click',async()=>{try{await balance()}catch(e){status('Error al actualizar: '+e.message)}});
   $w('disconnectWallet')?.addEventListener('click',()=>disconnect(true));
  });
