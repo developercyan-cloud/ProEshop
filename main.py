@@ -122,7 +122,7 @@ _SEARCH_CACHE = {}
 @app.middleware("http")
 async def security_and_rate_limit(request: Request, call_next):
     path = request.url.path
-    if path in ("/api/login", "/api/register", "/api/email-login", "/api/telegram-login", "/api/search", "/api/tenderly-rpc", "/api/tenderly/diagnostic-balance"):
+    if path in ("/api/login", "/api/register", "/api/email-login", "/api/telegram-login", "/api/search", "/api/tenderly-rpc", "/api/tenderly/diagnostic-balance", "/api/tenderly/diagnostic-full"):
         ip = request.client.host if request.client else "unknown"
         key = (ip, path)
         now = time.time()
@@ -1940,6 +1940,48 @@ async def tenderly_diagnostic_balance(address: str, block_number: str = "latest"
         "block_hash": block["hash"],
         "network": "Tenderly Virtual TestNet",
     }
+
+
+@app.get("/api/tenderly/diagnostic-full")
+async def tenderly_diagnostic_full(address: str, recipient: str, amount_raw: str, block_number: str):
+    """Comprehensive read-only preflight comparing wallet state to configured Tenderly RPC."""
+    if not re.fullmatch(r"0x[a-fA-F0-9]{40}", address or ""):
+        raise HTTPException(400, "Dirección emisora inválida.")
+    if not re.fullmatch(r"0x[a-fA-F0-9]{40}", recipient or ""):
+        raise HTTPException(400, "Dirección receptora inválida.")
+    if recipient.lower() != TENDERLY_USDT_RECEIVING_ADDRESS.lower():
+        raise HTTPException(400, "La dirección receptora del pedido no coincide con la configurada en Tenderly.")
+    if not re.fullmatch(r"0x[0-9a-fA-F]+", block_number or ""):
+        raise HTTPException(400, "Número de bloque inválido.")
+    if not re.fullmatch(r"[0-9]+", amount_raw or "") or int(amount_raw) <= 0 or int(amount_raw) >= 2**256:
+        raise HTTPException(400, "Importe raw inválido.")
+    token = TENDERLY_USDT_CONTRACT
+    transfer_data = "0xa9059cbb" + recipient[2:].lower().rjust(64, "0") + format(int(amount_raw), "064x")
+    balance_data = "0x70a08231" + address[2:].lower().rjust(64, "0")
+    tx = {"from": address, "to": token, "data": transfer_data, "value": "0x0"}
+
+    async def probe(method, params):
+        try:
+            return {"ok": True, "result": await _tenderly_rpc(method, params)}
+        except Exception as exc:
+            detail = getattr(exc, "detail", None) or str(exc) or type(exc).__name__
+            return {"ok": False, "error": str(detail)[:300], "code": getattr(exc, "status_code", None)}
+
+    names = ["chain_id", "block", "native_balance", "token_balance", "token_code", "transfer_call", "estimate_gas", "gas_price"]
+    values = await asyncio.gather(
+        probe("eth_chainId", []),
+        probe("eth_getBlockByNumber", [block_number, False]),
+        probe("eth_getBalance", [address, block_number]),
+        probe("eth_call", [{"to": token, "data": balance_data}, block_number]),
+        probe("eth_getCode", [token, block_number]),
+        probe("eth_call", [tx, block_number]),
+        probe("eth_estimateGas", [tx]),
+        probe("eth_gasPrice", []),
+    )
+    out = dict(zip(names, values))
+    out.update({"address": address.lower(), "recipient": recipient.lower(), "token_contract": token,
+                "amount_raw": amount_raw, "requested_block": block_number, "network": "Tenderly Virtual TestNet"})
+    return out
 
 
 @app.get("/api/tenderly/network-check")
