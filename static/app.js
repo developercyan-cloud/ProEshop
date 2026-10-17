@@ -594,7 +594,7 @@ showEmailVerifiedLogin();
  function fmt(n){return Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:6})}
  function short(a){return a?a.slice(0,6)+'…'+a.slice(-4):'Sin conectar'}
  let pendingWalletUri='';
- function setBusy(b){state.connecting=b;['connectWalletSelector','walletMetaMaskChoice','walletTrustChoice','walletCopyUri'].forEach(id=>{const e=$w(id);if(e)e.disabled=b});}
+ function setBusy(b){state.connecting=b;['connectMetaMask','connectTrustWallet','connectWalletSelector','walletMetaMaskChoice','walletTrustChoice','walletCopyUri'].forEach(id=>{const e=$w(id);if(e)e.disabled=b});}
  function renderConnected(){
   window.proEshopWalletConnected=true;
   window.proEshopWalletProvider=state.provider;
@@ -745,6 +745,9 @@ showEmailVerifiedLogin();
   if(d?.open && typeof d.close==='function')d.close();else d?.removeAttribute('open');
  }
  document.addEventListener('DOMContentLoaded',()=>{
+  // Keep the two direct wallet actions and the universal WalletConnect selector wired.
+  $w('connectMetaMask')?.addEventListener('click',()=>runConnect('metamask'));
+  $w('connectTrustWallet')?.addEventListener('click',()=>runConnect('trustwallet'));
   $w('connectWalletSelector')?.addEventListener('click',openWalletDialog);
   $w('walletMetaMaskChoice')?.addEventListener('click',()=>{closeWalletDialog();runConnect('metamask')});
   $w('walletTrustChoice')?.addEventListener('click',()=>{closeWalletDialog();runConnect('trustwallet')});
