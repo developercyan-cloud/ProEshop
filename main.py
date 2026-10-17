@@ -122,7 +122,7 @@ _SEARCH_CACHE = {}
 @app.middleware("http")
 async def security_and_rate_limit(request: Request, call_next):
     path = request.url.path
-    if path in ("/api/login", "/api/register", "/api/email-login", "/api/telegram-login", "/api/search", "/api/tenderly-rpc"):
+    if path in ("/api/login", "/api/register", "/api/email-login", "/api/telegram-login", "/api/search", "/api/tenderly-rpc", "/api/tenderly/diagnostic-balance"):
         ip = request.client.host if request.client else "unknown"
         key = (ip, path)
         now = time.time()
@@ -1908,6 +1908,38 @@ async def _tenderly_rpc(method: str, params: list):
     if not isinstance(payload, dict) or payload.get("error"):
         raise HTTPException(502, "Tenderly devolvió un error al verificar la transacción.")
     return payload.get("result")
+
+
+@app.get("/api/tenderly/diagnostic-balance")
+async def tenderly_diagnostic_balance(address: str, block_number: str = "latest"):
+    """Read-only diagnostic: compare one wallet's native ETH balance against Tenderly RPC at the same block."""
+    if not re.fullmatch(r"0x[a-fA-F0-9]{40}", address or ""):
+        raise HTTPException(400, "La dirección de wallet no tiene un formato válido.")
+    if block_number != "latest" and not re.fullmatch(r"0x[0-9a-fA-F]+", block_number):
+        raise HTTPException(400, "El número de bloque para el diagnóstico no es válido.")
+    chain_hex, balance_hex, block = await asyncio.gather(
+        _tenderly_rpc("eth_chainId", []),
+        _tenderly_rpc("eth_getBalance", [address, block_number]),
+        _tenderly_rpc("eth_getBlockByNumber", [block_number, False]),
+    )
+    try:
+        chain_id = int(str(chain_hex), 16)
+        balance_wei = int(str(balance_hex), 16)
+    except (TypeError, ValueError):
+        raise HTTPException(502, "Tenderly devolvió datos no válidos para el diagnóstico de saldo.")
+    if not isinstance(block, dict) or not block.get("number") or not block.get("hash"):
+        raise HTTPException(502, "Tenderly no devolvió un bloque válido para el diagnóstico.")
+    # Decimal string avoids JSON number precision loss in the browser.
+    balance_eth = str(Decimal(balance_wei) / Decimal(10**18))
+    return {
+        "address": address.lower(),
+        "chain_id": chain_id,
+        "balance_wei": str(balance_wei),
+        "balance_eth": balance_eth,
+        "block_number": block["number"],
+        "block_hash": block["hash"],
+        "network": "Tenderly Virtual TestNet",
+    }
 
 
 @app.get("/api/tenderly/network-check")
