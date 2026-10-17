@@ -2084,7 +2084,7 @@ async def tenderly_wallet_link(body: TenderlyWalletLinkBody, request: Request):
 
 @app.post("/api/tenderly-payment/{order_ref}/execute")
 async def execute_tenderly_payment(order_ref: str, body: TenderlyExecuteBody, request: Request):
-    """Execute a test-only ERC-20 transfer by impersonating the previously verified wallet on Tenderly Admin RPC."""
+    """Execute a test-only ERC-20 transfer with Tenderly Virtual TestNet's tenderly_sendTransaction RPC."""
     tg_id = get_auth(request)
     wallet = body.wallet_address.lower()
     if not TENDERLY_VIRTUAL_TESTNET_ADMIN_RPC:
@@ -2117,20 +2117,20 @@ async def execute_tenderly_payment(order_ref: str, body: TenderlyExecuteBody, re
         admin_block = await _tenderly_admin_rpc("eth_getBlockByNumber", [expected["block_number"], False])
         if not admin_block or str(admin_block.get("hash","")).lower() != str(expected["block_hash"]).lower():
             raise HTTPException(503, "El Admin RPC no coincide con el mismo fork de Tenderly. No se envió ninguna transferencia.")
-        # Tenderly's privileged impersonation is intentionally restricted to the Virtual TestNet Admin RPC.
-        try:
-            await _tenderly_admin_rpc("tenderly_impersonateAccount", [wallet])
-        except HTTPException:
-            await _tenderly_admin_rpc("tenderly_impersonateAccount", [[wallet]])
+        # Use the Tenderly Virtual TestNet method visible in this project's RPC Builder.
+        # This is test-only execution on the configured fork; never route it to a production RPC.
         expected_to = payment["receiving_address"].lower()
         if expected_to != TENDERLY_USDT_RECEIVING_ADDRESS.lower():
             raise HTTPException(409, "El destinatario del pedido no coincide con la dirección configurada en Tenderly.")
         amount_raw = int((Decimal(payment["requested_amount"]) * Decimal(10**6)).to_integral_exact())
         calldata = "0xa9059cbb" + expected_to.removeprefix("0x").rjust(64,"0") + format(amount_raw,"064x")
-        tx = {"from":wallet,"to":TENDERLY_USDT_CONTRACT,"data":calldata,"value":"0x0","gas":"0x186a0"}
-        tx_hash = await _tenderly_admin_rpc("eth_sendTransaction", [tx])
+        tx = {"from":wallet,"to":TENDERLY_USDT_CONTRACT,"data":calldata,"value":"0x0","gas":"0x186a0","gasPrice":"0x0"}
+        # tenderly_sendTransaction accepts [transaction, state overrides, block overrides].
+        result = await _tenderly_admin_rpc("tenderly_sendTransaction", [tx, {}, {}])
+        tx_hash = result.get("transactionHash") if isinstance(result, dict) else result
         if not isinstance(tx_hash,str) or not re.fullmatch(r"0x[0-9a-fA-F]{64}",tx_hash):
-            raise HTTPException(502, "Tenderly no devolvió un hash de transacción válido.")
+            log.warning("Tenderly sendTransaction returned unexpected result type=%s", type(result).__name__)
+            raise HTTPException(502, "Tenderly no devolvió un hash de transacción válido; no se marcará el pedido como pagado.")
         with conn() as db:
             db.execute("UPDATE tenderly_payments SET status='pending',tx_hash=?,wallet_address=?,updated_at=? WHERE order_ref=? AND status='submitting'", (tx_hash.lower(),wallet,now_iso(),order_ref))
         audit(tg_id,"tenderly_test_payment_submitted",f"order={order_ref}; wallet={wallet}; tx={tx_hash.lower()}; amount={payment['requested_amount']}")
