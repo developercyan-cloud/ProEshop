@@ -13,6 +13,8 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+from eth_account import Account
+from eth_account.messages import encode_defunct
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -51,6 +53,8 @@ _tenderly_monitor_task = None
 # Tenderly Virtual TestNet: configure the RPC URL in Railway Variables.
 # Do not place private keys or wallet secrets here; this endpoint is read-only.
 TENDERLY_VIRTUAL_TESTNET_RPC = os.getenv("TENDERLY_VIRTUAL_TESTNET_RPC", "").strip()
+# Admin RPC is server-only and enables account impersonation on Tenderly Virtual TestNet. Never expose it to browsers.
+TENDERLY_VIRTUAL_TESTNET_ADMIN_RPC = os.getenv("TENDERLY_VIRTUAL_TESTNET_ADMIN_RPC", "").strip()
 TENDERLY_USDT_CONTRACT = "0xdAC17F958D2ee523a2206206994597C13D831ec7".lower()
 TENDERLY_USDT_RECEIVING_ADDRESS = os.getenv("TENDERLY_USDT_RECEIVING_ADDRESS", "").strip()
 
@@ -220,6 +224,13 @@ def init_db():
           FOREIGN KEY(order_ref) REFERENCES orders(order_ref) ON DELETE CASCADE
         );
         CREATE INDEX IF NOT EXISTS idx_tenderly_payments_status ON tenderly_payments(status, created_at);
+        CREATE TABLE IF NOT EXISTS tenderly_wallet_links(
+          telegram_id TEXT PRIMARY KEY, wallet_address TEXT NOT NULL, verified_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS tenderly_wallet_challenges(
+          nonce TEXT PRIMARY KEY, telegram_id TEXT NOT NULL, wallet_address TEXT NOT NULL,
+          message TEXT NOT NULL, expires_at REAL NOT NULL, used INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS store_orders(
           store_order_ref TEXT PRIMARY KEY, order_ref TEXT NOT NULL, platform TEXT NOT NULL,
           store_label TEXT NOT NULL, subtotal TEXT NOT NULL, tax TEXT NOT NULL,
@@ -603,6 +614,16 @@ class TenderlyVerifyBody(BaseModel):
     tx_hash: str = Field(min_length=66, max_length=66, pattern=r"^0x[0-9a-fA-F]{64}$")
     wallet_address: str = Field(min_length=42, max_length=42, pattern=r"^0x[0-9a-fA-F]{40}$")
 
+class TenderlyWalletBody(BaseModel):
+    wallet_address: str = Field(min_length=42, max_length=42, pattern=r"^0x[0-9a-fA-F]{40}$")
+
+class TenderlyWalletLinkBody(TenderlyWalletBody):
+    nonce: str = Field(min_length=32, max_length=128)
+    signature: str = Field(min_length=132, max_length=132, pattern=r"^0x[0-9a-fA-F]{130}$")
+
+class TenderlyExecuteBody(TenderlyWalletBody):
+    pass
+
 
 class CheckoutBody(BaseModel):
     # These are explicitly demo-only details; never collect card or bank credentials.
@@ -738,7 +759,7 @@ async def tenderly_payment_monitor():
     while True:
         try:
             with conn() as db:
-                refs = [r[0] for r in db.execute("SELECT order_ref FROM tenderly_payments WHERE status='pending' AND created_at<=? LIMIT 200", ((datetime.now(timezone.utc)-timedelta(minutes=5)).isoformat(timespec='seconds'),)).fetchall()]
+                refs = [r[0] for r in db.execute("SELECT order_ref FROM tenderly_payments WHERE status IN ('pending','submitting') AND created_at<=? LIMIT 200", ((datetime.now(timezone.utc)-timedelta(minutes=5)).isoformat(timespec='seconds'),)).fetchall()]
             for ref in refs:
                 _expire_tenderly_order(ref)
         except asyncio.CancelledError:
@@ -2004,17 +2025,133 @@ async def tenderly_network_check():
     return {"chain_id": chain_id, "block_number": block["number"], "block_hash": block["hash"], "token_contract": TENDERLY_USDT_CONTRACT, "receiving_address": TENDERLY_USDT_RECEIVING_ADDRESS, "network": "Tenderly Virtual TestNet"}
 
 
+async def _tenderly_admin_rpc(method: str, params: list):
+    """Privileged RPC helper. Only called server-side for the configured Tenderly Virtual TestNet admin endpoint."""
+    if not TENDERLY_VIRTUAL_TESTNET_ADMIN_RPC:
+        raise HTTPException(503, "Falta TENDERLY_VIRTUAL_TESTNET_ADMIN_RPC en Railway. Configura el Admin RPC de la Virtual TestNet; no uses el RPC público aquí.")
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.post(TENDERLY_VIRTUAL_TESTNET_ADMIN_RPC, json={"jsonrpc":"2.0","id":1,"method":method,"params":params})
+        payload = response.json()
+    except Exception as exc:
+        log.warning("Tenderly Admin RPC %s failed: %s", method, type(exc).__name__)
+        raise HTTPException(502, "No se pudo comunicar con el Admin RPC de Tenderly.")
+    if response.status_code >= 400 or not isinstance(payload, dict) or payload.get("error"):
+        detail = payload.get("error", {}).get("message", "RPC rechazó la operación") if isinstance(payload, dict) else "respuesta inválida"
+        raise HTTPException(502, f"Tenderly Admin RPC rechazó {method}: {str(detail)[:180]}")
+    return payload.get("result")
+
+
+@app.post("/api/tenderly-wallet/challenge")
+async def tenderly_wallet_challenge(body: TenderlyWalletBody, request: Request):
+    """Create a one-time wallet-ownership challenge. This is a message signature, not a transaction."""
+    tg_id = get_auth(request)
+    wallet = body.wallet_address.lower()
+    with conn() as db:
+        linked = db.execute("SELECT wallet_address FROM tenderly_wallet_links WHERE telegram_id=?", (tg_id,)).fetchone()
+        if linked and linked["wallet_address"].lower() == wallet:
+            return {"linked": True, "wallet_address": wallet}
+        nonce = secrets.token_urlsafe(32)
+        message = ("ProEshop — vinculación de wallet para Tenderly Virtual TestNet\n"
+                   f"Cuenta ProEshop: {tg_id}\nWallet: {wallet}\nNonce: {nonce}\n"
+                   "Esta firma solo verifica la propiedad de la wallet. No autoriza transferencias ni tiene efecto en Ethereum Mainnet.")
+        db.execute("INSERT INTO tenderly_wallet_challenges(nonce,telegram_id,wallet_address,message,expires_at,used,created_at) VALUES(?,?,?,?,?,0,?)",
+                   (nonce,tg_id,wallet,message,time.time()+300,now_iso()))
+    return {"linked": False, "nonce": nonce, "message": message}
+
+
+@app.post("/api/tenderly-wallet/link")
+async def tenderly_wallet_link(body: TenderlyWalletLinkBody, request: Request):
+    tg_id = get_auth(request)
+    wallet = body.wallet_address.lower()
+    with conn() as db:
+        challenge = db.execute("SELECT * FROM tenderly_wallet_challenges WHERE nonce=? AND telegram_id=? AND wallet_address=? AND used=0",
+                               (body.nonce,tg_id,wallet)).fetchone()
+        if not challenge or float(challenge["expires_at"]) < time.time():
+            raise HTTPException(400, "La solicitud de vinculación venció. Inténtalo de nuevo.")
+        try:
+            recovered = Account.recover_message(encode_defunct(text=challenge["message"]), signature=body.signature).lower()
+        except Exception:
+            raise HTTPException(400, "La firma de la wallet no es válida.")
+        if recovered != wallet:
+            raise HTTPException(400, "La firma no corresponde a la dirección de wallet indicada.")
+        db.execute("UPDATE tenderly_wallet_challenges SET used=1 WHERE nonce=?", (body.nonce,))
+        db.execute("INSERT INTO tenderly_wallet_links(telegram_id,wallet_address,verified_at) VALUES(?,?,?) ON CONFLICT(telegram_id) DO UPDATE SET wallet_address=excluded.wallet_address,verified_at=excluded.verified_at",
+                   (tg_id,wallet,now_iso()))
+    audit(tg_id,"tenderly_wallet_linked",f"wallet={wallet}")
+    return {"ok": True, "wallet_address": wallet, "message": "Wallet vinculada. Para futuros pagos de prueba no se solicitará una firma de transacción a MetaMask."}
+
+
+@app.post("/api/tenderly-payment/{order_ref}/execute")
+async def execute_tenderly_payment(order_ref: str, body: TenderlyExecuteBody, request: Request):
+    """Execute a test-only ERC-20 transfer by impersonating the previously verified wallet on Tenderly Admin RPC."""
+    tg_id = get_auth(request)
+    wallet = body.wallet_address.lower()
+    if not TENDERLY_VIRTUAL_TESTNET_ADMIN_RPC:
+        raise HTTPException(503, "Configura TENDERLY_VIRTUAL_TESTNET_ADMIN_RPC en Railway para pagos sin firma de transacción. No uses este flujo para Mainnet.")
+    with conn() as db:
+        link = db.execute("SELECT wallet_address FROM tenderly_wallet_links WHERE telegram_id=?", (tg_id,)).fetchone()
+        payment = db.execute("SELECT tp.*,o.telegram_id,o.total,o.currency,o.status AS order_status FROM tenderly_payments tp JOIN orders o ON o.order_ref=tp.order_ref WHERE tp.order_ref=? AND o.telegram_id=?", (order_ref,tg_id)).fetchone()
+        if not link or link["wallet_address"].lower() != wallet:
+            raise HTTPException(403, "Vincula primero esta wallet con una firma de mensaje. No se requieren firmas de transacción por pedido.")
+        if not payment:
+            raise HTTPException(404, "No se encontró el pago Tenderly de este pedido.")
+        if payment["status"] == "detected" and payment["tx_hash"]:
+            return {"ok": True, "tx_hash": payment["tx_hash"], "status": "detected"}
+        if payment["status"] != "pending" or payment["order_status"] != "pending_payment":
+            raise HTTPException(409, "El pedido ya no está pendiente de pago.")
+        if time.time() > _payment_deadline_seconds(payment["created_at"]):
+            _expire_tenderly_order(order_ref)
+            raise HTTPException(410, "La cotización venció. El pedido fue cancelado.")
+        if payment["tx_hash"]:
+            return {"ok": True, "tx_hash": payment["tx_hash"], "status": "submitted"}
+        changed = db.execute("UPDATE tenderly_payments SET status='submitting',wallet_address=?,updated_at=? WHERE order_ref=? AND status='pending' AND tx_hash IS NULL", (wallet,now_iso(),order_ref)).rowcount
+        if not changed:
+            raise HTTPException(409, "El pago ya se está procesando. Actualiza el pedido en unos segundos.")
+    try:
+        # Ensure public and admin endpoints point to the same fork state and chain. Chain ID 1 is retained.
+        expected = await tenderly_network_check()
+        admin_chain = await _tenderly_admin_rpc("eth_chainId", [])
+        if not isinstance(admin_chain, str) or int(admin_chain,16) != int(expected["chain_id"]):
+            raise HTTPException(503, "El Admin RPC y el RPC público no coinciden en Chain ID.")
+        admin_block = await _tenderly_admin_rpc("eth_getBlockByNumber", [expected["block_number"], False])
+        if not admin_block or str(admin_block.get("hash","")).lower() != str(expected["block_hash"]).lower():
+            raise HTTPException(503, "El Admin RPC no coincide con el mismo fork de Tenderly. No se envió ninguna transferencia.")
+        # Tenderly's privileged impersonation is intentionally restricted to the Virtual TestNet Admin RPC.
+        try:
+            await _tenderly_admin_rpc("tenderly_impersonateAccount", [wallet])
+        except HTTPException:
+            await _tenderly_admin_rpc("tenderly_impersonateAccount", [[wallet]])
+        expected_to = payment["receiving_address"].lower()
+        if expected_to != TENDERLY_USDT_RECEIVING_ADDRESS.lower():
+            raise HTTPException(409, "El destinatario del pedido no coincide con la dirección configurada en Tenderly.")
+        amount_raw = int((Decimal(payment["requested_amount"]) * Decimal(10**6)).to_integral_exact())
+        calldata = "0xa9059cbb" + expected_to.removeprefix("0x").rjust(64,"0") + format(amount_raw,"064x")
+        tx = {"from":wallet,"to":TENDERLY_USDT_CONTRACT,"data":calldata,"value":"0x0","gas":"0x186a0"}
+        tx_hash = await _tenderly_admin_rpc("eth_sendTransaction", [tx])
+        if not isinstance(tx_hash,str) or not re.fullmatch(r"0x[0-9a-fA-F]{64}",tx_hash):
+            raise HTTPException(502, "Tenderly no devolvió un hash de transacción válido.")
+        with conn() as db:
+            db.execute("UPDATE tenderly_payments SET status='pending',tx_hash=?,wallet_address=?,updated_at=? WHERE order_ref=? AND status='submitting'", (tx_hash.lower(),wallet,now_iso(),order_ref))
+        audit(tg_id,"tenderly_test_payment_submitted",f"order={order_ref}; wallet={wallet}; tx={tx_hash.lower()}; amount={payment['requested_amount']}")
+        return {"ok":True,"tx_hash":tx_hash.lower(),"wallet_address":wallet,"status":"submitted","message":"Transacción enviada por el Admin RPC de Tenderly. Verificando el recibo en el RPC público."}
+    except Exception:
+        with conn() as db:
+            db.execute("UPDATE tenderly_payments SET status='pending',updated_at=? WHERE order_ref=? AND status='submitting' AND tx_hash IS NULL", (now_iso(),order_ref))
+        raise
+
+
 def _expire_tenderly_order(order_ref: str):
     notice = None
     with conn() as db:
         payment = db.execute("SELECT tp.*,o.telegram_id,o.customer_email,o.total,o.currency,o.status AS order_status FROM tenderly_payments tp JOIN orders o ON o.order_ref=tp.order_ref WHERE tp.order_ref=?", (order_ref,)).fetchone()
-        if not payment or payment["status"] != "pending":
+        if not payment or payment["status"] not in {"pending", "submitting"}:
             return
         deadline = _payment_deadline_seconds(payment["created_at"])
         if time.time() <= deadline:
             return
         now = now_iso()
-        db.execute("UPDATE tenderly_payments SET status='expired',updated_at=? WHERE order_ref=? AND status='pending'", (now, order_ref))
+        db.execute("UPDATE tenderly_payments SET status='expired',updated_at=? WHERE order_ref=? AND status IN ('pending','submitting')", (now, order_ref))
         db.execute("UPDATE orders SET status='cancelled',updated_at=? WHERE order_ref=? AND status='pending_payment'", (now, order_ref))
         db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)", (order_ref,"cancelled","Pedido cancelado","No se verificó el pago Tenderly dentro de los cinco minutos.",now))
         stores = db.execute("SELECT store_order_ref FROM store_orders WHERE order_ref=? AND status='pending_payment'", (order_ref,)).fetchall()
