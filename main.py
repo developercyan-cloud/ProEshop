@@ -50,13 +50,13 @@ TRON_POLL_SECONDS = max(20, int(os.getenv("TRON_POLL_SECONDS", "45")))
 _tron_monitor_task = None
 _tenderly_monitor_task = None
 
-# Tenderly Virtual TestNet: configure the RPC URL in Railway Variables.
-# Do not place private keys or wallet secrets here; this endpoint is read-only.
-TENDERLY_VIRTUAL_TESTNET_RPC = os.getenv("TENDERLY_VIRTUAL_TESTNET_RPC", "").strip()
-# Admin RPC is server-only and enables account impersonation on Tenderly Virtual TestNet. Never expose it to browsers.
-TENDERLY_VIRTUAL_TESTNET_ADMIN_RPC = os.getenv("TENDERLY_VIRTUAL_TESTNET_ADMIN_RPC", "").strip()
-TENDERLY_USDT_CONTRACT = "0xdAC17F958D2ee523a2206206994597C13D831ec7".lower()
-TENDERLY_USDT_RECEIVING_ADDRESS = os.getenv("TENDERLY_USDT_RECEIVING_ADDRESS", "").strip()
+# ProEshop MainNet Lab: self-hosted Anvil fork of Ethereum Mainnet (TEST STATE ONLY).
+# Public RPC is read-only/standard JSON-RPC; privileged transfers go through the authenticated gateway admin route.
+MAINNET_FORK_RPC_URL = os.getenv("MAINNET_FORK_RPC_URL", "https://mainnetproetech-production.up.railway.app/rpc").strip()
+MAINNET_FORK_ADMIN_URL = os.getenv("MAINNET_FORK_ADMIN_URL", "https://mainnetproetech-production.up.railway.app/admin/transfer-usdt").strip()
+MAINNET_FORK_ADMIN_TOKEN = os.getenv("MAINNET_FORK_ADMIN_TOKEN", "").strip()
+MAINNET_FORK_USDT_CONTRACT = "0xdAC17F958D2ee523a2206206994597C13D831ec7".lower()
+MAINNET_FORK_USDT_RECEIVING_ADDRESS = os.getenv("MAINNET_FORK_USDT_RECEIVING_ADDRESS", os.getenv("TENDERLY_USDT_RECEIVING_ADDRESS", "")).strip()
 
 
 app = FastAPI(title="ProEshop Telegram Mini App", docs_url=None, redoc_url=None)
@@ -64,8 +64,8 @@ app = FastAPI(title="ProEshop Telegram Mini App", docs_url=None, redoc_url=None)
 @app.post("/api/tenderly-rpc")
 async def tenderly_readonly_rpc(request: Request):
     """Restricted read-only JSON-RPC proxy for USDT balance eth_call only."""
-    if not TENDERLY_VIRTUAL_TESTNET_RPC:
-        raise HTTPException(status_code=503, detail="Tenderly Virtual TestNet no está configurada en el servidor.")
+    if not MAINNET_FORK_RPC_URL:
+        raise HTTPException(status_code=503, detail="MainNet Lab (fork de Ethereum) no está configurada en el servidor.")
 
     try:
         payload = await request.json()
@@ -80,7 +80,7 @@ async def tenderly_readonly_rpc(request: Request):
         raise HTTPException(status_code=400, detail="Parámetros eth_call inválidos.")
 
     target = str(params[0].get("to", "")).lower()
-    if target != TENDERLY_USDT_CONTRACT:
+    if target != MAINNET_FORK_USDT_CONTRACT:
         raise HTTPException(status_code=403, detail="Solo se permite consultar el contrato USDT configurado.")
 
     # ERC-20 balanceOf(address) selector. Restrict this proxy to balance reads;
@@ -102,22 +102,22 @@ async def tenderly_readonly_rpc(request: Request):
     }
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            upstream = await client.post(TENDERLY_VIRTUAL_TESTNET_RPC, json=forwarded)
+            upstream = await client.post(MAINNET_FORK_RPC_URL, json=forwarded)
         if upstream.status_code >= 400:
-            log.warning("Tenderly RPC devolvió HTTP %s", upstream.status_code)
-            raise HTTPException(status_code=502, detail="Tenderly rechazó la consulta RPC (HTTP %s)." % upstream.status_code)
+            log.warning("RPC de MainNet Lab devolvió HTTP %s", upstream.status_code)
+            raise HTTPException(status_code=502, detail="MainNet Lab rechazó la consulta RPC (HTTP %s)." % upstream.status_code)
         try:
             result = upstream.json()
         except Exception:
-            raise HTTPException(status_code=502, detail="Tenderly devolvió una respuesta no válida.")
+            raise HTTPException(status_code=502, detail="MainNet Lab devolvió una respuesta no válida.")
         if not isinstance(result, dict):
-            raise HTTPException(status_code=502, detail="Tenderly devolvió una respuesta RPC no válida.")
+            raise HTTPException(status_code=502, detail="MainNet Lab devolvió una respuesta RPC no válida.")
         return JSONResponse(content=result)
     except HTTPException:
         raise
     except httpx.RequestError as exc:
-        log.warning("Error de conexión con Tenderly RPC: %s", type(exc).__name__)
-        raise HTTPException(status_code=502, detail="No se pudo conectar con Tenderly RPC desde el servidor.")
+        log.warning("Error de conexión con RPC de MainNet Lab: %s", type(exc).__name__)
+        raise HTTPException(status_code=502, detail="No se pudo conectar con RPC de MainNet Lab desde el servidor.")
 
 # Lightweight per-process throttling for public-facing credential/search endpoints.
 _RATE_BUCKETS = {}
@@ -215,7 +215,7 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_crypto_payments_status ON crypto_payments(status, created_at);
         CREATE TABLE IF NOT EXISTS tenderly_payments(
-          order_ref TEXT PRIMARY KEY, network TEXT NOT NULL DEFAULT 'Tenderly Virtual TestNet (Ethereum-compatible)',
+          order_ref TEXT PRIMARY KEY, network TEXT NOT NULL DEFAULT 'MainNet Lab (fork de Ethereum) (Ethereum-compatible)',
           token_symbol TEXT NOT NULL DEFAULT 'USDT', token_contract TEXT NOT NULL,
           receiving_address TEXT NOT NULL, requested_amount TEXT NOT NULL,
           status TEXT NOT NULL DEFAULT 'pending', tx_hash TEXT UNIQUE,
@@ -1914,26 +1914,26 @@ async def tron_payment_monitor():
 
 
 async def _tenderly_rpc(method: str, params: list):
-    if not TENDERLY_VIRTUAL_TESTNET_RPC:
-        raise HTTPException(503, "Tenderly Virtual TestNet no está configurada en el servidor.")
+    if not MAINNET_FORK_RPC_URL:
+        raise HTTPException(503, "MainNet Lab (fork de Ethereum) no está configurada en el servidor.")
     try:
         async with httpx.AsyncClient(timeout=18.0) as client:
-            response = await client.post(TENDERLY_VIRTUAL_TESTNET_RPC, json={"jsonrpc":"2.0","id":1,"method":method,"params":params})
+            response = await client.post(MAINNET_FORK_RPC_URL, json={"jsonrpc":"2.0","id":1,"method":method,"params":params})
             response.raise_for_status()
             payload = response.json()
     except HTTPException:
         raise
     except Exception as exc:
-        log.warning("Tenderly RPC %s failed: %s", method, type(exc).__name__)
-        raise HTTPException(502, "No se pudo consultar la transacción en Tenderly.")
+        log.warning("RPC de MainNet Lab %s failed: %s", method, type(exc).__name__)
+        raise HTTPException(502, "No se pudo consultar la transacción en MainNet Lab.")
     if not isinstance(payload, dict) or payload.get("error"):
-        raise HTTPException(502, "Tenderly devolvió un error al verificar la transacción.")
+        raise HTTPException(502, "MainNet Lab devolvió un error al verificar la transacción.")
     return payload.get("result")
 
 
 @app.get("/api/tenderly/diagnostic-balance")
 async def tenderly_diagnostic_balance(address: str, block_number: str = "latest"):
-    """Read-only diagnostic: compare one wallet's native ETH balance against Tenderly RPC at the same block."""
+    """Read-only diagnostic: compare one wallet's native ETH balance against RPC de MainNet Lab at the same block."""
     if not re.fullmatch(r"0x[a-fA-F0-9]{40}", address or ""):
         raise HTTPException(400, "La dirección de wallet no tiene un formato válido.")
     if block_number != "latest" and not re.fullmatch(r"0x[0-9a-fA-F]+", block_number):
@@ -1947,9 +1947,9 @@ async def tenderly_diagnostic_balance(address: str, block_number: str = "latest"
         chain_id = int(str(chain_hex), 16)
         balance_wei = int(str(balance_hex), 16)
     except (TypeError, ValueError):
-        raise HTTPException(502, "Tenderly devolvió datos no válidos para el diagnóstico de saldo.")
+        raise HTTPException(502, "MainNet Lab devolvió datos no válidos para el diagnóstico de saldo.")
     if not isinstance(block, dict) or not block.get("number") or not block.get("hash"):
-        raise HTTPException(502, "Tenderly no devolvió un bloque válido para el diagnóstico.")
+        raise HTTPException(502, "MainNet Lab no devolvió un bloque válido para el diagnóstico.")
     # Decimal string avoids JSON number precision loss in the browser.
     balance_eth = str(Decimal(balance_wei) / Decimal(10**18))
     return {
@@ -1959,24 +1959,24 @@ async def tenderly_diagnostic_balance(address: str, block_number: str = "latest"
         "balance_eth": balance_eth,
         "block_number": block["number"],
         "block_hash": block["hash"],
-        "network": "Tenderly Virtual TestNet",
+        "network": "MainNet Lab (fork de Ethereum)",
     }
 
 
 @app.get("/api/tenderly/diagnostic-full")
 async def tenderly_diagnostic_full(address: str, recipient: str, amount_raw: str, block_number: str):
-    """Comprehensive read-only preflight comparing wallet state to configured Tenderly RPC."""
+    """Comprehensive read-only preflight comparing wallet state to configured RPC de MainNet Lab."""
     if not re.fullmatch(r"0x[a-fA-F0-9]{40}", address or ""):
         raise HTTPException(400, "Dirección emisora inválida.")
     if not re.fullmatch(r"0x[a-fA-F0-9]{40}", recipient or ""):
         raise HTTPException(400, "Dirección receptora inválida.")
-    if recipient.lower() != TENDERLY_USDT_RECEIVING_ADDRESS.lower():
-        raise HTTPException(400, "La dirección receptora del pedido no coincide con la configurada en Tenderly.")
+    if recipient.lower() != MAINNET_FORK_USDT_RECEIVING_ADDRESS.lower():
+        raise HTTPException(400, "La dirección receptora del pedido no coincide con la configurada en MainNet Lab.")
     if not re.fullmatch(r"0x[0-9a-fA-F]+", block_number or ""):
         raise HTTPException(400, "Número de bloque inválido.")
     if not re.fullmatch(r"[0-9]+", amount_raw or "") or int(amount_raw) <= 0 or int(amount_raw) >= 2**256:
         raise HTTPException(400, "Importe raw inválido.")
-    token = TENDERLY_USDT_CONTRACT
+    token = MAINNET_FORK_USDT_CONTRACT
     transfer_data = "0xa9059cbb" + recipient[2:].lower().rjust(64, "0") + format(int(amount_raw), "064x")
     balance_data = "0x70a08231" + address[2:].lower().rjust(64, "0")
     tx = {"from": address, "to": token, "data": transfer_data, "value": "0x0"}
@@ -2001,15 +2001,15 @@ async def tenderly_diagnostic_full(address: str, recipient: str, amount_raw: str
     )
     out = dict(zip(names, values))
     out.update({"address": address.lower(), "recipient": recipient.lower(), "token_contract": token,
-                "amount_raw": amount_raw, "requested_block": block_number, "network": "Tenderly Virtual TestNet"})
+                "amount_raw": amount_raw, "requested_block": block_number, "network": "MainNet Lab (fork de Ethereum)"})
     return out
 
 
 @app.get("/api/tenderly/network-check")
 async def tenderly_network_check():
     """Public, read-only fingerprint used to prevent accidental mainnet transfers."""
-    if not TENDERLY_USDT_RECEIVING_ADDRESS or not re.fullmatch(r"0x[a-fA-F0-9]{40}", TENDERLY_USDT_RECEIVING_ADDRESS):
-        raise HTTPException(503, "La dirección de recepción Tenderly no está configurada correctamente.")
+    if not MAINNET_FORK_USDT_RECEIVING_ADDRESS or not re.fullmatch(r"0x[a-fA-F0-9]{40}", MAINNET_FORK_USDT_RECEIVING_ADDRESS):
+        raise HTTPException(503, "La dirección de recepción MainNet Lab no está configurado correctamente.")
     chain_hex, block = await asyncio.gather(
         _tenderly_rpc("eth_chainId", []),
         _tenderly_rpc("eth_getBlockByNumber", ["latest", False]),
@@ -2017,29 +2017,39 @@ async def tenderly_network_check():
     try:
         chain_id = int(str(chain_hex), 16)
     except (TypeError, ValueError):
-        raise HTTPException(502, "Tenderly no devolvió un chain ID válido.")
+        raise HTTPException(502, "MainNet Lab no devolvió un chain ID válido.")
     if chain_id != 1:
-        raise HTTPException(503, f"El RPC configurado responde con chain ID {chain_id}, no 1. Se deshabilitaron los pagos Tenderly.")
+        raise HTTPException(503, f"El RPC configurado responde con chain ID {chain_id}, no 1. Se deshabilitaron los pagos MainNet Lab.")
     if not isinstance(block, dict) or not block.get("number") or not block.get("hash"):
-        raise HTTPException(502, "Tenderly no devolvió un bloque válido para comprobar la red.")
-    return {"chain_id": chain_id, "block_number": block["number"], "block_hash": block["hash"], "token_contract": TENDERLY_USDT_CONTRACT, "receiving_address": TENDERLY_USDT_RECEIVING_ADDRESS, "network": "Tenderly Virtual TestNet"}
+        raise HTTPException(502, "MainNet Lab no devolvió un bloque válido para comprobar la red.")
+    return {"chain_id": chain_id, "block_number": block["number"], "block_hash": block["hash"], "token_contract": MAINNET_FORK_USDT_CONTRACT, "receiving_address": MAINNET_FORK_USDT_RECEIVING_ADDRESS, "network": "MainNet Lab (fork de Ethereum)"}
 
 
-async def _tenderly_admin_rpc(method: str, params: list):
-    """Privileged RPC helper. Only called server-side for the configured Tenderly Virtual TestNet admin endpoint."""
-    if not TENDERLY_VIRTUAL_TESTNET_ADMIN_RPC:
-        raise HTTPException(503, "Falta TENDERLY_VIRTUAL_TESTNET_ADMIN_RPC en Railway. Configura el Admin RPC de la Virtual TestNet; no uses el RPC público aquí.")
+async def _mainnet_fork_admin_transfer(from_address: str, to_address: str, amount: str):
+    """Submit a test-only ERC-20 transfer through the self-hosted gateway's token-protected admin route."""
+    if not MAINNET_FORK_ADMIN_URL or not MAINNET_FORK_ADMIN_TOKEN:
+        raise HTTPException(503, "Configura MAINNET_FORK_ADMIN_URL y MAINNET_FORK_ADMIN_TOKEN en Railway. El token debe coincidir con ADMIN_TOKEN del servicio MainNet Lab.")
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            response = await client.post(TENDERLY_VIRTUAL_TESTNET_ADMIN_RPC, json={"jsonrpc":"2.0","id":1,"method":method,"params":params})
-        payload = response.json()
-    except Exception as exc:
-        log.warning("Tenderly Admin RPC %s failed: %s", method, type(exc).__name__)
-        raise HTTPException(502, "No se pudo comunicar con el Admin RPC de Tenderly.")
-    if response.status_code >= 400 or not isinstance(payload, dict) or payload.get("error"):
-        detail = payload.get("error", {}).get("message", "RPC rechazó la operación") if isinstance(payload, dict) else "respuesta inválida"
-        raise HTTPException(502, f"Tenderly Admin RPC rechazó {method}: {str(detail)[:180]}")
-    return payload.get("result")
+        async with httpx.AsyncClient(timeout=25.0) as client:
+            response = await client.post(
+                MAINNET_FORK_ADMIN_URL,
+                headers={"Authorization": f"Bearer {MAINNET_FORK_ADMIN_TOKEN}"},
+                json={"fromAddress": from_address, "toAddress": to_address, "amount": amount, "chainId": 1},
+            )
+            try:
+                payload = response.json()
+            except Exception:
+                payload = {}
+    except httpx.RequestError as exc:
+        log.warning("MainNet Lab admin transfer request failed: %s", type(exc).__name__)
+        raise HTTPException(502, "No se pudo conectar con la API privada de MainNet Lab.")
+    if response.status_code >= 400 or not isinstance(payload, dict) or not payload.get("ok"):
+        detail = payload.get("error", "La API privada de MainNet Lab rechazó la transferencia") if isinstance(payload, dict) else "respuesta inválida"
+        raise HTTPException(502, str(detail)[:240])
+    tx_hash = payload.get("txHash") or payload.get("tx_hash")
+    if not isinstance(tx_hash, str) or not re.fullmatch(r"0x[0-9a-fA-F]{64}", tx_hash):
+        raise HTTPException(502, "MainNet Lab no devolvió un hash de transacción válido; el pedido no se marcará como pagado.")
+    return tx_hash.lower()
 
 
 @app.post("/api/tenderly-wallet/challenge")
@@ -2052,7 +2062,7 @@ async def tenderly_wallet_challenge(body: TenderlyWalletBody, request: Request):
         if linked and linked["wallet_address"].lower() == wallet:
             return {"linked": True, "wallet_address": wallet}
         nonce = secrets.token_urlsafe(32)
-        message = ("ProEshop — vinculación de wallet para Tenderly Virtual TestNet\n"
+        message = ("ProEshop — vinculación de wallet para MainNet Lab (fork de Ethereum)\n"
                    f"Cuenta ProEshop: {tg_id}\nWallet: {wallet}\nNonce: {nonce}\n"
                    "Esta firma solo verifica la propiedad de la wallet. No autoriza transferencias ni tiene efecto en Ethereum Mainnet.")
         db.execute("INSERT INTO tenderly_wallet_challenges(nonce,telegram_id,wallet_address,message,expires_at,used,created_at) VALUES(?,?,?,?,?,0,?)",
@@ -2084,18 +2094,18 @@ async def tenderly_wallet_link(body: TenderlyWalletLinkBody, request: Request):
 
 @app.post("/api/tenderly-payment/{order_ref}/execute")
 async def execute_tenderly_payment(order_ref: str, body: TenderlyExecuteBody, request: Request):
-    """Execute a test-only ERC-20 transfer with Tenderly Virtual TestNet's tenderly_sendTransaction RPC."""
+    """Execute a TEST-ONLY USDT transfer through the authenticated self-hosted Anvil fork gateway."""
     tg_id = get_auth(request)
     wallet = body.wallet_address.lower()
-    if not TENDERLY_VIRTUAL_TESTNET_ADMIN_RPC:
-        raise HTTPException(503, "Configura TENDERLY_VIRTUAL_TESTNET_ADMIN_RPC en Railway para pagos sin firma de transacción. No uses este flujo para Mainnet.")
+    if not MAINNET_FORK_ADMIN_URL or not MAINNET_FORK_ADMIN_TOKEN:
+        raise HTTPException(503, "Falta configurar MAINNET_FORK_ADMIN_URL y MAINNET_FORK_ADMIN_TOKEN en Railway.")
     with conn() as db:
         link = db.execute("SELECT wallet_address FROM tenderly_wallet_links WHERE telegram_id=?", (tg_id,)).fetchone()
         payment = db.execute("SELECT tp.*,o.telegram_id,o.total,o.currency,o.status AS order_status FROM tenderly_payments tp JOIN orders o ON o.order_ref=tp.order_ref WHERE tp.order_ref=? AND o.telegram_id=?", (order_ref,tg_id)).fetchone()
         if not link or link["wallet_address"].lower() != wallet:
-            raise HTTPException(403, "Vincula primero esta wallet con una firma de mensaje. No se requieren firmas de transacción por pedido.")
+            raise HTTPException(403, "Vincula primero esta wallet con una firma de mensaje. No se requieren firmas de transacción por pedido de prueba.")
         if not payment:
-            raise HTTPException(404, "No se encontró el pago Tenderly de este pedido.")
+            raise HTTPException(404, "No se encontró el pago de MainNet Lab para este pedido.")
         if payment["status"] == "detected" and payment["tx_hash"]:
             return {"ok": True, "tx_hash": payment["tx_hash"], "status": "detected"}
         if payment["status"] != "pending" or payment["order_status"] != "pending_payment":
@@ -2109,32 +2119,17 @@ async def execute_tenderly_payment(order_ref: str, body: TenderlyExecuteBody, re
         if not changed:
             raise HTTPException(409, "El pago ya se está procesando. Actualiza el pedido en unos segundos.")
     try:
-        # Ensure public and admin endpoints point to the same fork state and chain. Chain ID 1 is retained.
+        # The gateway's authenticated admin route verifies CHAIN_ID=1 and uses Anvil impersonation
+        # on the isolated fork. This does NOT submit a real Ethereum Mainnet transaction.
         expected = await tenderly_network_check()
-        admin_chain = await _tenderly_admin_rpc("eth_chainId", [])
-        if not isinstance(admin_chain, str) or int(admin_chain,16) != int(expected["chain_id"]):
-            raise HTTPException(503, "El Admin RPC y el RPC público no coinciden en Chain ID.")
-        admin_block = await _tenderly_admin_rpc("eth_getBlockByNumber", [expected["block_number"], False])
-        if not admin_block or str(admin_block.get("hash","")).lower() != str(expected["block_hash"]).lower():
-            raise HTTPException(503, "El Admin RPC no coincide con el mismo fork de Tenderly. No se envió ninguna transferencia.")
-        # Use the Tenderly Virtual TestNet method visible in this project's RPC Builder.
-        # This is test-only execution on the configured fork; never route it to a production RPC.
         expected_to = payment["receiving_address"].lower()
-        if expected_to != TENDERLY_USDT_RECEIVING_ADDRESS.lower():
-            raise HTTPException(409, "El destinatario del pedido no coincide con la dirección configurada en Tenderly.")
-        amount_raw = int((Decimal(payment["requested_amount"]) * Decimal(10**6)).to_integral_exact())
-        calldata = "0xa9059cbb" + expected_to.removeprefix("0x").rjust(64,"0") + format(amount_raw,"064x")
-        tx = {"from":wallet,"to":TENDERLY_USDT_CONTRACT,"data":calldata,"value":"0x0","gas":"0x186a0","gasPrice":"0x0"}
-        # tenderly_sendTransaction accepts [transaction, state overrides, block overrides].
-        result = await _tenderly_admin_rpc("tenderly_sendTransaction", [tx, {}, {}])
-        tx_hash = result.get("transactionHash") if isinstance(result, dict) else result
-        if not isinstance(tx_hash,str) or not re.fullmatch(r"0x[0-9a-fA-F]{64}",tx_hash):
-            log.warning("Tenderly sendTransaction returned unexpected result type=%s", type(result).__name__)
-            raise HTTPException(502, "Tenderly no devolvió un hash de transacción válido; no se marcará el pedido como pagado.")
+        if expected_to != MAINNET_FORK_USDT_RECEIVING_ADDRESS.lower():
+            raise HTTPException(409, "El destinatario del pedido no coincide con la dirección configurada en MainNet Lab.")
+        tx_hash = await _mainnet_fork_admin_transfer(wallet, expected_to, str(payment["requested_amount"]))
         with conn() as db:
-            db.execute("UPDATE tenderly_payments SET status='pending',tx_hash=?,wallet_address=?,updated_at=? WHERE order_ref=? AND status='submitting'", (tx_hash.lower(),wallet,now_iso(),order_ref))
-        audit(tg_id,"tenderly_test_payment_submitted",f"order={order_ref}; wallet={wallet}; tx={tx_hash.lower()}; amount={payment['requested_amount']}")
-        return {"ok":True,"tx_hash":tx_hash.lower(),"wallet_address":wallet,"status":"submitted","message":"Transacción enviada por el Admin RPC de Tenderly. Verificando el recibo en el RPC público."}
+            db.execute("UPDATE tenderly_payments SET status='pending',tx_hash=?,wallet_address=?,updated_at=? WHERE order_ref=? AND status='submitting'", (tx_hash,wallet,now_iso(),order_ref))
+        audit(tg_id,"mainnet_lab_test_payment_submitted",f"order={order_ref}; wallet={wallet}; tx={tx_hash}; amount={payment['requested_amount']}")
+        return {"ok":True,"tx_hash":tx_hash,"wallet_address":wallet,"status":"submitted","message":"Transferencia enviada al fork privado de MainNet Lab. Verificando el recibo y el evento Transfer."}
     except Exception:
         with conn() as db:
             db.execute("UPDATE tenderly_payments SET status='pending',updated_at=? WHERE order_ref=? AND status='submitting' AND tx_hash IS NULL", (now_iso(),order_ref))
@@ -2153,11 +2148,11 @@ def _expire_tenderly_order(order_ref: str):
         now = now_iso()
         db.execute("UPDATE tenderly_payments SET status='expired',updated_at=? WHERE order_ref=? AND status IN ('pending','submitting')", (now, order_ref))
         db.execute("UPDATE orders SET status='cancelled',updated_at=? WHERE order_ref=? AND status='pending_payment'", (now, order_ref))
-        db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)", (order_ref,"cancelled","Pedido cancelado","No se verificó el pago Tenderly dentro de los cinco minutos.",now))
+        db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)", (order_ref,"cancelled","Pedido cancelado","No se verificó el pago MainNet Lab dentro de los cinco minutos.",now))
         stores = db.execute("SELECT store_order_ref FROM store_orders WHERE order_ref=? AND status='pending_payment'", (order_ref,)).fetchall()
         for store in stores:
             db.execute("UPDATE store_orders SET status='cancelled',updated_at=? WHERE store_order_ref=?", (now,store["store_order_ref"]))
-            db.execute("INSERT INTO store_order_events(store_order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)", (store["store_order_ref"],"cancelled","Pedido cancelado","Pago Tenderly no verificado en cinco minutos.",now))
+            db.execute("INSERT INTO store_order_events(store_order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)", (store["store_order_ref"],"cancelled","Pedido cancelado","Pago MainNet Lab no verificado en cinco minutos.",now))
         notice = (payment["customer_email"], payment["total"], payment["currency"])
     if notice and notice[0]:
         enqueue_and_send_order_email(order_ref,"cancelled",notice[0],notice[1],notice[2],"El pedido se canceló porque no se verificó una transferencia USDT ERC-20 dentro de los cinco minutos. No envíes fondos a esta cotización vencida.")
@@ -2170,7 +2165,7 @@ async def get_tenderly_payment(order_ref: str, request: Request):
     with conn() as db:
         row = db.execute("SELECT tp.*,o.status AS order_status FROM tenderly_payments tp JOIN orders o ON o.order_ref=tp.order_ref WHERE tp.order_ref=? AND o.telegram_id=?", (order_ref,tg_id)).fetchone()
     if not row:
-        raise HTTPException(404,"No se encontró el pago Tenderly de este pedido.")
+        raise HTTPException(404,"No se encontró el pago MainNet Lab de este pedido.")
     deadline = _payment_deadline_seconds(row["created_at"])
     return {"order_ref":order_ref,"network":row["network"],"token":row["token_symbol"],"token_contract":row["token_contract"],"address":row["receiving_address"],"amount":row["requested_amount"],"status":row["status"],"order_status":row["order_status"],"tx_hash":row["tx_hash"] or None,"wallet_address":row["wallet_address"] or None,"created_at":row["created_at"],"deadline_at":datetime.fromtimestamp(deadline,timezone.utc).isoformat(),"remaining_seconds":max(0,int(deadline-time.time())) if row["status"]=="pending" else 0,"explorer_url":None}
 
@@ -2183,7 +2178,7 @@ async def verify_tenderly_payment(order_ref: str, body: TenderlyVerifyBody, requ
     with conn() as db:
         payment = db.execute("SELECT tp.*,o.telegram_id,o.customer_email,o.total,o.currency,o.status AS order_status FROM tenderly_payments tp JOIN orders o ON o.order_ref=tp.order_ref WHERE tp.order_ref=? AND o.telegram_id=?",(order_ref,tg_id)).fetchone()
     if not payment:
-        raise HTTPException(404,"No se encontró el pago Tenderly de este pedido.")
+        raise HTTPException(404,"No se encontró el pago MainNet Lab de este pedido.")
     if payment["status"] == "detected":
         if payment["tx_hash"].lower() == tx_hash:
             return {"ok":True,"status":"detected","order_status":payment["order_status"],"message":"Esta transacción ya fue verificada."}
@@ -2193,13 +2188,13 @@ async def verify_tenderly_payment(order_ref: str, body: TenderlyVerifyBody, requ
     if time.time() > _payment_deadline_seconds(payment["created_at"]):
         _expire_tenderly_order(order_ref)
         raise HTTPException(410,"La cotización venció. El pedido fue cancelado y no puede confirmarse con esta transacción.")
-    # Confirm this exact transaction on the configured Tenderly RPC, not from client claims.
+    # Confirm this exact transaction on the configured RPC de MainNet Lab, not from client claims.
     tx, receipt = await asyncio.gather(_tenderly_rpc("eth_getTransactionByHash",[tx_hash]), _tenderly_rpc("eth_getTransactionReceipt",[tx_hash]))
     if not tx or not receipt:
         return {"ok":True,"status":"pending_confirmation","message":"Tenderly aún no devuelve una transacción minada. Vuelve a consultar en unos segundos."}
     if str(receipt.get("status","")).lower() != "0x1":
         raise HTTPException(400,"La transacción falló en la blockchain; el pedido sigue sin pagarse.")
-    if str(tx.get("from","")).lower() != wallet or str(tx.get("to","")).lower() != TENDERLY_USDT_CONTRACT:
+    if str(tx.get("from","")).lower() != wallet or str(tx.get("to","")).lower() != MAINNET_FORK_USDT_CONTRACT:
         raise HTTPException(400,"El emisor o el contrato de la transacción no coincide con el pago esperado.")
     expected_to = "0x" + payment["receiving_address"].lower().removeprefix("0x")
     expected_raw = int((Decimal(payment["requested_amount"]) * Decimal(10**6)).to_integral_exact())
@@ -2207,7 +2202,7 @@ async def verify_tenderly_payment(order_ref: str, body: TenderlyVerifyBody, requ
     matched = False
     for entry in receipt.get("logs",[]):
         topics = entry.get("topics") or []
-        if str(entry.get("address","")).lower() != TENDERLY_USDT_CONTRACT or len(topics) < 3 or str(topics[0]).lower() != transfer_topic:
+        if str(entry.get("address","")).lower() != MAINNET_FORK_USDT_CONTRACT or len(topics) < 3 or str(topics[0]).lower() != transfer_topic:
             continue
         log_from = "0x" + str(topics[1])[-40:].lower()
         log_to = "0x" + str(topics[2])[-40:].lower()
@@ -2238,14 +2233,14 @@ async def verify_tenderly_payment(order_ref: str, body: TenderlyVerifyBody, requ
             if not current or current["status"] != "detected" or current["tx_hash"].lower() != tx_hash:
                 raise HTTPException(409,"El estado del pago cambió durante la verificación. Actualiza el pedido.")
         db.execute("UPDATE orders SET status='payment_review',updated_at=? WHERE order_ref=? AND status='pending_payment'",(now,order_ref))
-        db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",(order_ref,"payment_review","En revisión de pago",f"Transferencia USDT ERC-20 verificada en Tenderly Virtual TestNet. TX: {tx_hash}. Importe: {payment['requested_amount']} USDT. Pendiente de revisión administrativa.",now))
+        db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",(order_ref,"payment_review","En revisión de pago",f"Transferencia USDT ERC-20 verificada en MainNet Lab (fork de Ethereum). TX: {tx_hash}. Importe: {payment['requested_amount']} USDT. Pendiente de revisión administrativa.",now))
         stores = db.execute("SELECT store_order_ref FROM store_orders WHERE order_ref=? AND status='pending_payment'",(order_ref,)).fetchall()
         for store in stores:
             db.execute("UPDATE store_orders SET status='payment_review',updated_at=? WHERE store_order_ref=?",(now,store["store_order_ref"]))
-            db.execute("INSERT INTO store_order_events(store_order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",(store["store_order_ref"],"payment_review","En revisión de pago",f"Transferencia USDT verificada en Tenderly. TX: {tx_hash}. Pendiente de revisión administrativa.",now))
+            db.execute("INSERT INTO store_order_events(store_order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",(store["store_order_ref"],"payment_review","En revisión de pago",f"Transferencia USDT verificada en MainNet Lab. TX: {tx_hash}. Pendiente de revisión administrativa.",now))
     audit(tg_id,"tenderly_usdt_payment_verified",f"order={order_ref}; tx={tx_hash}; amount={payment['requested_amount']}")
     if payment["customer_email"]:
-        enqueue_and_send_order_email(order_ref,"payment_review",payment["customer_email"],payment["total"],payment["currency"],f"Transferencia USDT ERC-20 verificada en Tenderly Virtual TestNet. TX: {tx_hash}. El pedido está en revisión; esto no implica aprobación administrativa ni envío real.")
+        enqueue_and_send_order_email(order_ref,"payment_review",payment["customer_email"],payment["total"],payment["currency"],f"Transferencia USDT ERC-20 verificada en MainNet Lab (fork de Ethereum). TX: {tx_hash}. El pedido está en revisión; esto no implica aprobación administrativa ni envío real.")
     return {"ok":True,"status":"detected","order_status":"payment_review","tx_hash":tx_hash,"message":"Transferencia verificada. El pedido pasó a revisión de pago, no a aprobación final."}
 
 
@@ -2257,8 +2252,8 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
     is_tron = body.payment_method == "usdt_trc20"
     is_tenderly = body.payment_method == "tenderly_usdt_erc20"
     is_crypto = is_tron or is_tenderly
-    if is_tenderly and (not TENDERLY_VIRTUAL_TESTNET_RPC or not re.fullmatch(r"0x[a-fA-F0-9]{40}", TENDERLY_USDT_RECEIVING_ADDRESS)):
-        raise HTTPException(503, "Configura TENDERLY_VIRTUAL_TESTNET_RPC y TENDERLY_USDT_RECEIVING_ADDRESS en Railway para habilitar pagos de prueba Tenderly.")
+    if is_tenderly and (not MAINNET_FORK_RPC_URL or not re.fullmatch(r"0x[a-fA-F0-9]{40}", MAINNET_FORK_USDT_RECEIVING_ADDRESS)):
+        raise HTTPException(503, "Configura MAINNET_FORK_RPC_URL y MAINNET_FORK_USDT_RECEIVING_ADDRESS en Railway para habilitar pagos de prueba en MainNet Lab.")
     customer_email = (body.customer_email or body.email).strip().lower()
     if is_crypto and not customer_email:
         raise HTTPException(400, "Introduce tu correo electrónico para recibir las notificaciones de pago pendiente y cancelación.")
@@ -2307,8 +2302,8 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
                     shipping_name, shipping_city, shipping_country, shipping_address, body.payment_method, customer_email))
         initial_status = "pending_payment" if is_crypto else "confirmed"
         initial_label = "Pendiente de pago" if is_crypto else "Confirmado"
-        network_label = "Tenderly Virtual TestNet · USDT ERC-20" if is_tenderly else "TRON (TRC-20)"
-        receiving_address = TENDERLY_USDT_RECEIVING_ADDRESS if is_tenderly else TRON_USDT_ADDRESS
+        network_label = "MainNet Lab (fork de Ethereum) · USDT ERC-20" if is_tenderly else "TRON (TRC-20)"
+        receiving_address = MAINNET_FORK_USDT_RECEIVING_ADDRESS if is_tenderly else TRON_USDT_ADDRESS
         initial_detail = (f"Pedido creado. Pago pendiente durante 5 minutos: enviar {requested_usdt} USDT por {network_label}. Si no se verifica el pago dentro del plazo, se cancelará automáticamente." if is_crypto else "Pedido de demostración registrado; no se envió una orden al comercio ni se procesó un pago real.")
         db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
                    (order_ref, initial_status, initial_label, initial_detail, when))
@@ -2317,7 +2312,7 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
                        (order_ref, "TRON (TRC-20)", "USDT", TRON_USDT_CONTRACT, TRON_USDT_ADDRESS, str(requested_usdt), when, when))
         elif is_tenderly:
             db.execute("INSERT INTO tenderly_payments(order_ref,network,token_symbol,token_contract,receiving_address,requested_amount,status,created_at,updated_at) VALUES(?,?,?,?,?,?, 'pending', ?, ?)",
-                       (order_ref, "Tenderly Virtual TestNet (chainId 1)", "USDT", TENDERLY_USDT_CONTRACT, TENDERLY_USDT_RECEIVING_ADDRESS, str(requested_usdt), when, when))
+                       (order_ref, "MainNet Lab (fork de Ethereum) (chainId 1)", "USDT", MAINNET_FORK_USDT_CONTRACT, MAINNET_FORK_USDT_RECEIVING_ADDRESS, str(requested_usdt), when, when))
         # Group items by source and create independent status/order references per store.
         groups = {}
         for row in rows:
@@ -2366,7 +2361,7 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
     if is_crypto and customer_email:
         pending_email = enqueue_and_send_order_email(
             order_ref, "pending_payment", customer_email, str(total), currency,
-            f"Pedido: {order_ref}\nImporte exacto: {requested_usdt} USDT\nRed: {'Tenderly Virtual TestNet (ERC-20)' if is_tenderly else 'TRON (TRC-20)'}\nDirección de recepción: {receiving_address}\nPlazo: 5 minutos desde la creación del pedido. El pedido solo pasará a revisión cuando la transferencia se verifique en la blockchain; si no se detecta dentro del plazo, se cancelará automáticamente."
+            f"Pedido: {order_ref}\nImporte exacto: {requested_usdt} USDT\nRed: {'MainNet Lab (fork de Ethereum) (ERC-20)' if is_tenderly else 'TRON (TRC-20)'}\nDirección de recepción: {receiving_address}\nPlazo: 5 minutos desde la creación del pedido. El pedido solo pasará a revisión cuando la transferencia se verifique en la blockchain; si no se detecta dentro del plazo, se cancelará automáticamente."
         )
         email_results.append({"store": "ProEshop", "store_order_ref": order_ref,
                               "email_sent": bool(pending_email.get("sent")),
@@ -2374,7 +2369,7 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
     for item in store_emails:
         detail = (f"Tienda: {item['store']}\nArtículos de esta tienda:\n" + "\n".join(item["items"]) +
                   f"\nSubtotal: {currency} {Decimal(next(v for k,v in group_subtotals.items() if PLATFORMS.get(k, {}).get('label', k.replace('_',' ').title()) == item['store'])):.2f}" +
-                  (f"\nPago pendiente: enviar {requested_usdt} USDT por {'ERC-20 en Tenderly Virtual TestNet' if is_tenderly else 'TRC-20'} a {receiving_address}." if is_crypto else "\nPedido de demostración: no se realizó compra ni pago real."))
+                  (f"\nPago pendiente: enviar {requested_usdt} USDT por {'ERC-20 en MainNet Lab (fork de Ethereum)' if is_tenderly else 'TRC-20'} a {receiving_address}." if is_crypto else "\nPedido de demostración: no se realizó compra ni pago real."))
         result = enqueue_and_send_store_order_email(item["store_order_ref"], "received", customer_email, item["total"], currency, detail) if customer_email and not is_crypto else {"sent": False, "reason": "Pago USDT pendiente" if is_crypto else "Sin correo proporcionado"}
         email_results.append({"store": item["store"], "store_order_ref": item["store_order_ref"], "email_sent": bool(result.get("sent")), "email_status": "sent" if result.get("sent") else result.get("reason", "not_configured")})
     with conn() as db:
@@ -2384,14 +2379,14 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
             async with httpx.AsyncClient(timeout=8) as client:
                 await client.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
                     "chat_id": tg_id,
-                    "text": ((f"🛍️ ProEshop — pedido con pago USDT pendiente\nReferencia: {order_ref}\nImporte exacto: {requested_usdt} USDT\nRed: {'Tenderly Virtual TestNet (ERC-20)' if is_tenderly else 'TRON (TRC-20)'}\nDirección: {receiving_address}" if is_crypto else f"🛍️ ProEshop — pedido de demostración\nReferencia general: {order_ref}\nTotal estimado: {currency} {total:.2f}\nNo se realizó ninguna compra real ni se procesó un pago.") +
+                    "text": ((f"🛍️ ProEshop — pedido con pago USDT pendiente\nReferencia: {order_ref}\nImporte exacto: {requested_usdt} USDT\nRed: {'MainNet Lab (fork de Ethereum) (ERC-20)' if is_tenderly else 'TRON (TRC-20)'}\nDirección: {receiving_address}" if is_crypto else f"🛍️ ProEshop — pedido de demostración\nReferencia general: {order_ref}\nTotal estimado: {currency} {total:.2f}\nNo se realizó ninguna compra real ni se procesó un pago.") +
                              ("\nPedidos por tienda: " + ", ".join(x['store_order_ref'] for x in store_emails)) )})
         except httpx.HTTPError:
             log.info("No se pudo enviar notificación de pedido %s", order_ref)
     return {"ok": True, "order_ref": order_ref, "store_orders": store_emails,
             "subtotal": str(subtotal), "tax": str(tax), "shipping": str(shipping), "total": str(total),
             "balance": str(balance-total) if not is_crypto else str(balance), "currency": currency, "status": "pending_payment" if is_crypto else "received", "purchased_at": when,
-            "payment": ({"method": "tenderly_usdt_erc20", "network": "Tenderly Virtual TestNet (ERC-20, chainId 1)", "token": "USDT", "token_contract": TENDERLY_USDT_CONTRACT, "address": receiving_address, "amount": str(requested_usdt), "status": "pending", "deadline_at": datetime.fromtimestamp(_payment_deadline_seconds(when), timezone.utc).isoformat(), "remaining_seconds": 300} if is_tenderly else ({"method": "usdt_trc20", "network": "TRON (TRC-20)", "token": "USDT", "address": TRON_USDT_ADDRESS, "amount": str(requested_usdt), "status": "pending", "deadline_at": datetime.fromtimestamp(_payment_deadline_seconds(when), timezone.utc).isoformat(), "remaining_seconds": 300} if is_tron else None)),
+            "payment": ({"method": "tenderly_usdt_erc20", "network": "MainNet Lab (fork de Ethereum) (ERC-20, chainId 1)", "token": "USDT", "token_contract": MAINNET_FORK_USDT_CONTRACT, "address": receiving_address, "amount": str(requested_usdt), "status": "pending", "deadline_at": datetime.fromtimestamp(_payment_deadline_seconds(when), timezone.utc).isoformat(), "remaining_seconds": 300} if is_tenderly else ({"method": "usdt_trc20", "network": "TRON (TRC-20)", "token": "USDT", "address": TRON_USDT_ADDRESS, "amount": str(requested_usdt), "status": "pending", "deadline_at": datetime.fromtimestamp(_payment_deadline_seconds(when), timezone.utc).isoformat(), "remaining_seconds": 300} if is_tron else None)),
             "email_sent": (bool(email_results[0]["email_sent"]) if is_crypto and email_results else (bool(email_results) and all(x["email_sent"] for x in email_results))),
-            "email_status": email_results, "message": (("Pedido pendiente de pago Tenderly. Tienes 5 minutos para enviar el importe exacto en USDT ERC-20; se verificará la transacción antes de cambiar el estado." if is_tenderly else "Pedido pendiente de pago. Tienes 5 minutos para enviar el importe exacto en USDT por TRC-20; si no se detecta el pago, se cancelará automáticamente.") if is_crypto else "Pedido de demostración registrado; no se realizó una compra real.")}
+            "email_status": email_results, "message": (("Pedido pendiente de pago MainNet Lab. Tienes 5 minutos para enviar el importe exacto en USDT ERC-20; se verificará la transacción antes de cambiar el estado." if is_tenderly else "Pedido pendiente de pago. Tienes 5 minutos para enviar el importe exacto en USDT por TRC-20; si no se detecta el pago, se cancelará automáticamente.") if is_crypto else "Pedido de demostración registrado; no se realizó una compra real.")}
 
