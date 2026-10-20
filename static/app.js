@@ -630,7 +630,7 @@ showEmailVerifiedLogin();
   const amount=Number(BigInt(raw))/Math.pow(10,net.decimals);
   window.proEshopWalletBalanceDisplay=fmt(amount)+' USDT';
   $w('balanceValue').textContent=window.proEshopWalletBalanceDisplay;
-  $w('walletBalanceCaption').textContent='USDT · '+net.name+' · saldo consultado en blockchain';
+  $w('walletBalanceCaption').textContent='USDT · '+net.name+' · saldo consultado en ThorChain..';
   status('Saldo actualizado correctamente.');
   renderConnected();
  }
