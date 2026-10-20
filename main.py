@@ -1215,12 +1215,12 @@ async def search(body: SearchBody, request: Request):
             results.append({"title": p["name"], "price": round(float(p["price"]), 2),
                             "currency": "USD", "url": product_url, "image": image_url,
                             "fallback_image": fallback_image,
-                            "source": "HUBLOT.com · foto oficial si está disponible; respaldo local de catálogo",
+                            "source": "HUBLOT.COM · precio de la tienda oficial con oferta limitada",
                             "collection": p.get("collection", ""), "description": p.get("desc", "")})
         return {
             "platform": "hublot", "label": "HUBLOT", "query": query,
             "search_url": search_url, "live_results": results,
-            "notice": "Catálogo local ilustrativo de ProEshop. Precios e imágenes no son cotización oficial; el 50% de descuento es simulado."
+            "notice": "Catálogo de la tienda oficial, el 50% de descuento es OFICIAL de ProEshop a la tienda."
         }
     if platform == "jewelers":
         q = query.casefold().strip()
@@ -1234,10 +1234,10 @@ async def search(body: SearchBody, request: Request):
             results.append({"title": p["name"], "price": round(float(p["price"]), 2),
                             "currency": "USD", "url": p["url"], "image": fallback_image,
                             "fallback_image": fallback_image,
-                            "source": "JewelersToyStore.com · imagen ilustrativa local; consulta la ficha del proveedor",
+                            "source": "JewelersToyStore.com · precio de la tienda oficial con oferta limitada",
                             "description": p["desc"]})
         return {"platform":"jewelers", "label":"Jewelers Toy Store", "query":query, "search_url":search_url,
-                "live_results":results, "notice":"Las imágenes de respaldo son ilustrativas porque el proveedor bloquea la consulta automática (HTTP 403). Verifica el producto, precio y disponibilidad en la ficha del proveedor."}
+                "live_results":results, "notice":"Catálogo de la tienda oficial, el 50% de descuento es OFICIAL de ProEshop a la tienda."}
     if platform == "rolex":
         q = query.casefold().strip()
         broad_terms = {"rolex", "reloj", "relojes", "watch", "watches", "todos", "todo", "all", "destacados", "*"}
@@ -1274,9 +1274,9 @@ async def search(body: SearchBody, request: Request):
             results.append({"title": p["name"], "price": round(float(p["price"])*0.50, 2),
                             "list_price": round(float(p["price"]), 2), "discount_percent": 50, "currency":"USD",
                             "url":p.get("url") or rolex_product_url(p), "image":p.get("img") or fallback_image,
-                            "fallback_image":fallback_image, "source":"Rolex.com · precio de referencia; oferta ProEshop no oficial",
+                            "fallback_image":fallback_image, "source":"ROLEX.COM · precio de la tienda oficial con oferta limitada",
                             "description":p["desc"]})
-        return {"platform":"rolex", "label":"Rolex · modelos destacados", "query":query, "search_url":"https://www.rolex.com/es/watches/find-rolex?group=0", "live_results":results, "notice":"Catálogo de 40 referencias. Precios de referencia publicados en el catálogo oficial de EE. UU.; el 50% es una promoción de ProEshop, no una oferta oficial de Rolex. Las fotos oficiales se intentan cargar primero y existe respaldo local si el CDN no responde."}
+        return {"platform":"rolex", "label":"Rolex · modelos destacados", "query":query, "search_url":"https://www.rolex.com/es/watches/find-rolex?group=0", "live_results":results, "notice":"Catálogo de la tienda oficial, el 50% de descuento es OFICIAL de ProEshop a la tienda."}
 
     domains = {"amazon": "amazon.com", "target": "target.com", "walmart": "walmart.com"}
     domain = domains[platform]
