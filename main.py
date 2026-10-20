@@ -2025,31 +2025,77 @@ async def tenderly_network_check():
     return {"chain_id": chain_id, "block_number": block["number"], "block_hash": block["hash"], "token_contract": MAINNET_FORK_USDT_CONTRACT, "receiving_address": MAINNET_FORK_USDT_RECEIVING_ADDRESS, "network": "MainNet Lab (fork de Ethereum)"}
 
 
-async def _mainnet_fork_admin_transfer(from_address: str, to_address: str, amount: str):
-    """Submit a test-only ERC-20 transfer through the self-hosted gateway's token-protected admin route."""
+
+async def _mainnet_fork_admin_transfer(
+    from_address: str,
+    to_address: str,
+    amount: str,
+    idempotency_key: str,
+):
+    """Submit a test-only transfer through MainNetProETech."""
     if not MAINNET_FORK_ADMIN_URL or not MAINNET_FORK_ADMIN_TOKEN:
-        raise HTTPException(503, "Configura MAINNET_FORK_ADMIN_URL y MAINNET_FORK_ADMIN_TOKEN en Railway. El token debe coincidir con ADMIN_TOKEN del servicio MainNet Lab.")
+        raise HTTPException(
+            503,
+            "Configura MAINNET_FORK_ADMIN_URL y MAINNET_FORK_ADMIN_TOKEN."
+        )
+
+    if not idempotency_key or not 8 <= len(idempotency_key) <= 128:
+        raise HTTPException(400, "Clave de idempotencia inválida.")
+
     try:
         async with httpx.AsyncClient(timeout=25.0) as client:
             response = await client.post(
                 MAINNET_FORK_ADMIN_URL,
-                headers={"Authorization": f"Bearer {MAINNET_FORK_ADMIN_TOKEN}"},
-                json={"fromAddress": from_address, "toAddress": to_address, "amount": amount, "chainId": 1},
+                headers={
+                    "Authorization": f"Bearer {MAINNET_FORK_ADMIN_TOKEN}",
+                    "Idempotency-Key": idempotency_key,
+                },
+                json={
+                    "fromAddress": from_address,
+                    "toAddress": to_address,
+                    "amount": amount,
+                    "chainId": 1,
+                    "requestId": idempotency_key,
+                },
             )
             try:
                 payload = response.json()
             except Exception:
                 payload = {}
     except httpx.RequestError as exc:
-        log.warning("MainNet Lab admin transfer request failed: %s", type(exc).__name__)
-        raise HTTPException(502, "No se pudo conectar con la API privada de MainNet Lab.")
-    if response.status_code >= 400 or not isinstance(payload, dict) or not payload.get("ok"):
-        detail = payload.get("error", "La API privada de MainNet Lab rechazó la transferencia") if isinstance(payload, dict) else "respuesta inválida"
+        log.warning(
+            "MainNetProETech transfer request failed: %s",
+            type(exc).__name__,
+        )
+        raise HTTPException(
+            502,
+            "No se pudo conectar con la API privada de MainNetProETech."
+        )
+
+    if (
+        response.status_code >= 400
+        or not isinstance(payload, dict)
+        or not payload.get("ok")
+    ):
+        detail = (
+            payload.get("error", "MainNetProETech rechazó la transferencia")
+            if isinstance(payload, dict)
+            else "Respuesta inválida"
+        )
         raise HTTPException(502, str(detail)[:240])
+
     tx_hash = payload.get("txHash") or payload.get("tx_hash")
-    if not isinstance(tx_hash, str) or not re.fullmatch(r"0x[0-9a-fA-F]{64}", tx_hash):
-        raise HTTPException(502, "MainNet Lab no devolvió un hash de transacción válido; el pedido no se marcará como pagado.")
+    if not isinstance(tx_hash, str) or not re.fullmatch(
+        r"0x[0-9a-fA-F]{64}", tx_hash
+    ):
+        raise HTTPException(
+            502,
+            "MainNetProETech no devolvió un hash válido; "
+            "el pedido no se marcará como pagado."
+        )
+
     return tx_hash.lower()
+
 
 
 @app.post("/api/tenderly-wallet/challenge")
@@ -2125,7 +2171,12 @@ async def execute_tenderly_payment(order_ref: str, body: TenderlyExecuteBody, re
         expected_to = payment["receiving_address"].lower()
         if expected_to != MAINNET_FORK_USDT_RECEIVING_ADDRESS.lower():
             raise HTTPException(409, "El destinatario del pedido no coincide con la dirección configurada en MainNet Lab.")
-        tx_hash = await _mainnet_fork_admin_transfer(wallet, expected_to, str(payment["requested_amount"]))
+        tx_hash = await _mainnet_fork_admin_transfer(
+    wallet,
+    expected_to,
+    str(payment["requested_amount"]),
+    idempotency_key=f"proeshop-order-{order_ref}",
+        )
         with conn() as db:
             db.execute("UPDATE tenderly_payments SET status='pending',tx_hash=?,wallet_address=?,updated_at=? WHERE order_ref=? AND status='submitting'", (tx_hash,wallet,now_iso(),order_ref))
         audit(tg_id,"mainnet_lab_test_payment_submitted",f"order={order_ref}; wallet={wallet}; tx={tx_hash}; amount={payment['requested_amount']}")
