@@ -420,10 +420,10 @@ def send_status_email(recipient: str, order_ref: str, status: str, total: str, c
 <tr><td style="padding:17px 18px;border-bottom:1px solid #e5e9f2;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#667085;">Tienda</div><div style="font-size:16px;font-weight:700;margin-top:5px;color:#172033;">{escape(store)}</div></td></tr>
 <tr><td style="padding:17px 18px;border-bottom:1px solid #e5e9f2;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#667085;">Referencia del pedido</div><div style="font-size:16px;font-weight:700;margin-top:5px;color:#172033;">{escape(order_ref)}</div></td></tr>
 <tr><td style="padding:17px 18px;border-bottom:1px solid #e5e9f2;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#667085;">Estado actual</div><span style="display:inline-block;margin-top:8px;padding:8px 12px;border-radius:999px;background:{highlight};color:#171717;font-size:13px;font-weight:700;">{escape(status_label)}</span></td></tr>
-<tr><td style="padding:17px 18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#667085;">Total registrado de esta tienda</div><div style="font-size:24px;font-weight:700;margin-top:5px;color:{accent};">{total_formatted}</div></td></tr>
+<tr><td style="padding:17px 18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#667085;">Total de esta tienda</div><div style="font-size:24px;font-weight:700;margin-top:5px;color:{accent};">{total_formatted}</div></td></tr>
 </table>
 {detail_html}
-<div style="margin-top:22px;padding:14px 16px;background:#fff8e8;border:1px solid #f3dfad;border-radius:10px;color:#73551a;font-size:12px;line-height:1.65;">Esta notificación informa el estado registrado en ProEshop. Por sí sola no confirma que se haya recibido un pago ni que la compra se haya completado en la tienda proveedora.</div>
+<div style="margin-top:22px;padding:14px 16px;background:#fff8e8;border:1px solid #f3dfad;border-radius:10px;color:#73551a;font-size:12px;line-height:1.65;">Esta notificación informa el estado registrado en la tienda.</div>
 <p style="font-size:14px;line-height:1.6;margin:24px 0 0;color:#4b5568;">Gracias por usar <strong style="color:#172033;">ProEshop</strong>.</p>
 </td></tr>
 <tr><td style="background:#f8f9fc;border-top:1px solid #e8ebf2;padding:18px 30px;color:#8a93a5;font-size:11px;line-height:1.6;">Mensaje automático de ProEshop. No respondas a este correo si el remitente no admite respuestas.</td></tr>
@@ -432,7 +432,7 @@ def send_status_email(recipient: str, order_ref: str, status: str, total: str, c
         f"Hola,\n\n{message}\n\nTienda: {store}\nPedido: {order_ref}\n"
         f"Estado: {status_label}\nTotal registrado de esta tienda: {currency} {Decimal(total):.2f}"
         f"{chr(10) + 'Detalle: ' + detail_text if detail_text else ''}\n\n"
-        "El estado del pedido no implica por sí mismo que el pago haya sido recibido.\nProEshop"
+        "El estado del pedido es el estado actual en la tienda."
     )
 
     if BREVO_API_KEY:
