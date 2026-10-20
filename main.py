@@ -1411,8 +1411,13 @@ async def state(request: Request):
         history = db.execute("SELECT * FROM purchases WHERE telegram_id=? ORDER BY id DESC LIMIT 50", (tg_id,)).fetchall()
         orders = db.execute("""SELECT o.*, cp.status AS crypto_status, cp.requested_amount AS crypto_amount,
                     cp.created_at AS crypto_created_at, cp.receiving_address AS crypto_address,
-                    cp.network AS crypto_network, cp.token_symbol AS crypto_token
-                    FROM orders o LEFT JOIN crypto_payments cp ON cp.order_ref=o.order_ref
+                    cp.network AS crypto_network, cp.token_symbol AS crypto_token,
+                    tp.status AS mainnet_status, tp.requested_amount AS mainnet_amount,
+                    tp.created_at AS mainnet_created_at, tp.receiving_address AS mainnet_address,
+                    tp.tx_hash AS mainnet_tx_hash, tp.wallet_address AS mainnet_wallet_address
+                    FROM orders o
+                    LEFT JOIN crypto_payments cp ON cp.order_ref=o.order_ref
+                    LEFT JOIN tenderly_payments tp ON tp.order_ref=o.order_ref
                     WHERE o.telegram_id=? ORDER BY o.created_at DESC LIMIT 50""", (tg_id,)).fetchall()
         order_events = db.execute("SELECT e.* FROM order_events e JOIN orders o ON o.order_ref=e.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
         store_orders = db.execute("SELECT so.*, o.created_at AS parent_created_at FROM store_orders so JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY so.created_at DESC, so.store_label ASC", (tg_id,)).fetchall()
@@ -2156,14 +2161,17 @@ async def execute_tenderly_payment(order_ref: str, body: TenderlyExecuteBody, re
             return {"ok": True, "tx_hash": payment["tx_hash"], "status": "detected"}
         if payment["status"] != "pending" or payment["order_status"] != "pending_payment":
             raise HTTPException(409, "El pedido ya no está pendiente de pago.")
+        # A known transaction hash must be re-verified even if the wall-clock
+        # deadline has passed; the verifier checks the mined block timestamp.
+        if payment["tx_hash"]:
+            return {"ok": True, "tx_hash": payment["tx_hash"], "status": "submitted"}
         if time.time() > _payment_deadline_seconds(payment["created_at"]):
             _expire_tenderly_order(order_ref)
             raise HTTPException(410, "La cotización venció. El pedido fue cancelado.")
-        if payment["tx_hash"]:
-            return {"ok": True, "tx_hash": payment["tx_hash"], "status": "submitted"}
         changed = db.execute("UPDATE tenderly_payments SET status='submitting',wallet_address=?,updated_at=? WHERE order_ref=? AND status='pending' AND tx_hash IS NULL", (wallet,now_iso(),order_ref)).rowcount
         if not changed:
             raise HTTPException(409, "El pago ya se está procesando. Actualiza el pedido en unos segundos.")
+    gateway_call_started = False
     try:
         # The gateway's authenticated admin route verifies CHAIN_ID=1 and uses Anvil impersonation
         # on the isolated fork. This does NOT submit a real Ethereum Mainnet transaction.
@@ -2171,6 +2179,7 @@ async def execute_tenderly_payment(order_ref: str, body: TenderlyExecuteBody, re
         expected_to = payment["receiving_address"].lower()
         if expected_to != MAINNET_FORK_USDT_RECEIVING_ADDRESS.lower():
             raise HTTPException(409, "El destinatario del pedido no coincide con la dirección configurada en MainNet Lab.")
+        gateway_call_started = True
         tx_hash = await _mainnet_fork_admin_transfer(
     wallet,
     expected_to,
@@ -2182,8 +2191,12 @@ async def execute_tenderly_payment(order_ref: str, body: TenderlyExecuteBody, re
         audit(tg_id,"mainnet_lab_test_payment_submitted",f"order={order_ref}; wallet={wallet}; tx={tx_hash}; amount={payment['requested_amount']}")
         return {"ok":True,"tx_hash":tx_hash,"wallet_address":wallet,"status":"submitted","message":"Transferencia enviada al fork privado de MainNet Lab. Verificando el recibo y el evento Transfer."}
     except Exception:
-        with conn() as db:
-            db.execute("UPDATE tenderly_payments SET status='pending',updated_at=? WHERE order_ref=? AND status='submitting' AND tx_hash IS NULL", (now_iso(),order_ref))
+        # Once the private gateway call starts, its response can be lost even if
+        # the transfer was broadcast. Keep the payment locked as "submitting";
+        # reopening it as pending could cause a second debit on retry.
+        if not gateway_call_started:
+            with conn() as db:
+                db.execute("UPDATE tenderly_payments SET status='pending',updated_at=? WHERE order_ref=? AND status='submitting' AND tx_hash IS NULL", (now_iso(),order_ref))
         raise
 
 
@@ -2192,6 +2205,10 @@ def _expire_tenderly_order(order_ref: str):
     with conn() as db:
         payment = db.execute("SELECT tp.*,o.telegram_id,o.customer_email,o.total,o.currency,o.status AS order_status FROM tenderly_payments tp JOIN orders o ON o.order_ref=tp.order_ref WHERE tp.order_ref=?", (order_ref,)).fetchone()
         if not payment or payment["status"] not in {"pending", "submitting"}:
+            return
+        # Never auto-cancel an in-flight or broadcast transfer. Resolve its hash
+        # first; otherwise the customer could be charged after the order is cancelled.
+        if payment["status"] == "submitting" or payment["tx_hash"]:
             return
         deadline = _payment_deadline_seconds(payment["created_at"])
         if time.time() <= deadline:
@@ -2236,7 +2253,9 @@ async def verify_tenderly_payment(order_ref: str, body: TenderlyVerifyBody, requ
         raise HTTPException(409,"Este pedido ya tiene una transacción verificada.")
     if payment["status"] != "pending" or payment["order_status"] != "pending_payment":
         raise HTTPException(409,"Este pedido ya venció o dejó de estar pendiente. No envíes fondos usando esta cotización.")
-    if time.time() > _payment_deadline_seconds(payment["created_at"]):
+    if payment["tx_hash"] and payment["tx_hash"].lower() != tx_hash:
+        raise HTTPException(409,"Este pedido ya tiene una transferencia enviada. Solo se permite verificar ese hash.")
+    if not payment["tx_hash"] and time.time() > _payment_deadline_seconds(payment["created_at"]):
         _expire_tenderly_order(order_ref)
         raise HTTPException(410,"La cotización venció. El pedido fue cancelado y no puede confirmarse con esta transacción.")
     # Confirm this exact transaction on the configured RPC de MainNet Lab, not from client claims.
