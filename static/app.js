@@ -833,6 +833,7 @@ const accessoryCategories=[
 {id:'performance',name:'Rendimiento',icon:'race',items:[]}
 ];
 const $=id=>document.getElementById(id);
+const root=$('canamConfigurator');
 const money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
 const VEHICLE_DISCOUNT=0.40;
 const promotionalPrice=m=>Math.round(m.price*(1-VEHICLE_DISCOUNT)*100)/100;
