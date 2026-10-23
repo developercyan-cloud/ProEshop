@@ -53,6 +53,72 @@ body{background:radial-gradient(ellipse at 78% -5%,#26331f 0,#121821 27%,#080b10
 .config{position:relative}.config h2{font-size:23px;letter-spacing:-.035em}.model-select{border-color:#3b4755;background:#090d13}.model-select:focus{outline:2px solid #c7ff3566;border-color:var(--lime)}.spec{background:linear-gradient(145deg,#111923,#0b1017);border-color:#ffffff12;transition:border-color .2s,transform .2s}.spec:hover{border-color:#c7ff3555;transform:translateY(-1px)}.accessory-category{border-color:#ffffff16;background:#090d13}.category-head{background:linear-gradient(90deg,#151d27,#10151d);min-height:50px}.category-head:hover{background:linear-gradient(90deg,#1a2518,#111720)}.category-head .category-icon{filter:drop-shadow(0 0 6px #c7ff3530)}.accessory-item{border-color:#ffffff12;background:#0c1118;transition:background .18s,border-color .18s}.accessory-item:hover{border-color:#c7ff3555}.accessory-item.selected{border-color:#c7ff3580;background:linear-gradient(100deg,#c7ff3510,#111811)}.accessory-item input:checked{background:var(--lime);border-color:var(--lime)}.summary{background:linear-gradient(180deg,#0c111800,#0c1118 12%);border-top-color:#c7ff3530}.row.total strong{font-size:28px}.btn{background:linear-gradient(105deg,#d9ff78,#baff20);box-shadow:0 8px 25px #c7ff3524;color:#101407;letter-spacing:.045em;transition:transform .18s,box-shadow .18s}.btn:hover{transform:translateY(-1px);box-shadow:0 12px 30px #c7ff3538}.fine{line-height:1.65}.foot{border-top:1px solid #ffffff12;padding-top:17px;margin-bottom:25px}.mobile-buy{display:none}
 @media(max-width:900px){.wrap{padding-bottom:100px}.headline{gap:13px}.headline h1{font-size:clamp(32px,8vw,48px)}.layout{grid-template-columns:1fr}.stage{height:clamp(290px,64vw,430px)}.stage-promo{right:11px;bottom:11px;padding:11px;width:190px}.config{padding:16px}.mobile-buy{display:flex;position:fixed;z-index:100;left:0;right:0;bottom:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));align-items:center;justify-content:space-between;gap:12px;background:#080b10f2;border-top:1px solid #c7ff3545;backdrop-filter:blur(16px);box-shadow:0 -10px 30px #0008}.mobile-buy .mobile-copy{min-width:0}.mobile-buy small{display:block;color:#a4b0be;font-size:9px;letter-spacing:.1em}.mobile-buy strong{display:block;color:var(--lime);font-size:19px;white-space:nowrap}.mobile-buy button{border:0;border-radius:9px;background:var(--lime);color:#101407;font-weight:900;padding:13px 15px;font-size:10px;letter-spacing:.04em;white-space:nowrap}.top{padding:0 18px}}
 @media(max-width:440px){.headline{align-items:flex-start}.promo-pill{padding:10px 11px}.promo-pill strong{font-size:21px}.promo-pill span{font-size:9px}.stage-promo{width:165px}.stage-promo .mini-price{font-size:20px}.tag{max-width:52%;font-size:8px}.visual-foot{gap:8px}.foot{font-size:10px}}
+
+/* ProEshop integration skin: harmonized with the existing blue/white storefront. */
+:root{--bg:#f3f6fb;--panel:#ffffff;--line:#dfe7f1;--text:#17243a;--muted:#687b93;--lime:#c7ff35;--lime-soft:#d9ff78;--eshop-blue:#075fc7;--eshop-blue2:#0878e7}
+html{background:#f3f6fb;scroll-behavior:smooth}
+body{background:linear-gradient(180deg,#f7faff 0%,#edf2f9 100%);color:#17243a;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.top{display:none!important}
+.wrap{max-width:100%;margin:0 auto;padding:14px 4px 34px}
+.headline{align-items:flex-start;margin:2px 0 17px;gap:10px}
+.headline h1{font-size:clamp(25px,4vw,37px);color:#14233b;letter-spacing:-.045em}
+.headline h1 span{color:#075fc7}
+.headline p{color:#687b93;margin:8px 0 0;line-height:1.55}
+.eyebrow{color:#075fc7;letter-spacing:.15em}
+.pill{border-color:#d9e6f6;background:#eff7ff;color:#075fc7}
+.promo-pill{border-color:#c7ff35;background:linear-gradient(110deg,#f3ffd5,#fff);color:#24360a}
+.price-sale,.saving-row{color:#477600!important}
+.layout{grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);gap:12px}
+.panel{border:1px solid #e1e9f3;border-radius:17px;background:#fff;color:#17243a;box-shadow:0 8px 24px rgba(20,45,82,.07)}
+.visual-head{border-bottom-color:#e4ebf4;background:#fff}
+.model-title{color:#17243a}
+.muted{color:#687b93}
+.live{color:#4e7d00}
+.stage{background:radial-gradient(ellipse at 50% 72%,#3d4b5f,#1d2b3e 38%,#0b1422 100%);min-height:290px}
+.gallery{border-top-color:#e4ebf4;background:#fff}
+.angle{border-color:#dce5f0;background:#f8fbff;color:#5d6e84}
+.angle.active{border-color:#075fc7;color:#075fc7;background:#eff7ff;box-shadow:inset 0 0 0 1px #075fc722}
+.angle:hover{border-color:#075fc7;color:#075fc7}
+.visual-foot{border-top-color:#e4ebf4;background:#fff}
+.swatch.active{outline-color:#075fc7;box-shadow:0 0 0 3px #075fc71a}
+.swatch:focus-visible,.angle:focus-visible,.model-card:focus-visible{outline-color:#075fc7}
+.config{padding:16px;background:#fff}
+.config h2{color:#14233b}
+.step{color:#71829a}
+.model-select,.select{background:#fbfdff;color:#17243a;border-color:#d7e2ef}
+.model-select option{background:#fff;color:#17243a}
+.spec{background:#f8fbff;border-color:#e2eaf4}
+.spec b{color:#4e6078}
+.spec span{color:#17243a}
+.spec-icon,.spec-icon svg{color:#5f8c08;stroke:#5f8c08}
+.extra{background:#f8fbff;border-color:#e2eaf4;color:#24344b}
+.extra input{accent-color:#075fc7}
+.summary{border-top-color:#e2eaf4}
+.row{color:#687b93}
+.row.total{color:#17243a}
+.row.total strong{color:#477600}
+.btn{background:linear-gradient(110deg,#075fc7,#0878e7);color:#fff;box-shadow:0 7px 16px #075fc725}
+.btn:hover{filter:brightness(1.05)}
+.fine,.foot{color:#6f8097}
+.source{color:#075fc7}
+.accessory-category{border-color:#e0e8f2;background:#fff}
+.category-head{background:#f3f7fc;color:#17243a}
+.category-head .category-icon,.category-head .category-icon svg{color:#5f8c08;stroke:#5f8c08}
+.category-items{background:#fff}
+.accessory-item{background:#fbfdff;border-color:#e1e9f3;color:#17243a}
+.accessory-item.selected{border-color:#9acb42;background:#f6ffe7}
+.accessory-item b{color:#14233b}
+.item-tag{color:#687b93}
+.item-tag a{color:#075fc7}
+.empty-accessories{border-color:#d9e3ef;color:#687b93}
+.catalog-count{color:#71829a}
+.mobile-buy{background:rgba(255,255,255,.97);border-top:1px solid #dfe7f1;box-shadow:0 -6px 18px #142d4c10}
+.mobile-copy small{color:#71829a}
+.mobile-copy strong{color:#477600}
+.mobile-buy button{background:#075fc7;color:#fff}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.headline{align-items:flex-start}.stage{height:clamp(270px,66vw,390px)}.config{padding:15px}}
+@media(max-width:440px){.wrap{padding:9px 2px 28px}.headline h1{font-size:27px}.headline p{font-size:12px}.stage{height:270px}.config{padding:13px}.visual-head{padding:13px}.gallery{padding:10px}.angle{font-size:10px;padding:9px 4px}.visual-foot{padding:12px}.extras{grid-template-columns:1fr}.promo-pill{white-space:normal}.headline{margin-bottom:12px}}
+
 </style>
 </head>
 <body>
@@ -74,10 +140,10 @@ body{background:radial-gradient(ellipse at 78% -5%,#26331f 0,#121821 27%,#080b10
   <p class="fine" style="margin:7px 0 12px">Selecciona cualquier categoría. Solo una permanece abierta a la vez. Los precios mostrados son los publicados por la tienda oficial Can-Am BRP de Estados Unidos y están expresados en USD.</p>
   <div class="catalog-tools"><div class="catalog-count" id="accessoryCount" aria-live="polite"></div></div>
   <div id="accessoryCatalog" class="accessory-catalog"></div>
-  <div class="summary"><div class="step">04 / Resumen de configuración</div><div class="row"><span>Precio regular del vehículo</span><span class="price-old" id="baseOriginal">$39,699.00</span></div><div class="row"><span>Precio promocional (−40%)</span><span class="price-sale" id="base">$23,819.40</span></div><div class="row saving-row"><span>Tu ahorro</span><span id="savings">$15,879.60</span></div><div class="row"><span>Mejoras seleccionadas</span><span id="accessoryPrice">$0.00</span></div><div class="row total"><span>Total estimado</span><strong id="total">$23,819.40</strong></div><button class="btn" id="previewBtn">CONTINUAR CON MI CONFIGURACIÓN →</button><p class="fine">Promoción propuesta por ProEshop: 40% de descuento aplicado al vehículo seleccionado. Los accesorios conservan su precio publicado y no reciben este descuento. Valores en USD; impuestos, transporte e instalación pueden ser adicionales. Oferta sujeta a aprobación, vigencia y disponibilidad. Este prototipo no está conectado al carrito de ProEshop.</p></div>
+  <div class="summary"><div class="step">04 / Resumen de configuración</div><div class="row"><span>Precio regular del vehículo</span><span class="price-old" id="baseOriginal">$39,699.00</span></div><div class="row"><span>Precio promocional (−40%)</span><span class="price-sale" id="base">$23,819.40</span></div><div class="row saving-row"><span>Tu ahorro</span><span id="savings">$15,879.60</span></div><div class="row"><span>Mejoras seleccionadas</span><span id="accessoryPrice">$0.00</span></div><div class="row total"><span>Total estimado</span><strong id="total">$23,819.40</strong></div><button class="btn" id="previewBtn">CONTINUAR CON MI CONFIGURACIÓN →</button><p class="fine">Promoción propuesta por ProEshop: 40% de descuento aplicado al vehículo seleccionado. Los accesorios conservan su precio publicado y no reciben este descuento. Valores en USD; impuestos, transporte e instalación pueden ser adicionales. Oferta sujeta a aprobación, vigencia y disponibilidad. La configuración se agrega al carrito de ProEshop y continúa por el checkout habitual.</p></div>
 </aside>
 </div>
-<div class="foot">Imágenes y especificaciones base: <a class="source" href="https://can-am.brp.com/off-road/us/es/personaliza-el-tuyo/vehiculos-side-by-side/maverick-r.html" target="_blank" rel="noopener">configurador oficial Can-Am Maverick R 2027</a>. Los botones de ángulo permiten cambiar la vista de presentación; actualmente el catálogo oficial enlazado ofrece imágenes de estudio principalmente en vista 3/4. No se presentan como fotografías traseras reales las vistas que no están disponibles en la fuente. Las referencias de accesorios proceden del catálogo oficial Can-Am Maverick R 2026 y se muestran únicamente cuando la familia de modelo coincide con la ficha del accesorio. Los precios pueden cambiar por promociones, disponibilidad y región; se enlaza la tienda oficial para revisar cada pieza. El configurador público del vehículo muestra el precio base del modelo, mientras que estos accesorios usan los precios de la tienda oficial Can-Am de EE. UU.</div>
+<div class="foot">Imágenes y especificaciones base: <a class="source" href="https://can-am.brp.com/off-road/us/es/personaliza-el-tuyo/vehiculos-side-by-side/maverick-r.html" target="_blank" rel="noopener">configurador oficial Can-Am Maverick R 2027</a>. Las vistas laterales y traseras son orientaciones de presentación de la imagen de catálogo cuando no hay fotografía oficial específica disponible; no se presentan como fotografías independientes reales. Las referencias de accesorios proceden del catálogo oficial Can-Am Maverick R 2026 y se muestran únicamente cuando la familia de modelo coincide con la ficha del accesorio. Los precios pueden cambiar por promociones, disponibilidad y región; se enlaza la tienda oficial para revisar cada pieza. El configurador público del vehículo muestra el precio base del modelo, mientras que estos accesorios usan los precios de la tienda oficial Can-Am de EE. UU.</div>
 </main>
 <div class="mobile-buy"><div class="mobile-copy"><small>TU CONFIGURACIÓN · −40% EN VEHÍCULO</small><strong id="mobileTotal">US$23,819.40</strong></div><button type="button" id="mobileContinue">CONTINUAR →</button></div>
 <script src="/static/canam-configurator.js" defer></script>
