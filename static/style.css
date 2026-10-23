@@ -204,15 +204,26 @@ input,select,textarea{color-scheme:dark}
 /* Customer authentication */
 .auth-panel .auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 20px}.auth-tab{border:1px solid var(--line,#353953);border-radius:10px;padding:11px;background:transparent;color:inherit;font:inherit}.auth-tab.active{background:#7f68e9;color:#fff;border-color:#7f68e9}.auth-panel form{display:grid;gap:12px}.auth-panel form h2{margin:0 0 4px}.auth-panel .secondary{margin-top:10px}
 
-/* Can-Am: same ProEshop storefront language, with a restrained Can-Am lime accent. */
-.canam-store .canam-logo,.canam-logo{background:linear-gradient(145deg,#d7ff4a,#93bd15);color:#18220a;font-weight:950}
-.store.canam-store.active{border-color:#a9d52c;background:linear-gradient(145deg,#f7ffe3,#fff);box-shadow:0 0 0 2px #c7ff3540}
-.canam-configurator-panel{margin:0 0 18px;padding:0;background:#fff;border:1px solid #dfe7f1;border-radius:20px;overflow:hidden;color:#14233b;box-shadow:0 10px 30px rgba(20,45,82,.075)}
-.canam-panel-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:17px 17px 15px;background:radial-gradient(circle at 100% 0,#e6f2ff 0,transparent 45%),linear-gradient(120deg,#fff,#f5f9ff);border-bottom:1px solid #e2eaf4}
-.canam-eyebrow{font-size:8px;letter-spacing:1.4px;color:#075fc7;font-weight:900;text-transform:uppercase}
-.canam-panel-heading h2{margin:5px 0;font-size:19px;letter-spacing:-.5px;color:#14233b}
-.canam-panel-heading p{font-size:10px;line-height:1.5;color:#6b7b91;margin:0;max-width:440px}
-.canam-mark{width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;border:1px solid #b8db75;border-radius:12px;background:linear-gradient(145deg,#f4ffd9,#e7f7bd);color:#35550b;font-weight:950;font-size:21px}
-#canamConfiguratorFrame{display:block;width:100%;height:2800px;border:0;background:#f3f6fb;overflow:hidden}
-@media(min-width:520px){.canam-configurator-panel{margin-bottom:20px}}
-@media(max-width:390px){.canam-panel-heading{padding:14px 12px}.canam-panel-heading h2{font-size:17px}#canamConfiguratorFrame{height:3200px}}
+
+/* Native Can-Am store tab and embedded configurator — integrated into the existing ProEshop shell. */
+.store-row{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.canam-store .canam-logo{display:grid;place-items:center;background:linear-gradient(145deg,#d7ff4a,#8ba72a);color:#11152b;font-weight:950;border:1px solid #e4ff8a;box-shadow:0 0 16px #d7ff4a24}
+.store.canam-store.active{background:linear-gradient(145deg,#29321a,#171c2c)!important;border-color:#d7ff4a!important;box-shadow:0 0 0 1px #d7ff4a24,0 8px 25px #0004!important}
+#shopView.canam-home-active{padding-bottom:20px}
+#canamConfigurator{width:100%;min-width:0;color:#f3f6fa;isolation:isolate}
+#canamConfigurator.hidden{display:none!important}
+#canamConfigurator .wrap{max-width:none;margin:0;padding:18px 0 24px}
+#canamConfigurator .headline{align-items:center}
+#canamConfigurator .foot{margin-bottom:12px}
+#canamConfigurator .source{color:#d7ff4a}
+#canamConfigurator .mobile-buy{color:#f3f6fa}
+#canamConfigurator .mobile-buy strong{color:#d7ff4a}
+#canamConfigurator .mobile-buy button{border:0;border-radius:9px;background:#d7ff4a;color:#101407;font-weight:900;padding:12px;cursor:pointer}
+#canamConfigurator .mobile-buy small{display:block;color:#9aa8bb;font-size:9px}
+#canamConfigurator .mobile-buy strong{display:block;font-size:15px}
+#canamConfigurator .stage-promo{position:absolute;z-index:3;right:17px;bottom:16px;width:min(240px,46%);padding:14px;border:1px solid #c7ff3570;border-radius:13px;background:linear-gradient(145deg,#0b100beF,#080b10eF);box-shadow:0 12px 35px #0008;backdrop-filter:blur(14px)}
+#canamConfigurator .stage-promo .mini-label{font-size:9px;color:#b8c4b0;letter-spacing:.15em;font-weight:800}
+#canamConfigurator .stage-promo .mini-price{font-size:clamp(19px,2.2vw,28px);font-weight:950;letter-spacing:-.04em;color:#d7ff4a;margin:5px 0 3px}
+#canamConfigurator .stage-promo .mini-old{font-size:10px;color:#9ca6b3;text-decoration:line-through}
+#canamConfigurator .stage-promo .mini-saving{font-size:10px;color:#d7ff4a;margin-top:5px}
+@media(max-width:520px){.store-row{grid-template-columns:repeat(2,minmax(0,1fr))!important}#canamConfigurator .wrap{padding:14px 0 18px}#canamConfigurator .headline{align-items:flex-start;flex-direction:column}#canamConfigurator .mobile-buy{display:flex!important;position:sticky!important;bottom:0!important;z-index:5!important}#canamConfigurator .stage-promo{right:8px;bottom:8px;padding:9px;width:49%}#canamConfigurator .stage-promo .mini-price{font-size:17px}}
