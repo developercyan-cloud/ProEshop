@@ -142,7 +142,8 @@ async def security_and_rate_limit(request: Request, call_next):
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' https://api.telegram.org https://relay.walletconnect.com wss://relay.walletconnect.com https://relay.walletconnect.org wss://relay.walletconnect.org https://*.walletconnect.com wss://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.org https://verify.walletconnect.org https://pulse.walletconnect.org https://rpc.walletconnect.com https://api.web3modal.org; frame-src 'self' https://verify.walletconnect.org https://*.walletconnect.com https://*.walletconnect.org; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    frame_ancestors = "'self'" if path == "/static/canam-configurator.html" else "'none'"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; connect-src 'self' https://api.telegram.org https://relay.walletconnect.com wss://relay.walletconnect.com https://relay.walletconnect.org wss://relay.walletconnect.org https://*.walletconnect.com wss://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.org https://verify.walletconnect.org https://pulse.walletconnect.org https://rpc.walletconnect.com https://api.web3modal.org; frame-src 'self' https://verify.walletconnect.org https://*.walletconnect.com https://*.walletconnect.org; frame-ancestors " + frame_ancestors + "; base-uri 'self'; form-action 'self'"
     if path == "/" or path.startswith("/api/"):
         response.headers.setdefault("Cache-Control", "no-store")
     return response
@@ -356,18 +357,18 @@ ORDER_TRANSITIONS = {
     "returned": set(),
 }
 ORDER_EMAIL_COPY = {
-    "pending_payment": ("Tu pedido está pendiente de pago", "Tu pedido se creó y estará reservado durante cinco minutos mientras completas el pago mediante USDT. Si no se detecta el pago en ese plazo, se cancelará automáticamente."),
-    "received": ("Recibimos tu pedido", "Tu pedido fue registrado en ProEshop y enviado a la tienda."),
+    "pending_payment": ("Tu pedido está pendiente de pago", "Tu pedido se creó y estará reservado durante cinco minutos mientras completas el pago USDT por TRON (TRC-20). Si no se detecta el pago en ese plazo, se cancelará automáticamente."),
+    "received": ("Recibimos tu pedido", "Tu pedido fue registrado en ProEshop. Esto confirma el registro, no un pago ni una compra con un proveedor."),
     "reviewing": ("Estamos revisando tu pedido", "Estamos verificando los detalles y la disponibilidad del pedido."),
-    "payment_review": ("Transacción detectada: en revisión", "Detectamos la transferencia de tu pedido. La blockchain esta revisando el pago antes de confirmar el pedido."),
-    "action_required": ("Necesitamos información para tu pedido", "Tu pedido requiere una acción adicional. Revisa los detalles en tu correo."),
-    "confirmed": ("Tu pedido ha sido confirmado", "El pedido fue confirmado por la tienda. El estado del pago ahora es confirmado."),
-    "in_process": ("Tu pedido está en proceso", "Tu pedido ha pasado a la etapa de preparación para envio."),
-    "preparing": ("Tu pedido está en proceso", "Tu pedido ha pasado a la etapa de preparación para envio."),
-    "shipped": ("Tu pedido fue enviado", "La tienda ha enviado tu pedido. Consulta el número de guía si se ha proporcionado en los detalles."),
-    "delivered": ("Tu pedido ha sido entregado", "Se registró la entrega del pedido."),
-    "unavailable": ("Actualización sobre disponibilidad", "El producto no está disponible actualmente en la tienda. Se emitira un reembolso."),
-    "cancelled": ("Pedido cancelado por falta de pago", "Tu pedido fue cancelado automáticamente porque no se detectó el pago confirmado dentro del plazo de cinco minutos. La cotización expiró y ya no debes enviar fondos usando esos datos. Si deseas comprar, crea un nuevo pedido."),
+    "payment_review": ("Pago detectado: en revisión", "Detectamos la transferencia USDT en TRON. El equipo está revisando el pago antes de confirmar el pedido."),
+    "action_required": ("Necesitamos información para tu pedido", "Tu pedido requiere una acción adicional. Revisa los detalles con el equipo de ProEshop."),
+    "confirmed": ("Tu pedido ha sido confirmado", "El pedido fue confirmado por el equipo de ProEshop. El estado del pago se informa por separado."),
+    "in_process": ("Tu pedido está en proceso", "Tu pedido ha pasado a la etapa de proceso."),
+    "preparing": ("Tu pedido está en proceso", "Tu pedido ha pasado a la etapa de proceso."),
+    "shipped": ("Tu pedido fue enviado", "Tu pedido figura como enviado. Consulta el número de guía en los detalles del pedido si se ha registrado."),
+    "delivered": ("Tu pedido figura como entregado", "Se registró la entrega del pedido."),
+    "unavailable": ("Actualización sobre disponibilidad", "El producto no está disponible actualmente. El equipo de ProEshop te informará sobre las opciones."),
+    "cancelled": ("Pedido cancelado por falta de pago", "Tu pedido con pago USDT fue cancelado automáticamente porque no se detectó el pago confirmado dentro del plazo de cinco minutos. La cotización expiró y ya no debes enviar fondos usando esos datos. Si deseas comprar, crea un nuevo pedido."),
     "returned": ("Actualización de devolución", "El pedido fue marcado como devuelto. El estado de cualquier reembolso se gestiona por separado."),
 }
 
@@ -420,10 +421,10 @@ def send_status_email(recipient: str, order_ref: str, status: str, total: str, c
 <tr><td style="padding:17px 18px;border-bottom:1px solid #e5e9f2;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#667085;">Tienda</div><div style="font-size:16px;font-weight:700;margin-top:5px;color:#172033;">{escape(store)}</div></td></tr>
 <tr><td style="padding:17px 18px;border-bottom:1px solid #e5e9f2;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#667085;">Referencia del pedido</div><div style="font-size:16px;font-weight:700;margin-top:5px;color:#172033;">{escape(order_ref)}</div></td></tr>
 <tr><td style="padding:17px 18px;border-bottom:1px solid #e5e9f2;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#667085;">Estado actual</div><span style="display:inline-block;margin-top:8px;padding:8px 12px;border-radius:999px;background:{highlight};color:#171717;font-size:13px;font-weight:700;">{escape(status_label)}</span></td></tr>
-<tr><td style="padding:17px 18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#667085;">Total de esta tienda</div><div style="font-size:24px;font-weight:700;margin-top:5px;color:{accent};">{total_formatted}</div></td></tr>
+<tr><td style="padding:17px 18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#667085;">Total registrado de esta tienda</div><div style="font-size:24px;font-weight:700;margin-top:5px;color:{accent};">{total_formatted}</div></td></tr>
 </table>
 {detail_html}
-<div style="margin-top:22px;padding:14px 16px;background:#fff8e8;border:1px solid #f3dfad;border-radius:10px;color:#73551a;font-size:12px;line-height:1.65;">Esta notificación informa el estado registrado en la tienda.</div>
+<div style="margin-top:22px;padding:14px 16px;background:#fff8e8;border:1px solid #f3dfad;border-radius:10px;color:#73551a;font-size:12px;line-height:1.65;">Esta notificación informa el estado registrado en ProEshop. Por sí sola no confirma que se haya recibido un pago ni que la compra se haya completado en la tienda proveedora.</div>
 <p style="font-size:14px;line-height:1.6;margin:24px 0 0;color:#4b5568;">Gracias por usar <strong style="color:#172033;">ProEshop</strong>.</p>
 </td></tr>
 <tr><td style="background:#f8f9fc;border-top:1px solid #e8ebf2;padding:18px 30px;color:#8a93a5;font-size:11px;line-height:1.6;">Mensaje automático de ProEshop. No respondas a este correo si el remitente no admite respuestas.</td></tr>
@@ -432,7 +433,7 @@ def send_status_email(recipient: str, order_ref: str, status: str, total: str, c
         f"Hola,\n\n{message}\n\nTienda: {store}\nPedido: {order_ref}\n"
         f"Estado: {status_label}\nTotal registrado de esta tienda: {currency} {Decimal(total):.2f}"
         f"{chr(10) + 'Detalle: ' + detail_text if detail_text else ''}\n\n"
-        "El estado del pedido es el estado actual en la tienda."
+        "El estado del pedido no implica por sí mismo que el pago haya sido recibido.\nProEshop"
     )
 
     if BREVO_API_KEY:
@@ -644,6 +645,7 @@ PLATFORMS = {
     "hublot": {"label": "HUBLOT", "url": "https://www.hublot.com/en-us/watches"},
     "jewelers": {"label": "Jewelers Toy Store", "url": "https://www.jewelerstoystore.com/Electronic-s/1074.htm"},
     "rolex": {"label": "Rolex", "url": "https://www.rolex.com/es/watches/find-rolex?group=0"},
+    "canam": {"label": "Can-Am", "url": "https://can-am.brp.com/off-road/us/es/personaliza-el-tuyo/vehiculos-side-by-side/maverick-r.html"},
 }
 
 
@@ -1215,12 +1217,12 @@ async def search(body: SearchBody, request: Request):
             results.append({"title": p["name"], "price": round(float(p["price"]), 2),
                             "currency": "USD", "url": product_url, "image": image_url,
                             "fallback_image": fallback_image,
-                            "source": "HUBLOT.COM · precio de la tienda oficial con oferta limitada",
+                            "source": "HUBLOT.com · foto oficial si está disponible; respaldo local de catálogo",
                             "collection": p.get("collection", ""), "description": p.get("desc", "")})
         return {
             "platform": "hublot", "label": "HUBLOT", "query": query,
             "search_url": search_url, "live_results": results,
-            "notice": "Catálogo de la tienda oficial, el 50% de descuento es OFICIAL de ProEshop a la tienda."
+            "notice": "Catálogo local ilustrativo de ProEshop. Precios e imágenes no son cotización oficial; el 50% de descuento es simulado."
         }
     if platform == "jewelers":
         q = query.casefold().strip()
@@ -1234,10 +1236,10 @@ async def search(body: SearchBody, request: Request):
             results.append({"title": p["name"], "price": round(float(p["price"]), 2),
                             "currency": "USD", "url": p["url"], "image": fallback_image,
                             "fallback_image": fallback_image,
-                            "source": "JewelersToyStore.com · precio de la tienda oficial con oferta limitada",
+                            "source": "JewelersToyStore.com · imagen ilustrativa local; consulta la ficha del proveedor",
                             "description": p["desc"]})
         return {"platform":"jewelers", "label":"Jewelers Toy Store", "query":query, "search_url":search_url,
-                "live_results":results, "notice":"Catálogo de la tienda oficial, el 50% de descuento es OFICIAL de ProEshop a la tienda."}
+                "live_results":results, "notice":"Las imágenes de respaldo son ilustrativas porque el proveedor bloquea la consulta automática (HTTP 403). Verifica el producto, precio y disponibilidad en la ficha del proveedor."}
     if platform == "rolex":
         q = query.casefold().strip()
         broad_terms = {"rolex", "reloj", "relojes", "watch", "watches", "todos", "todo", "all", "destacados", "*"}
@@ -1274,9 +1276,9 @@ async def search(body: SearchBody, request: Request):
             results.append({"title": p["name"], "price": round(float(p["price"])*0.50, 2),
                             "list_price": round(float(p["price"]), 2), "discount_percent": 50, "currency":"USD",
                             "url":p.get("url") or rolex_product_url(p), "image":p.get("img") or fallback_image,
-                            "fallback_image":fallback_image, "source":"ROLEX.COM · precio de la tienda oficial con oferta limitada",
+                            "fallback_image":fallback_image, "source":"Rolex.com · precio de referencia; oferta ProEshop no oficial",
                             "description":p["desc"]})
-        return {"platform":"rolex", "label":"Rolex · modelos destacados", "query":query, "search_url":"https://www.rolex.com/es/watches/find-rolex?group=0", "live_results":results, "notice":"Catálogo de la tienda oficial, el 50% de descuento es OFICIAL de ProEshop a la tienda."}
+        return {"platform":"rolex", "label":"Rolex · modelos destacados", "query":query, "search_url":"https://www.rolex.com/es/watches/find-rolex?group=0", "live_results":results, "notice":"Catálogo de 40 referencias. Precios de referencia publicados en el catálogo oficial de EE. UU.; el 50% es una promoción de ProEshop, no una oferta oficial de Rolex. Las fotos oficiales se intentan cargar primero y existe respaldo local si el CDN no responde."}
 
     domains = {"amazon": "amazon.com", "target": "target.com", "walmart": "walmart.com"}
     domain = domains[platform]
@@ -1411,13 +1413,8 @@ async def state(request: Request):
         history = db.execute("SELECT * FROM purchases WHERE telegram_id=? ORDER BY id DESC LIMIT 50", (tg_id,)).fetchall()
         orders = db.execute("""SELECT o.*, cp.status AS crypto_status, cp.requested_amount AS crypto_amount,
                     cp.created_at AS crypto_created_at, cp.receiving_address AS crypto_address,
-                    cp.network AS crypto_network, cp.token_symbol AS crypto_token,
-                    tp.status AS mainnet_status, tp.requested_amount AS mainnet_amount,
-                    tp.created_at AS mainnet_created_at, tp.receiving_address AS mainnet_address,
-                    tp.tx_hash AS mainnet_tx_hash, tp.wallet_address AS mainnet_wallet_address
-                    FROM orders o
-                    LEFT JOIN crypto_payments cp ON cp.order_ref=o.order_ref
-                    LEFT JOIN tenderly_payments tp ON tp.order_ref=o.order_ref
+                    cp.network AS crypto_network, cp.token_symbol AS crypto_token
+                    FROM orders o LEFT JOIN crypto_payments cp ON cp.order_ref=o.order_ref
                     WHERE o.telegram_id=? ORDER BY o.created_at DESC LIMIT 50""", (tg_id,)).fetchall()
         order_events = db.execute("SELECT e.* FROM order_events e JOIN orders o ON o.order_ref=e.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
         store_orders = db.execute("SELECT so.*, o.created_at AS parent_created_at FROM store_orders so JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY so.created_at DESC, so.store_label ASC", (tg_id,)).fetchall()
@@ -1497,6 +1494,7 @@ async def add_cart(body: AddBody, request: Request):
         "hublot": ("hublot.com",),
         "jewelers": ("jewelerstoystore.com",),
         "rolex": ("rolex.com",),
+        "canam": ("can-am.brp.com",),
     }
     if (
         parsed.scheme.lower() != "https"
@@ -2161,17 +2159,14 @@ async def execute_tenderly_payment(order_ref: str, body: TenderlyExecuteBody, re
             return {"ok": True, "tx_hash": payment["tx_hash"], "status": "detected"}
         if payment["status"] != "pending" or payment["order_status"] != "pending_payment":
             raise HTTPException(409, "El pedido ya no está pendiente de pago.")
-        # A known transaction hash must be re-verified even if the wall-clock
-        # deadline has passed; the verifier checks the mined block timestamp.
-        if payment["tx_hash"]:
-            return {"ok": True, "tx_hash": payment["tx_hash"], "status": "submitted"}
         if time.time() > _payment_deadline_seconds(payment["created_at"]):
             _expire_tenderly_order(order_ref)
             raise HTTPException(410, "La cotización venció. El pedido fue cancelado.")
+        if payment["tx_hash"]:
+            return {"ok": True, "tx_hash": payment["tx_hash"], "status": "submitted"}
         changed = db.execute("UPDATE tenderly_payments SET status='submitting',wallet_address=?,updated_at=? WHERE order_ref=? AND status='pending' AND tx_hash IS NULL", (wallet,now_iso(),order_ref)).rowcount
         if not changed:
             raise HTTPException(409, "El pago ya se está procesando. Actualiza el pedido en unos segundos.")
-    gateway_call_started = False
     try:
         # The gateway's authenticated admin route verifies CHAIN_ID=1 and uses Anvil impersonation
         # on the isolated fork. This does NOT submit a real Ethereum Mainnet transaction.
@@ -2179,7 +2174,6 @@ async def execute_tenderly_payment(order_ref: str, body: TenderlyExecuteBody, re
         expected_to = payment["receiving_address"].lower()
         if expected_to != MAINNET_FORK_USDT_RECEIVING_ADDRESS.lower():
             raise HTTPException(409, "El destinatario del pedido no coincide con la dirección configurada en MainNet Lab.")
-        gateway_call_started = True
         tx_hash = await _mainnet_fork_admin_transfer(
     wallet,
     expected_to,
@@ -2191,12 +2185,8 @@ async def execute_tenderly_payment(order_ref: str, body: TenderlyExecuteBody, re
         audit(tg_id,"mainnet_lab_test_payment_submitted",f"order={order_ref}; wallet={wallet}; tx={tx_hash}; amount={payment['requested_amount']}")
         return {"ok":True,"tx_hash":tx_hash,"wallet_address":wallet,"status":"submitted","message":"Transferencia enviada al fork privado de MainNet Lab. Verificando el recibo y el evento Transfer."}
     except Exception:
-        # Once the private gateway call starts, its response can be lost even if
-        # the transfer was broadcast. Keep the payment locked as "submitting";
-        # reopening it as pending could cause a second debit on retry.
-        if not gateway_call_started:
-            with conn() as db:
-                db.execute("UPDATE tenderly_payments SET status='pending',updated_at=? WHERE order_ref=? AND status='submitting' AND tx_hash IS NULL", (now_iso(),order_ref))
+        with conn() as db:
+            db.execute("UPDATE tenderly_payments SET status='pending',updated_at=? WHERE order_ref=? AND status='submitting' AND tx_hash IS NULL", (now_iso(),order_ref))
         raise
 
 
@@ -2205,10 +2195,6 @@ def _expire_tenderly_order(order_ref: str):
     with conn() as db:
         payment = db.execute("SELECT tp.*,o.telegram_id,o.customer_email,o.total,o.currency,o.status AS order_status FROM tenderly_payments tp JOIN orders o ON o.order_ref=tp.order_ref WHERE tp.order_ref=?", (order_ref,)).fetchone()
         if not payment or payment["status"] not in {"pending", "submitting"}:
-            return
-        # Never auto-cancel an in-flight or broadcast transfer. Resolve its hash
-        # first; otherwise the customer could be charged after the order is cancelled.
-        if payment["status"] == "submitting" or payment["tx_hash"]:
             return
         deadline = _payment_deadline_seconds(payment["created_at"])
         if time.time() <= deadline:
@@ -2253,9 +2239,7 @@ async def verify_tenderly_payment(order_ref: str, body: TenderlyVerifyBody, requ
         raise HTTPException(409,"Este pedido ya tiene una transacción verificada.")
     if payment["status"] != "pending" or payment["order_status"] != "pending_payment":
         raise HTTPException(409,"Este pedido ya venció o dejó de estar pendiente. No envíes fondos usando esta cotización.")
-    if payment["tx_hash"] and payment["tx_hash"].lower() != tx_hash:
-        raise HTTPException(409,"Este pedido ya tiene una transferencia enviada. Solo se permite verificar ese hash.")
-    if not payment["tx_hash"] and time.time() > _payment_deadline_seconds(payment["created_at"]):
+    if time.time() > _payment_deadline_seconds(payment["created_at"]):
         _expire_tenderly_order(order_ref)
         raise HTTPException(410,"La cotización venció. El pedido fue cancelado y no puede confirmarse con esta transacción.")
     # Confirm this exact transaction on the configured RPC de MainNet Lab, not from client claims.
