@@ -579,13 +579,32 @@ showEmailVerifiedLogin();
  const state={provider:null,address:'',walletName:'',chainId:null,ethereumProvider:null,connecting:false};
  window.proEshopWalletConnected=false;
  window.proEshopWalletBalanceDisplay=null;
- const networks={
-  1:{name:'Ethereum',token:'0xdAC17F958D2ee523a2206206994597C13D831ec7',decimals:6},
-  56:{name:'BNB Smart Chain',token:'0x55d398326f99059fF775485246999027B3197955',decimals:18},
-  137:{name:'Polygon',token:'0xc2132D05D31c914a87C6611C10748AaCbAbaB0',decimals:6}
- };
+ // El saldo se consulta SIEMPRE en MainLab, independientemente de la red seleccionada
+ // dentro de MetaMask/Trust Wallet. Chain ID 1 identifica el fork privado.
+ const MAINLAB_RPC='https://mainnetproetech-production.up.railway.app/rpc';
+ const MAINLAB_CHAIN_ID=1;
+ const USDT_CONTRACT='0xdAC17F958D2ee523a2206206994597C13D831ec7';
+ const USDT_DECIMALS=6;
  function status(t){const e=$w('walletConnectStatus');if(e)e.textContent=t;}
- function fmt(n){return Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:6})}
+ function formatUSDT(raw){
+  const units=BigInt(raw);
+  const whole=(units/1000000n).toLocaleString('en-US');
+  const fraction=(units%1000000n).toString().padStart(6,'0').replace(/0+$/,'');
+  const decimals=fraction.length<2?fraction.padEnd(2,'0'):fraction;
+  return whole+'.'+decimals;
+ }
+ async function mainlabRpc(method,params=[]){
+  const response=await fetch(MAINLAB_RPC,{
+   method:'POST',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({jsonrpc:'2.0',id:Date.now(),method,params})
+  });
+  if(!response.ok)throw new Error('MainLab RPC respondió HTTP '+response.status+'.');
+  const payload=await response.json();
+  if(payload.error)throw new Error(payload.error.message||'MainLab RPC rechazó la consulta.');
+  if(payload.result===undefined)throw new Error('MainLab RPC devolvió una respuesta incompleta.');
+  return payload.result;
+ }
  function short(a){return a?a.slice(0,6)+'…'+a.slice(-4):'Sin conectar'}
  function setBusy(b){state.connecting=b;['connectMetaMask','connectTrustWallet','connectWalletSelector'].forEach(id=>{const e=$w(id);if(e)e.disabled=b});}
  function renderConnected(){
@@ -595,25 +614,23 @@ showEmailVerifiedLogin();
   $w('refreshWalletBalance').disabled=false;$w('disconnectWallet').disabled=false;
  }
  async function balance(){
-  if(!state.provider||!state.address)return;
-  const chainHex=await state.provider.request({method:'eth_chainId'});
-  state.chainId=parseInt(chainHex,16);
-  const net=networks[state.chainId];
-  if(!net){
-   window.proEshopWalletBalanceDisplay='Red no compatible';
-   $w('balanceValue').textContent='Red no compatible';
-   $w('walletBalanceCaption').textContent='Cambia a Ethereum, BNB Smart Chain o Polygon';
-   status('Red no compatible. Este panel consulta USDT en Ethereum, BNB Chain o Polygon.');
-   return;
+  if(!state.address)return;
+  status('Consultando USDT en MainLab…');
+  // balanceOf(address): el address viene de la wallet; la lectura va al RPC privado,
+  // no al provider de MetaMask/Trust Wallet ni a Ethereum Mainnet.
+  const chainHex=await mainlabRpc('eth_chainId');
+  const rpcChainId=parseInt(chainHex,16);
+  if(rpcChainId!==MAINLAB_CHAIN_ID){
+   throw new Error('El RPC configurado no reporta Chain ID 1. Se detuvo la consulta para evitar mostrar un saldo de otra red.');
   }
-  status('Consultando USDT en '+net.name+'…');
-  const data='0x70a08231'+state.address.toLowerCase().replace('0x','').padStart(64,'0');
-  const raw=await state.provider.request({method:'eth_call',params:[{to:net.token,data},'latest']});
-  const amount=Number(BigInt(raw))/Math.pow(10,net.decimals);
-  window.proEshopWalletBalanceDisplay=fmt(amount)+' USDT';
+  state.chainId=rpcChainId;
+  const data='0x70a08231'+state.address.toLowerCase().replace(/^0x/,'').padStart(64,'0');
+  const raw=await mainlabRpc('eth_call',[{to:USDT_CONTRACT,data},'latest']);
+  if(typeof raw!=='string'||!/^0x[0-9a-fA-F]+$/.test(raw))throw new Error('MainLab devolvió un saldo USDT inválido.');
+  window.proEshopWalletBalanceDisplay=formatUSDT(raw)+' USDT';
   $w('balanceValue').textContent=window.proEshopWalletBalanceDisplay;
-  $w('walletBalanceCaption').textContent='USDT · '+net.name+' · saldo consultado en blockchain';
-  status('Saldo actualizado correctamente.');
+  $w('walletBalanceCaption').textContent='USDT · MainLab · fork privado Ethereum · Chain ID 1';
+  status('Saldo de MainLab actualizado correctamente.');
   renderConnected();
  }
  async function attach(provider,name){
@@ -729,7 +746,7 @@ showEmailVerifiedLogin();
   window.proEshopWalletBalanceDisplay=null;
   window.proEshopWalletConnected=false;
   const b=$w('balanceValue');if(b)b.textContent='Conecta tu billetera';
-  const c=$w('walletBalanceCaption');if(c)c.textContent='Saldo USDT de la red conectada';
+  const c=$w('walletBalanceCaption');if(c)c.textContent='Saldo USDT consultado en MainLab';
   const a=$w('walletAddressShort');if(a)a.textContent='Sin conectar';
   const l=$w('walletConnectionLabel');if(l)l.textContent='PROESHOP WALLET';
   $w('refreshWalletBalance').disabled=true;$w('disconnectWallet').disabled=true;
