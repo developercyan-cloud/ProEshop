@@ -643,6 +643,7 @@ PLATFORMS = {
     "walmart": {"label": "Walmart", "url": "https://www.walmart.com/search?q={q}"},
     "hublot": {"label": "HUBLOT", "url": "https://www.hublot.com/en-us/watches"},
     "jewelers": {"label": "Jewelers Toy Store", "url": "https://www.jewelerstoystore.com/Electronic-s/1074.htm"},
+    "canam": {"label": "Can-Am", "url": "https://can-am.brp.com/off-road/us/en/"},
     "rolex": {"label": "Rolex", "url": "https://www.rolex.com/es/watches/find-rolex?group=0"},
 }
 
@@ -1496,6 +1497,7 @@ async def add_cart(body: AddBody, request: Request):
         "walmart": ("walmart.com",),
         "hublot": ("hublot.com",),
         "jewelers": ("jewelerstoystore.com",),
+        "canam": ("brp.com",),
         "rolex": ("rolex.com",),
     }
     if (
