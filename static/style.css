@@ -480,3 +480,146 @@ input,select,textarea{color-scheme:dark}
 .canam-configurator .promo-pill{white-space:normal}
 .canam-configurator .headline{margin-bottom:12px}}
 .canam-store-panel{padding:0!important;overflow:hidden}.canam-configurator{width:100%;border-radius:18px;overflow:hidden}.canam-configurator .canam-wrap{max-width:1500px;margin:auto;padding:26px 16px 42px}.canam-configurator .canam-mobile-buy{display:none}@media(max-width:700px){.canam-configurator .canam-wrap{padding:18px 10px 32px}.canam-configurator .layout{grid-template-columns:1fr}.canam-configurator .headline{align-items:flex-start;flex-direction:column}.canam-configurator .stage{height:300px}.canam-configurator .config{padding:14px}.canam-configurator .extras{grid-template-columns:1fr}.canam-configurator .canam-mobile-buy{display:flex;position:sticky;bottom:0;z-index:30;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;background:#090e17;border-top:1px solid #344258}.canam-configurator .canam-mobile-buy button{border:0;border-radius:9px;padding:12px 14px;background:#c7ff35;color:#101407;font-weight:900}.canam-configurator .mobile-copy{display:flex;flex-direction:column;gap:4px}.canam-configurator .mobile-copy small{font-size:9px;color:#c7ff35}.canam-configurator .mobile-copy strong{font-size:16px;color:#fff}}
+
+/* ProEshop native dark theme — Can-Am configurator */
+.canam-configurator{
+  --bg:#10152b!important;
+  --panel:#191f38!important;
+  --line:#303955!important;
+  --text:#f2f4ff!important;
+  --muted:#a0a9c2!important;
+  --lime:#c7ff35!important;
+  --lime-soft:#d9ff78!important;
+  --eshop-blue:#7668e8!important;
+  --eshop-blue2:#9386ff!important;
+  background:linear-gradient(180deg,#10152b 0%,#151b32 100%)!important;
+  color:#f2f4ff!important;
+}
+.canam-configurator .canam-wrap,
+.canam-configurator .layout,
+.canam-configurator .config,
+.canam-configurator .gallery,
+.canam-configurator .category-items{
+  background:transparent!important;
+}
+.canam-configurator .headline h1,
+.canam-configurator .config h2,
+.canam-configurator .model-title,
+.canam-configurator .row.total,
+.canam-configurator .spec span,
+.canam-configurator .accessory-item,
+.canam-configurator .accessory-item b{
+  color:#f2f4ff!important;
+}
+.canam-configurator .headline p,
+.canam-configurator .muted,
+.canam-configurator .step,
+.canam-configurator .row,
+.canam-configurator .fine,
+.canam-configurator .canam-foot,
+.canam-configurator .item-tag,
+.canam-configurator .catalog-count,
+.canam-configurator .mobile-copy small{
+  color:#a0a9c2!important;
+}
+.canam-configurator .headline h1 span,
+.canam-configurator .eyebrow,
+.canam-configurator .source,
+.canam-configurator .item-tag a{
+  color:#9a8cff!important;
+}
+.canam-configurator .pill{
+  border-color:#45406f!important;
+  background:#242344!important;
+  color:#c8c0ff!important;
+}
+.canam-configurator .promo-pill{
+  border:1px solid #c7ff35!important;
+  background:linear-gradient(110deg,#28351d,#1a2330)!important;
+  color:#e5ffad!important;
+}
+.canam-configurator .price-sale,
+.canam-configurator .saving-row,
+.canam-configurator .row.total strong,
+.canam-configurator .mobile-copy strong{
+  color:#c7ff35!important;
+}
+.canam-configurator .panel,
+.canam-configurator .accessory-category{
+  background:#191f38!important;
+  color:#f2f4ff!important;
+  border-color:#303955!important;
+  box-shadow:0 8px 24px rgba(0,0,0,.22)!important;
+}
+.canam-configurator .visual-head,
+.canam-configurator .visual-foot,
+.canam-configurator .category-head{
+  background:#202743!important;
+  color:#f2f4ff!important;
+  border-color:#303955!important;
+}
+.canam-configurator .stage{
+  background:radial-gradient(ellipse at 50% 72%,#283650,#182139 42%,#0b1020 100%)!important;
+}
+.canam-configurator .angle,
+.canam-configurator .model-select,
+.canam-configurator .select,
+.canam-configurator .spec,
+.canam-configurator .extra,
+.canam-configurator .accessory-item{
+  background:#151c33!important;
+  color:#e8ebfa!important;
+  border-color:#35405e!important;
+}
+.canam-configurator .model-select option{
+  background:#151c33!important;
+  color:#f2f4ff!important;
+}
+.canam-configurator .angle.active,
+.canam-configurator .angle:hover{
+  border-color:#9184ff!important;
+  color:#c6bdff!important;
+  background:#29264b!important;
+}
+.canam-configurator .spec b,
+.canam-configurator .spec-icon,
+.canam-configurator .spec-icon svg,
+.canam-configurator .category-head .category-icon,
+.canam-configurator .category-head .category-icon svg{
+  color:#c7ff35!important;
+  stroke:#c7ff35!important;
+}
+.canam-configurator .extra input{accent-color:#c7ff35!important}
+.canam-configurator .summary{border-top-color:#35405e!important}
+.canam-configurator .btn{
+  background:linear-gradient(110deg,#6255d8,#8275f5)!important;
+  color:#fff!important;
+  box-shadow:0 7px 18px rgba(98,85,216,.25)!important;
+}
+.canam-configurator .accessory-item.selected{
+  border-color:#a5d92b!important;
+  background:#242f27!important;
+}
+.canam-configurator .empty-accessories{
+  border-color:#35405e!important;
+  color:#a0a9c2!important;
+}
+.canam-configurator .canam-mobile-buy{
+  background:rgba(15,20,39,.97)!important;
+  border-top:1px solid #303955!important;
+  box-shadow:0 -8px 24px rgba(0,0,0,.35)!important;
+  backdrop-filter:blur(14px);
+}
+.canam-configurator .mobile-buy button{
+  background:#c7ff35!important;
+  color:#111827!important;
+}
+.canam-configurator .swatch.active{
+  outline-color:#c7ff35!important;
+  box-shadow:0 0 0 3px rgba(199,255,53,.18)!important;
+}
+.canam-configurator .swatch:focus-visible,
+.canam-configurator .angle:focus-visible,
+.canam-configurator .model-card:focus-visible{
+  outline-color:#9386ff!important;
+}
