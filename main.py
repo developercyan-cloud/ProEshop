@@ -30,6 +30,10 @@ DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "change-me")
 INITIAL_BALANCE = Decimal(os.getenv("INITIAL_FAKE_BALANCE", "1000.00"))
 CURRENCY = os.getenv("CURRENCY", "USD")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", secrets.token_urlsafe(24))
+GLOBAL_TRACKING_URL = os.getenv("GLOBAL_TRACKING_URL", "").strip().rstrip("/")
+GLOBAL_TRACKING_SYNC_SECRET = os.getenv("GLOBAL_TRACKING_SYNC_SECRET", "").strip()
+GLOBAL_TRACKING_ORIGIN_CITY = os.getenv("GLOBAL_TRACKING_ORIGIN_CITY", "").strip()
+GLOBAL_TRACKING_ORIGIN_COUNTRY = os.getenv("GLOBAL_TRACKING_ORIGIN_COUNTRY", "").strip()
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "").strip()
 ESTIMATED_TAX_RATE = Decimal(os.getenv("ESTIMATED_TAX_RATE", "0.08"))
 ESTIMATED_SHIPPING_FEE = Decimal(os.getenv("ESTIMATED_SHIPPING_FEE", "5.99"))
@@ -1620,6 +1624,79 @@ class OrderStatusBody(BaseModel):
     detail: str = Field(default="", max_length=500)
 
 
+async def notify_global_tracking(
+    order_ref: str,
+    status: str,
+    store_label: str,
+    destination_city: str = "",
+    destination_country: str = "",
+):
+    """Send minimal signed order status data to the separate Global Tracking app."""
+    if not GLOBAL_TRACKING_URL or not GLOBAL_TRACKING_SYNC_SECRET:
+        return {"sent": False, "reason": "not_configured"}
+
+    # Only logistics-relevant lifecycle states are shared. In particular, no
+    # payment-pending or payment-review state creates a public shipment.
+    allowed_statuses = {"confirmed", "in_process", "preparing", "shipped", "cancelled"}
+    if status not in allowed_statuses:
+        return {"sent": False, "reason": "status_not_synced"}
+
+    status_label = ORDER_STATUS_LABELS.get(status, status)
+    payload = {
+        # Stable event identifier: repeated delivery of the same state transition
+        # for this order is recognized as a duplicate by the receiver.
+        "event_id": f"proeshop:{order_ref}:{status}",
+        "order_ref": order_ref,
+        "status": status_label,
+        "origin_city": GLOBAL_TRACKING_ORIGIN_CITY,
+        "origin_country": GLOBAL_TRACKING_ORIGIN_COUNTRY,
+        "destination_city": destination_city or "",
+        "destination_country": destination_country or "",
+        "package_description": f"Pedido {store_label} · ProEshop",
+    }
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    timestamp = str(int(time.time()))
+    signature = hmac.new(
+        GLOBAL_TRACKING_SYNC_SECRET.encode("utf-8"),
+        timestamp.encode("ascii") + b"." + raw,
+        hashlib.sha256,
+    ).hexdigest()
+    headers = {
+        "Content-Type": "application/json",
+        "X-ProEshop-Timestamp": timestamp,
+        "X-ProEshop-Signature": signature,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=5.0)) as client:
+            response = await client.post(
+                GLOBAL_TRACKING_URL + "/api/integrations/proeshop/orders",
+                content=raw,
+                headers=headers,
+            )
+        if response.status_code >= 300:
+            log.warning(
+                "Global Tracking rechazó la actualización del pedido %s (HTTP %s)",
+                order_ref, response.status_code,
+            )
+            return {"sent": False, "reason": f"http_{response.status_code}"}
+        try:
+            result = response.json()
+        except ValueError:
+            result = {}
+        return {
+            "sent": True,
+            "result": result.get("result", "accepted"),
+            "tracking_number": result.get("tracking_number"),
+        }
+    except httpx.HTTPError as exc:
+        log.warning(
+            "No se pudo notificar Global Tracking para el pedido %s (%s)",
+            order_ref, type(exc).__name__,
+        )
+        return {"sent": False, "reason": "connection_error"}
+
+
 @app.post("/api/admin/orders/{order_ref}/status")
 async def admin_update_order_status(order_ref: str, body: OrderStatusBody, request: Request):
     if not ADMIN_API_KEY:
@@ -1629,6 +1706,8 @@ async def admin_update_order_status(order_ref: str, body: OrderStatusBody, reque
     new_status = body.status.strip().lower()
     if new_status not in ORDER_STATUS_LABELS:
         raise HTTPException(400, "Estado no reconocido.")
+    destination_city = ""
+    destination_country = ""
     with conn() as db:
         store_order = db.execute("SELECT * FROM store_orders WHERE store_order_ref=?", (order_ref,)).fetchone()
         if store_order:
@@ -1647,6 +1726,13 @@ async def admin_update_order_status(order_ref: str, body: OrderStatusBody, reque
             email_order_ref = order_ref
             email_total, email_currency, recipient = store_order["total"], store_order["currency"], store_order["customer_email"]
             parent_ref, store_label = store_order["order_ref"], store_order["store_label"]
+            parent_order = db.execute(
+                "SELECT shipping_city, shipping_country FROM orders WHERE order_ref=?",
+                (parent_ref,),
+            ).fetchone()
+            if parent_order:
+                destination_city = parent_order["shipping_city"] or ""
+                destination_country = parent_order["shipping_country"] or ""
         else:
             # Backward compatibility for historical single-order references.
             order = db.execute("SELECT * FROM orders WHERE order_ref=?", (order_ref,)).fetchone()
@@ -1662,11 +1748,21 @@ async def admin_update_order_status(order_ref: str, body: OrderStatusBody, reque
                        (order_ref, new_status, ORDER_STATUS_LABELS[new_status], detail, now))
             email_order_ref, email_total, email_currency, recipient = order_ref, order["total"], order["currency"], order["customer_email"]
             parent_ref, store_label = order_ref, "ProEshop"
+            destination_city = order["shipping_city"] or ""
+            destination_country = order["shipping_country"] or ""
     audit("admin", "order_status_change", f"order={order_ref}; from={old_status}; to={new_status}")
+    tracking_sync = await notify_global_tracking(
+        order_ref=order_ref,
+        status=new_status,
+        store_label=store_label,
+        destination_city=destination_city,
+        destination_country=destination_country,
+    )
     email_result = (enqueue_and_send_store_order_email(email_order_ref, new_status, recipient, email_total, email_currency,
         f"Tienda: {store_label}. {detail}") if store_order else enqueue_and_send_order_email(email_order_ref, new_status, recipient, email_total, email_currency, detail))
     return {"ok": True, "order_ref": order_ref, "parent_order_ref": parent_ref, "store": store_label,
             "previous_status": old_status, "status": new_status, "status_label": ORDER_STATUS_LABELS[new_status],
+            "global_tracking": tracking_sync,
             "email_sent": bool(email_result.get("sent")),
             "email_status": "sent" if email_result.get("sent") else email_result.get("reason", "not_configured")}
 
