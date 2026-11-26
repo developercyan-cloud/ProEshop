@@ -280,6 +280,9 @@ def init_db():
           telegram_id TEXT PRIMARY KEY, order_updates INTEGER NOT NULL DEFAULT 1,
           security_alerts INTEGER NOT NULL DEFAULT 1, updated_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS global_tracking_events(
+          event_id TEXT PRIMARY KEY, order_ref TEXT NOT NULL, received_at TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS audit_log(
           id INTEGER PRIMARY KEY AUTOINCREMENT, actor_id TEXT NOT NULL DEFAULT '',
           action TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL
@@ -342,6 +345,12 @@ ORDER_STATUS_LABELS = {
     "unavailable": "Producto no disponible",
     "cancelled": "Cancelado",
     "returned": "Devuelto",
+    "tracking_dispatched": "Despachado",
+    "tracking_in_transit": "En tránsito",
+    "tracking_at_hub": "En centro logístico",
+    "tracking_out_for_delivery": "En reparto",
+    "tracking_delivered": "Entregado",
+    "tracking_incident": "Incidencia logística",
 }
 ORDER_TRANSITIONS = {
     "confirmed_simulated": {"reviewing", "cancelled", "unavailable"},
@@ -373,6 +382,12 @@ ORDER_EMAIL_COPY = {
     "unavailable": ("Actualización sobre disponibilidad", "El producto no está disponible actualmente en la tienda. Se emitira un reembolso."),
     "cancelled": ("Pedido cancelado por falta de pago", "Tu pedido fue cancelado automáticamente porque no se detectó el pago confirmado dentro del plazo de cinco minutos. La cotización expiró y ya no debes enviar fondos usando esos datos. Si deseas comprar, crea un nuevo pedido."),
     "returned": ("Actualización de devolución", "El pedido fue marcado como devuelto. El estado de cualquier reembolso se gestiona por separado."),
+    "tracking_dispatched": ("Tu pedido fue despachado", "La logística de ProEshop registró el despacho de tu pedido."),
+    "tracking_in_transit": ("Tu pedido está en tránsito", "Tu pedido continúa su recorrido hacia el destino."),
+    "tracking_at_hub": ("Tu pedido llegó a un centro logístico", "Tu pedido registró un movimiento en un centro logístico."),
+    "tracking_out_for_delivery": ("Tu pedido está en reparto", "Tu pedido se encuentra en la etapa de reparto."),
+    "tracking_delivered": ("Tu pedido ha sido entregado", "La logística de ProEshop registró la entrega de tu pedido."),
+    "tracking_incident": ("Actualización logística de tu pedido", "Se registró una incidencia logística. ProEshop está revisando la novedad."),
 }
 
 def _email_store_theme(detail: str = ""):
@@ -1764,6 +1779,106 @@ async def admin_update_order_status(order_ref: str, body: OrderStatusBody, reque
             "previous_status": old_status, "status": new_status, "status_label": ORDER_STATUS_LABELS[new_status],
             "global_tracking": tracking_sync,
             "email_sent": bool(email_result.get("sent")),
+            "email_status": "sent" if email_result.get("sent") else email_result.get("reason", "not_configured")}
+
+
+class GlobalTrackingEventBody(BaseModel):
+    event_id: str = Field(min_length=8, max_length=160)
+    order_ref: str = Field(min_length=1, max_length=100)
+    tracking_status: str = Field(min_length=2, max_length=80)
+    description: str = Field(default="", max_length=500)
+    city: str = Field(default="", max_length=80)
+    country: str = Field(default="", max_length=80)
+
+
+@app.post("/api/integrations/global-tracking/events")
+async def receive_global_tracking_event(request: Request):
+    """Receive signed logistics milestones and use ProEshop's existing email queues."""
+    if not GLOBAL_TRACKING_SYNC_SECRET:
+        raise HTTPException(503, "Integración logística no configurada.")
+    try:
+        timestamp = int(request.headers.get("X-Global-Tracking-Timestamp", ""))
+    except ValueError:
+        raise HTTPException(401, "Firma no válida.")
+    if abs(int(time.time()) - timestamp) > 300:
+        raise HTTPException(401, "Evento expirado.")
+    raw = await request.body()
+    expected = hmac.new(
+        GLOBAL_TRACKING_SYNC_SECRET.encode("utf-8"),
+        str(timestamp).encode("ascii") + b"." + raw,
+        hashlib.sha256,
+    ).hexdigest()
+    supplied = request.headers.get("X-Global-Tracking-Signature", "").lower()
+    if not hmac.compare_digest(expected, supplied):
+        raise HTTPException(401, "Firma no válida.")
+    try:
+        body = GlobalTrackingEventBody(**json.loads(raw))
+    except Exception:
+        raise HTTPException(422, "Datos logísticos no válidos.")
+
+    event_map = {
+        "Despachado": "tracking_dispatched",
+        "En tránsito": "tracking_in_transit",
+        "En centro logístico": "tracking_at_hub",
+        "En reparto": "tracking_out_for_delivery",
+        "Entregado": "tracking_delivered",
+        "Incidencia": "tracking_incident",
+    }
+    email_key = event_map.get(body.tracking_status)
+    if not email_key:
+        raise HTTPException(422, "Estado logístico no reconocido.")
+
+    store_order = None
+    with conn() as db:
+        if db.execute("SELECT 1 FROM global_tracking_events WHERE event_id=?", (body.event_id,)).fetchone():
+            return {"ok": True, "duplicate": True, "email_sent": False}
+        store_order = db.execute("SELECT * FROM store_orders WHERE store_order_ref=?", (body.order_ref,)).fetchone()
+        order = None
+        if not store_order:
+            order = db.execute("SELECT * FROM orders WHERE order_ref=?", (body.order_ref,)).fetchone()
+        if not store_order and not order:
+            raise HTTPException(404, "Pedido no encontrado en ProEshop.")
+
+        now = now_iso()
+        detail = (body.description.strip() or f"Actualización de Global Tracking: {body.tracking_status}")[:500]
+        if store_order:
+            current = store_order["status"]
+            # Logistics milestones map to the existing commercial lifecycle only.
+            mapped = "delivered" if body.tracking_status == "Entregado" else "shipped"
+            if current not in {"cancelled", "returned", "delivered"} and mapped != current:
+                db.execute("UPDATE store_orders SET status=?,updated_at=? WHERE store_order_ref=?", (mapped, now, body.order_ref))
+            db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
+                       (store_order["order_ref"], mapped if mapped == "delivered" else current, f"Logística: {body.tracking_status}", detail, now))
+            db.execute("INSERT INTO store_order_events(store_order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
+                       (body.order_ref, mapped if mapped == "delivered" else current, body.tracking_status, detail, now))
+            if body.tracking_status == "Entregado" and current not in {"cancelled", "returned"}:
+                remaining = db.execute("SELECT COUNT(*) AS n FROM store_orders WHERE order_ref=? AND store_order_ref!=? AND status!='delivered'",
+                                       (store_order["order_ref"], body.order_ref)).fetchone()["n"]
+                if remaining == 0:
+                    db.execute("UPDATE orders SET status='delivered',updated_at=? WHERE order_ref=?", (now, store_order["order_ref"]))
+            recipient = (store_order["customer_email"] or "").strip()
+            total, currency = store_order["total"], store_order["currency"]
+            email_ref, store_label, is_store = body.order_ref, store_order["store_label"], True
+        else:
+            current = order["status"]
+            mapped = "delivered" if body.tracking_status == "Entregado" else "shipped"
+            if current not in {"cancelled", "returned", "delivered"} and mapped != current:
+                db.execute("UPDATE orders SET status=?,updated_at=? WHERE order_ref=?", (mapped, now, body.order_ref))
+            db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
+                       (body.order_ref, mapped if mapped == "delivered" else current, f"Logística: {body.tracking_status}", detail, now))
+            recipient = (order["customer_email"] or "").strip()
+            total, currency = order["total"], order["currency"]
+            email_ref, store_label, is_store = body.order_ref, "ProEshop", False
+
+        db.execute("INSERT INTO global_tracking_events(event_id,order_ref,received_at) VALUES(?,?,?)",
+                   (body.event_id, body.order_ref, now))
+
+    email_detail = f"Tienda: {store_label}. {body.tracking_status}. {detail}"
+    email_result = (enqueue_and_send_store_order_email(email_ref, email_key, recipient, total, currency, email_detail)
+                    if is_store else enqueue_and_send_order_email(email_ref, email_key, recipient, total, currency, email_detail))
+    audit("global_tracking", "logistics_status_received", f"order={body.order_ref}; status={body.tracking_status}")
+    return {"ok": True, "duplicate": False, "order_ref": body.order_ref,
+            "tracking_status": body.tracking_status, "email_sent": bool(email_result.get("sent")),
             "email_status": "sent" if email_result.get("sent") else email_result.get("reason", "not_configured")}
 
 
