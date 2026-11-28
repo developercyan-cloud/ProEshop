@@ -35,7 +35,7 @@ function statusLabelForTracking(status){const labels={pending_payment:'Pendiente
 function renderHistory(){
  const wrap=$('historyItems');wrap.innerHTML='';
  const orders=state.orders||[];const storeOrders=state.store_orders||[];const events=state.store_order_events||[];const history=state.history||[];
- const trackingButton=(ref,status)=>{const guide=state.tracking_links?.[ref];if(status!=='shipped'||!guide)return '';let target;try{target=new URL(state.global_tracking_url||'');}catch(_){return '';}if(!['https:','http:'].includes(target.protocol))return '';target.search='';target.hash='';while(target.pathname.endsWith('/'))target.pathname=target.pathname.slice(0,-1);target.pathname+='/';target.searchParams.set('q',guide);return '<a class="track-shipment-link" href="'+escapeHtml(target.toString())+'" target="_blank" rel="noopener noreferrer">Rastrear mi envío ↗</a>';};
+ const trackingButton=(ref,status)=>{const guide=state.tracking_links?.[ref];if(status!=='shipped'||!guide)return '';let target;try{target=new URL(state.global_tracking_url||'');}catch(_){return '';}if(!['https:','http:'].includes(target.protocol))return '';target.search='';target.hash='';const path=target.pathname.split('/').filter(Boolean).join('/');target.pathname=path?'/'+path+'/':'/';target.searchParams.set('q',guide);return '<a class="track-shipment-link" href="'+escapeHtml(target.toString())+'" target="_blank" rel="noopener noreferrer">Rastrear mi envío ↗</a>';};
  $('historyEmpty').classList.toggle('hidden',!orders.length);
  orders.forEach(order=>{
   const children=storeOrders.filter(s=>s.order_ref===order.order_ref);
