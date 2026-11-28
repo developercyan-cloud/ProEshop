@@ -1436,6 +1436,50 @@ async def search(body: SearchBody, request: Request):
         raise HTTPException(502, "No se pudo procesar la búsqueda. Intenta nuevamente.")
 
 
+async def fetch_global_tracking_links(order_refs: list[str]) -> dict[str, str]:
+    """Resolve existing shipment guides without storing or exposing customer data."""
+    if not GLOBAL_TRACKING_URL or not GLOBAL_TRACKING_SYNC_SECRET or not order_refs:
+        return {}
+    refs = list(dict.fromkeys(str(ref).strip() for ref in order_refs if str(ref).strip()))
+    found = {}
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(4.0, connect=2.0)) as client:
+            for offset in range(0, len(refs), 100):
+                batch = refs[offset:offset + 100]
+                payload = {"order_refs": batch}
+                raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+                timestamp = str(int(time.time()))
+                signature = hmac.new(
+                    GLOBAL_TRACKING_SYNC_SECRET.encode("utf-8"),
+                    timestamp.encode("ascii") + b"." + raw,
+                    hashlib.sha256,
+                ).hexdigest()
+                response = await client.post(
+                    GLOBAL_TRACKING_URL + "/api/integrations/proeshop/tracking-links",
+                    content=raw,
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-ProEshop-Timestamp": timestamp,
+                        "X-ProEshop-Signature": signature,
+                    },
+                )
+                if response.status_code >= 300:
+                    continue
+                data = response.json()
+                links = data.get("tracking_links", {}) if isinstance(data, dict) else {}
+                if not isinstance(links, dict):
+                    continue
+                allowed = {ref.casefold() for ref in batch}
+                found.update({
+                    str(ref): str(number)
+                    for ref, number in links.items()
+                    if isinstance(ref, str) and ref.casefold() in allowed
+                    and isinstance(number, str) and number.strip()
+                })
+    except (httpx.HTTPError, ValueError) as exc:
+        log.info("No fue posible recuperar guías de Global Tracking (%s)", type(exc).__name__)
+    return found
+
 @app.get("/api/state")
 async def state(request: Request):
     tg_id = get_auth(request)
@@ -1457,6 +1501,18 @@ async def state(request: Request):
         order_events = db.execute("SELECT e.* FROM order_events e JOIN orders o ON o.order_ref=e.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
         store_orders = db.execute("SELECT so.*, o.created_at AS parent_created_at FROM store_orders so JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY so.created_at DESC, so.store_label ASC", (tg_id,)).fetchall()
         store_order_events = db.execute("SELECT e.* FROM store_order_events e JOIN store_orders so ON so.store_order_ref=e.store_order_ref JOIN orders o ON o.order_ref=so.order_ref WHERE o.telegram_id=? ORDER BY e.created_at ASC, e.id ASC", (tg_id,)).fetchall()
+    order_data = [dict(row) for row in orders]
+    store_order_data = [dict(row) for row in store_orders]
+    refs_with_stores = {row["order_ref"] for row in store_order_data}
+    tracking_refs = [
+        row["store_order_ref"] for row in store_order_data
+        if row.get("status") == "shipped"
+    ]
+    tracking_refs.extend(
+        row["order_ref"] for row in order_data
+        if row.get("status") == "shipped" and row["order_ref"] not in refs_with_stores
+    )
+    tracking_links = await fetch_global_tracking_links(tracking_refs)
     # Backfill local image paths for older cart rows; avoids external-site 403 errors in cart/checkout.
     for item in cart:
         platform = str(item.get("platform", "")).lower()
@@ -1482,9 +1538,11 @@ async def state(request: Request):
         "shipping_fee": str(ESTIMATED_SHIPPING_FEE),
         "cart": cart,
         "history": [dict(x) for x in history],
-        "orders": [dict(x) for x in orders],
+        "orders": order_data,
         "order_events": [dict(x) for x in order_events],
-        "store_orders": [dict(x) for x in store_orders],
+        "store_orders": store_order_data,
+        "tracking_links": tracking_links,
+        "global_tracking_url": GLOBAL_TRACKING_URL,
         "store_order_events": [dict(x) for x in store_order_events],
         "platforms": [{"id": k, "label": v["label"]} for k,v in PLATFORMS.items()]
     }
