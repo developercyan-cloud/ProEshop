@@ -215,7 +215,6 @@ def init_db():
           shipping_country TEXT NOT NULL DEFAULT '', shipping_address TEXT NOT NULL DEFAULT '',
           payment_method TEXT NOT NULL DEFAULT 'demo_balance',
           customer_email TEXT NOT NULL DEFAULT '', customer_phone TEXT NOT NULL DEFAULT '',
-          sms_consent INTEGER NOT NULL DEFAULT 0, sms_consent_at TEXT NOT NULL DEFAULT '', customer_phone TEXT NOT NULL DEFAULT '',
           sms_consent INTEGER NOT NULL DEFAULT 0, sms_consent_at TEXT NOT NULL DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS crypto_payments(
@@ -322,12 +321,6 @@ def init_db():
         }.items():
             if column not in order_columns:
                 db.execute(f"ALTER TABLE orders ADD COLUMN {column} {declaration}")
-
-        # Additive migrations: preserve all existing orders and payment history.
-        cols = {r[1] for r in db.execute("PRAGMA table_info(orders)").fetchall()}
-        for name, declaration in (("customer_phone", "TEXT NOT NULL DEFAULT ''"), ("sms_consent", "INTEGER NOT NULL DEFAULT 0"), ("sms_consent_at", "TEXT NOT NULL DEFAULT ''")):
-            if name not in cols:
-                db.execute(f"ALTER TABLE orders ADD COLUMN {name} {declaration}")
 
         # Additive migrations: preserve all existing orders and payment history.
         cols = {r[1] for r in db.execute("PRAGMA table_info(orders)").fetchall()}
@@ -671,8 +664,6 @@ class CheckoutBody(BaseModel):
     shipping_country: str = Field(default="", max_length=80)
     shipping_address: str = Field(default="", max_length=180)
     customer_email: str = Field(default="", max_length=254)
-    customer_phone: str = Field(default="", max_length=24)
-    sms_consent: bool = False
     customer_phone: str = Field(default="", max_length=24)
     sms_consent: bool = False
     # Backward compatibility: older frontend versions sent the address as "email".
@@ -2570,11 +2561,6 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
         raise HTTPException(400, "Introduce tu correo electrónico para recibir las notificaciones de pago pendiente y cancelación.")
     if customer_email and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", customer_email):
         raise HTTPException(400, "Introduce un correo electrónico válido.")
-    customer_phone = re.sub(r"[\s().-]", "", body.customer_phone or "")
-    if customer_phone and not re.fullmatch(r"\+[1-9]\d{7,14}", customer_phone):
-        raise HTTPException(400, "Introduce el teléfono en formato internacional, por ejemplo +573001234567.")
-    if body.sms_consent and not customer_phone:
-        raise HTTPException(400, "Introduce un teléfono internacional para autorizar SMS.")
     customer_phone = re.sub(r"[\s().-]", "", body.customer_phone or "")
     if customer_phone and not re.fullmatch(r"\+[1-9]\d{7,14}", customer_phone):
         raise HTTPException(400, "Introduce el teléfono en formato internacional, por ejemplo +573001234567.")
