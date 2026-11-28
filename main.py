@@ -1672,8 +1672,18 @@ async def notify_global_tracking(
         return {"sent": False, "reason": "status_not_synced"}
 
     status_label = ORDER_STATUS_LABELS.get(status, status)
+    # Store-order references identify the shipment sent to Global Tracking, while
+    # contact details live on the parent order. Historical order references resolve
+    # directly through the fallback value.
     with conn() as db:
-        customer = db.execute("SELECT customer_phone, sms_consent FROM orders WHERE order_ref=?", (order_ref,)).fetchone()
+        customer = db.execute(
+            """SELECT customer_phone, sms_consent FROM orders
+               WHERE order_ref = COALESCE(
+                   (SELECT order_ref FROM store_orders WHERE store_order_ref=?),
+                   ?
+               )""",
+            (order_ref, order_ref),
+        ).fetchone()
     payload = {
         "customer_phone": (customer["customer_phone"] if customer else ""),
         "sms_consent": bool(customer["sms_consent"]) if customer else False,
@@ -1722,6 +1732,8 @@ async def notify_global_tracking(
             "sent": True,
             "result": result.get("result", "accepted"),
             "tracking_number": result.get("tracking_number"),
+            "sms_sent": bool(result.get("sms_sent")),
+            "sms_reason": result.get("sms_reason", "not_reported"),
         }
     except httpx.HTTPError as exc:
         log.warning(
@@ -1742,21 +1754,24 @@ async def admin_update_order_status(order_ref: str, body: OrderStatusBody, reque
         raise HTTPException(400, "Estado no reconocido.")
     destination_city = ""
     destination_country = ""
+    unchanged = False
     with conn() as db:
         store_order = db.execute("SELECT * FROM store_orders WHERE store_order_ref=?", (order_ref,)).fetchone()
         if store_order:
             old_status = store_order["status"]
-            if old_status == new_status:
-                return {"ok": True, "unchanged": True, "status": new_status, "email_sent": False, "store_order_ref": order_ref}
-            if new_status not in ORDER_TRANSITIONS.get(old_status, set()):
-                raise HTTPException(409, f"Transición no permitida: {ORDER_STATUS_LABELS.get(old_status, old_status)} → {ORDER_STATUS_LABELS[new_status]}.")
-            now = now_iso()
-            detail = body.detail.strip() or f"Estado actualizado para {store_order['store_label']}: {ORDER_STATUS_LABELS[new_status]}"
-            db.execute("UPDATE store_orders SET status=?,updated_at=? WHERE store_order_ref=?", (new_status, now, order_ref))
-            db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
-                       (store_order["order_ref"], new_status, f"{store_order['store_label']}: {ORDER_STATUS_LABELS[new_status]}", detail, now))
-            db.execute("INSERT INTO store_order_events(store_order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
-                       (order_ref, new_status, ORDER_STATUS_LABELS[new_status], detail, now))
+            unchanged = old_status == new_status
+            if not unchanged:
+                if new_status not in ORDER_TRANSITIONS.get(old_status, set()):
+                    raise HTTPException(409, f"Transición no permitida: {ORDER_STATUS_LABELS.get(old_status, old_status)} → {ORDER_STATUS_LABELS[new_status]}.")
+                now = now_iso()
+                detail = body.detail.strip() or f"Estado actualizado para {store_order['store_label']}: {ORDER_STATUS_LABELS[new_status]}"
+                db.execute("UPDATE store_orders SET status=?,updated_at=? WHERE store_order_ref=?", (new_status, now, order_ref))
+                db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
+                           (store_order["order_ref"], new_status, f"{store_order['store_label']}: {ORDER_STATUS_LABELS[new_status]}", detail, now))
+                db.execute("INSERT INTO store_order_events(store_order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
+                           (order_ref, new_status, ORDER_STATUS_LABELS[new_status], detail, now))
+            else:
+                detail = body.detail.strip()
             email_order_ref = order_ref
             email_total, email_currency, recipient = store_order["total"], store_order["currency"], store_order["customer_email"]
             parent_ref, store_label = store_order["order_ref"], store_order["store_label"]
@@ -1770,21 +1785,28 @@ async def admin_update_order_status(order_ref: str, body: OrderStatusBody, reque
         else:
             # Backward compatibility for historical single-order references.
             order = db.execute("SELECT * FROM orders WHERE order_ref=?", (order_ref,)).fetchone()
-            if not order: raise HTTPException(404, "Pedido no encontrado.")
+            if not order:
+                raise HTTPException(404, "Pedido no encontrado.")
             old_status = order["status"]
-            if old_status == new_status:
-                return {"ok": True, "unchanged": True, "status": new_status, "email_sent": False}
-            if new_status not in ORDER_TRANSITIONS.get(old_status, set()):
-                raise HTTPException(409, f"Transición no permitida: {ORDER_STATUS_LABELS.get(old_status, old_status)} → {ORDER_STATUS_LABELS[new_status]}.")
-            now = now_iso(); detail = body.detail.strip() or f"Estado actualizado por administrador: {ORDER_STATUS_LABELS[new_status]}"
-            db.execute("UPDATE orders SET status=?,updated_at=? WHERE order_ref=?", (new_status, now, order_ref))
-            db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
-                       (order_ref, new_status, ORDER_STATUS_LABELS[new_status], detail, now))
+            unchanged = old_status == new_status
+            if not unchanged:
+                if new_status not in ORDER_TRANSITIONS.get(old_status, set()):
+                    raise HTTPException(409, f"Transición no permitida: {ORDER_STATUS_LABELS.get(old_status, old_status)} → {ORDER_STATUS_LABELS[new_status]}.")
+                now = now_iso()
+                detail = body.detail.strip() or f"Estado actualizado por administrador: {ORDER_STATUS_LABELS[new_status]}"
+                db.execute("UPDATE orders SET status=?,updated_at=? WHERE order_ref=?", (new_status, now, order_ref))
+                db.execute("INSERT INTO order_events(order_ref,status,label,detail,created_at) VALUES(?,?,?,?,?)",
+                           (order_ref, new_status, ORDER_STATUS_LABELS[new_status], detail, now))
+            else:
+                detail = body.detail.strip()
             email_order_ref, email_total, email_currency, recipient = order_ref, order["total"], order["currency"], order["customer_email"]
             parent_ref, store_label = order_ref, "ProEshop"
             destination_city = order["shipping_city"] or ""
             destination_country = order["shipping_country"] or ""
-    audit("admin", "order_status_change", f"order={order_ref}; from={old_status}; to={new_status}")
+    if not unchanged:
+        audit("admin", "order_status_change", f"order={order_ref}; from={old_status}; to={new_status}")
+    # Repeat the same signed event so Global Tracking can recover a pending or
+    # failed notification; its stable event id makes this idempotent.
     tracking_sync = await notify_global_tracking(
         order_ref=order_ref,
         status=new_status,
@@ -1792,11 +1814,17 @@ async def admin_update_order_status(order_ref: str, body: OrderStatusBody, reque
         destination_city=destination_city,
         destination_country=destination_country,
     )
-    email_result = (enqueue_and_send_store_order_email(email_order_ref, new_status, recipient, email_total, email_currency,
-        f"Tienda: {store_label}. {detail}") if store_order else enqueue_and_send_order_email(email_order_ref, new_status, recipient, email_total, email_currency, detail))
+    if unchanged:
+        email_result = {"sent": False, "reason": "unchanged"}
+    else:
+        email_result = (enqueue_and_send_store_order_email(email_order_ref, new_status, recipient, email_total, email_currency,
+            f"Tienda: {store_label}. {detail}") if store_order else enqueue_and_send_order_email(email_order_ref, new_status, recipient, email_total, email_currency, detail))
     return {"ok": True, "order_ref": order_ref, "parent_order_ref": parent_ref, "store": store_label,
             "previous_status": old_status, "status": new_status, "status_label": ORDER_STATUS_LABELS[new_status],
+            "unchanged": unchanged,
             "global_tracking": tracking_sync,
+            "sms_sent": bool(tracking_sync.get("sms_sent")),
+            "sms_reason": tracking_sync.get("sms_reason", tracking_sync.get("reason", "not_reported")),
             "email_sent": bool(email_result.get("sent")),
             "email_status": "sent" if email_result.get("sent") else email_result.get("reason", "not_configured")}
 
