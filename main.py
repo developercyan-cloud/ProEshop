@@ -34,6 +34,12 @@ GLOBAL_TRACKING_URL = os.getenv("GLOBAL_TRACKING_URL", "").strip().rstrip("/")
 GLOBAL_TRACKING_SYNC_SECRET = os.getenv("GLOBAL_TRACKING_SYNC_SECRET", "").strip()
 GLOBAL_TRACKING_ORIGIN_CITY = os.getenv("GLOBAL_TRACKING_ORIGIN_CITY", "").strip()
 GLOBAL_TRACKING_ORIGIN_COUNTRY = os.getenv("GLOBAL_TRACKING_ORIGIN_COUNTRY", "").strip()
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "").strip()
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "").strip()
+TWILIO_FROM_NUMBER = os.getenv("TWILIO_FROM_NUMBER", "").strip()
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "").strip()
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "").strip()
+TWILIO_FROM_NUMBER = os.getenv("TWILIO_FROM_NUMBER", "").strip()
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "").strip()
 ESTIMATED_TAX_RATE = Decimal(os.getenv("ESTIMATED_TAX_RATE", "0.08"))
 ESTIMATED_SHIPPING_FEE = Decimal(os.getenv("ESTIMATED_SHIPPING_FEE", "5.99"))
@@ -208,7 +214,9 @@ def init_db():
           shipping_name TEXT NOT NULL DEFAULT '', shipping_city TEXT NOT NULL DEFAULT '',
           shipping_country TEXT NOT NULL DEFAULT '', shipping_address TEXT NOT NULL DEFAULT '',
           payment_method TEXT NOT NULL DEFAULT 'demo_balance',
-          customer_email TEXT NOT NULL DEFAULT ''
+          customer_email TEXT NOT NULL DEFAULT '', customer_phone TEXT NOT NULL DEFAULT '',
+          sms_consent INTEGER NOT NULL DEFAULT 0, sms_consent_at TEXT NOT NULL DEFAULT '', customer_phone TEXT NOT NULL DEFAULT '',
+          sms_consent INTEGER NOT NULL DEFAULT 0, sms_consent_at TEXT NOT NULL DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS crypto_payments(
           order_ref TEXT PRIMARY KEY, network TEXT NOT NULL, token_symbol TEXT NOT NULL,
@@ -314,6 +322,18 @@ def init_db():
         }.items():
             if column not in order_columns:
                 db.execute(f"ALTER TABLE orders ADD COLUMN {column} {declaration}")
+
+        # Additive migrations: preserve all existing orders and payment history.
+        cols = {r[1] for r in db.execute("PRAGMA table_info(orders)").fetchall()}
+        for name, declaration in (("customer_phone", "TEXT NOT NULL DEFAULT ''"), ("sms_consent", "INTEGER NOT NULL DEFAULT 0"), ("sms_consent_at", "TEXT NOT NULL DEFAULT ''")):
+            if name not in cols:
+                db.execute(f"ALTER TABLE orders ADD COLUMN {name} {declaration}")
+
+        # Additive migrations: preserve all existing orders and payment history.
+        cols = {r[1] for r in db.execute("PRAGMA table_info(orders)").fetchall()}
+        for name, declaration in (("customer_phone", "TEXT NOT NULL DEFAULT ''"), ("sms_consent", "INTEGER NOT NULL DEFAULT 0"), ("sms_consent_at", "TEXT NOT NULL DEFAULT ''")):
+            if name not in cols:
+                db.execute(f"ALTER TABLE orders ADD COLUMN {name} {declaration}")
 
 
 def audit(actor_id: str, action: str, detail: str = ""):
@@ -651,6 +671,10 @@ class CheckoutBody(BaseModel):
     shipping_country: str = Field(default="", max_length=80)
     shipping_address: str = Field(default="", max_length=180)
     customer_email: str = Field(default="", max_length=254)
+    customer_phone: str = Field(default="", max_length=24)
+    sms_consent: bool = False
+    customer_phone: str = Field(default="", max_length=24)
+    sms_consent: bool = False
     # Backward compatibility: older frontend versions sent the address as "email".
     email: str = Field(default="", max_length=254)
     payment_method: str = Field(default="demo_balance", max_length=32)
@@ -1657,7 +1681,11 @@ async def notify_global_tracking(
         return {"sent": False, "reason": "status_not_synced"}
 
     status_label = ORDER_STATUS_LABELS.get(status, status)
+    with conn() as db:
+        customer = db.execute("SELECT customer_phone, sms_consent FROM orders WHERE order_ref=?", (order_ref,)).fetchone()
     payload = {
+        "customer_phone": (customer["customer_phone"] if customer else ""),
+        "sms_consent": bool(customer["sms_consent"]) if customer else False,
         # Stable event identifier: repeated delivery of the same state transition
         # for this order is recognized as a duplicate by the receiver.
         "event_id": f"proeshop:{order_ref}:{status}",
@@ -2542,6 +2570,16 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
         raise HTTPException(400, "Introduce tu correo electrónico para recibir las notificaciones de pago pendiente y cancelación.")
     if customer_email and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", customer_email):
         raise HTTPException(400, "Introduce un correo electrónico válido.")
+    customer_phone = re.sub(r"[\s().-]", "", body.customer_phone or "")
+    if customer_phone and not re.fullmatch(r"\+[1-9]\d{7,14}", customer_phone):
+        raise HTTPException(400, "Introduce el teléfono en formato internacional, por ejemplo +573001234567.")
+    if body.sms_consent and not customer_phone:
+        raise HTTPException(400, "Introduce un teléfono internacional para autorizar SMS.")
+    customer_phone = re.sub(r"[\s().-]", "", body.customer_phone or "")
+    if customer_phone and not re.fullmatch(r"\+[1-9]\d{7,14}", customer_phone):
+        raise HTTPException(400, "Introduce el teléfono en formato internacional, por ejemplo +573001234567.")
+    if body.sms_consent and not customer_phone:
+        raise HTTPException(400, "Introduce un teléfono internacional para autorizar SMS.")
     submitted_shipping = [body.shipping_name.strip(), body.shipping_city.strip(), body.shipping_country.strip(), body.shipping_address.strip()]
     if any(submitted_shipping) and not all(submitted_shipping):
         raise HTTPException(400, "Completa todos los datos de entrega de demostración.")
@@ -2579,10 +2617,10 @@ async def fictional_purchase(body: CheckoutBody, request: Request):
             if requested_usdt is None:
                 raise HTTPException(503, "No se pudo generar un importe único para el pago. Inténtalo nuevamente.")
         db.execute("""INSERT INTO orders(order_ref,telegram_id,subtotal,tax,shipping,total,currency,status,created_at,updated_at,
-                      shipping_name,shipping_city,shipping_country,shipping_address,payment_method,customer_email)
-                      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                      shipping_name,shipping_city,shipping_country,shipping_address,payment_method,customer_email,customer_phone,sms_consent,sms_consent_at)
+                      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                    (order_ref, tg_id, str(subtotal), str(tax), str(shipping), str(total), currency, "pending_payment" if is_crypto else "confirmed", when, when,
-                    shipping_name, shipping_city, shipping_country, shipping_address, body.payment_method, customer_email))
+                    shipping_name, shipping_city, shipping_country, shipping_address, body.payment_method, customer_email, customer_phone, int(bool(body.sms_consent)), when if body.sms_consent else ""))
         initial_status = "pending_payment" if is_crypto else "confirmed"
         initial_label = "Pendiente de pago" if is_crypto else "Confirmado"
         network_label = "MainNet Lab (fork de Ethereum) · USDT ERC-20" if is_tenderly else "TRON (TRC-20)"
